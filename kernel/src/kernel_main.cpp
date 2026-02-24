@@ -6,6 +6,7 @@
 #include "kernel/kmalloc.h"
 #include "kernel/vector.h"
 #include "kernel/string.h"
+#include "kernel/keyboard.h"
 #include "libc.h" // Для printf
 
 extern "C" void kernel_main() {
@@ -15,15 +16,18 @@ extern "C" void kernel_main() {
     // 2. Перемапливаем PIC
     re36::pic_remap(0x20, 0x28);
 
-    // 3. Включаем аппаратные прерывания
-    asm volatile("sti");
-
-    // 4. Инициализация Physical Memory Manager
+    // 3. Инициализация Physical Memory Manager
     re36::PhysicalMemoryManager::init(0x20000, 32 * 1024 * 1024);
     re36::PhysicalMemoryManager::set_region_free(0x100000, 31 * 1024 * 1024);
 
-    // 5. Инициализация Кучи (Heap) 
+    // 4. Инициализация Кучи (Heap) 
     re36::kmalloc_init();
+
+    // 5. Инициализация драйвера клавиатуры
+    re36::KeyboardDriver::init();
+
+    // Включаем аппаратные прерывания после настройки обработчиков
+    asm volatile("sti");
 
     // Очистим экран синим фоном напрямую разок (чтобы было красиво, как BIOS)
     volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -37,6 +41,7 @@ extern "C" void kernel_main() {
 
     printf("-> PMM Initialized (32 MB RAM)\n");
     printf("-> Heap Initialized\n");
+    printf("-> Keyboard Driver (Ring 0) Loaded via IRQ1\n");
     printf("-> Interrupts Enabled (STI)\n\n");
 
     // 6. Тест re36::vector

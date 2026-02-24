@@ -1,5 +1,6 @@
 #include "kernel/idt.h"
 #include "kernel/pic.h"
+#include "kernel/keyboard.h"
 
 namespace re36 {
 
@@ -141,21 +142,8 @@ extern "C" void isr_handler(re36::Registers* regs) {
         // Мы получили аппаратное прерывание от PIC
         
         if (regs->int_no == 33) {
-            // IRQ1 - Клавиатура
-            // Мы просто считаем байт из порта, чтобы PIC знал, что мы отреагировали.
-            uint8_t scancode = re36::inb(0x60);
-            
-            volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
-            static int kbd_x = 0; // Сохраняем позицию вывода между прерываниями
-            
-            // Печатаем сканкод в HEX (чтобы видеть реальные данные с клавиатуры)
-            // на второй строке (индекс 80), чтобы не затирать основное сообщение
-            const char hex[] = "0123456789ABCDEF";
-            vga_buffer[80 + kbd_x++] = (uint16_t(hex[scancode >> 4]) | (0x0E << 8)); // Желтый текст
-            vga_buffer[80 + kbd_x++] = (uint16_t(hex[scancode & 0x0F]) | (0x0E << 8));
-            vga_buffer[80 + kbd_x++] = (uint16_t(' ') | (0x0E << 8));
-            
-            if (kbd_x >= 80) kbd_x = 0; // Возврат в начало 2 строки, если дошли до края экрана
+            // IRQ1 - Вызываем обработчик драйвера клавиатуры
+            re36::KeyboardDriver::handle_interrupt();
         }
 
         // Отправляем End Of Interrupt (EOI) в PIC
