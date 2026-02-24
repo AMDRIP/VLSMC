@@ -146,8 +146,16 @@ extern "C" void isr_handler(re36::Registers* regs) {
             uint8_t scancode = re36::inb(0x60);
             
             volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
-            // Выведем символ "K", чтобы показать, что тайпинг работает
-            vga_buffer[0] = (uint16_t('K') | (0x0F << 8));
+            static int kbd_x = 0; // Сохраняем позицию вывода между прерываниями
+            
+            // Печатаем сканкод в HEX (чтобы видеть реальные данные с клавиатуры)
+            // на второй строке (индекс 80), чтобы не затирать основное сообщение
+            const char hex[] = "0123456789ABCDEF";
+            vga_buffer[80 + kbd_x++] = (uint16_t(hex[scancode >> 4]) | (0x0E << 8)); // Желтый текст
+            vga_buffer[80 + kbd_x++] = (uint16_t(hex[scancode & 0x0F]) | (0x0E << 8));
+            vga_buffer[80 + kbd_x++] = (uint16_t(' ') | (0x0E << 8));
+            
+            if (kbd_x >= 80) kbd_x = 0; // Возврат в начало 2 строки, если дошли до края экрана
         }
 
         // Отправляем End Of Interrupt (EOI) в PIC

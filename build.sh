@@ -18,10 +18,12 @@ echo "[3/4] Compiling C++ kernel sources..."
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/kernel_main.cpp -o kernel_main.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/idt.cpp -o idt.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/pic.cpp -o pic.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/pmm.cpp -o pmm.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/kmalloc.cpp -o kmalloc.o
 
 # 4. Компоновка (Link) и извлечение плоского бинарника
 echo "[4/4] Linking kernel..."
-x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld kernel_entry.o interrupts.o idt.o pic.o kernel_main.o -o kernel.elf
+x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld kernel_entry.o interrupts.o idt.o pic.o pmm.o kmalloc.o kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
 echo "=== Building Disk Image ==="
