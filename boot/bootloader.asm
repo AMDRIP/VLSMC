@@ -178,45 +178,39 @@ print_string:
     popa
     ret
 
-; --- Чтение секторов (LBA to CHS) ---
-; Вход: AX = LBA начального сектора, CX = сколько секторов, ES:BX = буфер
+; --- Чтение секторов (LBA) ---
+; Вход: AX = LBA начального сектора, CX = сколько читать, ES:BX = буфер
 read_sectors:
     pusha
 .read_loop:
     push ax
     push cx
     push bx
+    
+    ; Подготавливаем Disk Address Packet (DAP) в памяти
+    mov word [dap_size], 16         ; Размер структуры (16 байт)
+    mov word [dap_count], 1         ; Читать 1 сектор за раз
+    mov [dap_buffer_offset], bx     ; Смещение буфера (BX)
+    
+    mov cx, es
+    mov [dap_buffer_segment], cx    ; Сегмент буфера (ES)
+    
+    mov [dap_lba_lower], ax         ; LBA (Младшие 32 бита, старшие 16 обнуляем)
+    mov word [dap_lba_lower+2], 0
+    mov dword [dap_lba_upper], 0    ; Старшие 32 бита обнуляем
 
-    ; Преобразование LBA (в AX) -> CHS
-    ; Sector    (CL) = (LBA % SectorsPerTrack) + 1
-    ; Head      (DH) = (LBA / SectorsPerTrack) % HeadsPerCylinder
-    ; Cylinder  (CH) = (LBA / SectorsPerTrack) / HeadsPerCylinder
-    
-    mov bx, [SectorsPerTrack]
-    xor dx, dx
-    div bx              ; AX = LBA / SPT, DX = LBA % SPT
-    inc dx
-    mov cl, dl          ; CL = Sector (1..18)
-    
-    mov bx, [HeadsPerCylinder]
-    xor dx, dx
-    div bx              ; AX = Cylinder, DX = Head
-    mov ch, al          ; CH = Cylinder (младшие 8 бит)
-    mov dh, dl          ; DH = Head
-    
-    ; Читаем 1 сектор через BIOS Int 13h, AH=02h
-    mov dl, [DriveNumber]
-    pop bx              ; Восстанавливаем буфер
-    mov ah, 0x02
-    mov al, 1           ; Читаем по одному сектору
+    mov ah, 0x42                    ; Extended Read
+    mov dl, [DriveNumber]           ; Номер диска
+    mov si, dap_size                ; Указатель на DAP
     int 0x13
-    jc disk_error       ; Ошибка чтения
+    jc disk_error                   ; Ошибка чтения
 
-    ; Продвигаем буфер и счетчики
+    ; Продвигаем буфер и LBA
+    pop bx
     add bx, 512
     pop cx
     pop ax
-    inc ax              ; Следующий LBA
+    inc ax
 
     loop .read_loop
 
@@ -237,6 +231,15 @@ RootDirLBA    dw 0
 RootDirSize   dw 0
 DataRegionLBA dw 0
 KernelCluster dw 0
+
+; Disk Address Packet (DAP) для LBA чтения
+dap_size           db 0x10 ; 16 байт
+dap_reserved       db 0
+dap_count          dw 0
+dap_buffer_offset  dw 0
+dap_buffer_segment dw 0
+dap_lba_lower      dd 0
+dap_lba_upper      dd 0
 
 kernel_filename db "KERNEL  BIN" ; 11 байт (8+3), пробелы обязательны
 
