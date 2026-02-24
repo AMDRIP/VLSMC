@@ -67,6 +67,7 @@ start:
     ; Вычисление LBA корневого каталога (Root Directory)
     ; LBA = ReservedSectors + (NumberOfFATs * SectorsPerFAT)
     mov al, [NumberOfFATs]
+    xor ah, ah
     mul word [SectorsPerFAT]
     add ax, [ReservedSectors]
     mov [RootDirLBA], ax
@@ -81,18 +82,18 @@ start:
     mov [RootDirSize], ax
 
     ; --------------------------------------------------------------------------
-    ; Читаем Root Directory в память (0x0200 = сразу после бутсектора)
+    ; Читаем Root Directory в память (0x7E00 = безопасно после бутсектора)
     ; --------------------------------------------------------------------------
     mov ax, [RootDirLBA]    ; Стартовый сектор
     mov cx, [RootDirSize]   ; Сколько секторов читать
-    mov bx, 0x0200          ; Буфер для чтения (сразу за 0x7C00)
+    mov bx, 0x7E00          ; Буфер для чтения (безопасное место)
     call read_sectors
 
     ; --------------------------------------------------------------------------
     ; Ищем файл KERNEL.BIN в Root Directory
     ; --------------------------------------------------------------------------
     mov cx, [RootEntries]
-    mov di, 0x0200          ; Начало Root Directory
+    mov di, 0x7E00          ; Начало Root Directory
 .search_loop:
     push cx
     mov cx, 11              ; Длина имени файла (8+3)
@@ -131,8 +132,9 @@ start:
     ; LBA кластера = DataRegionLBA + (Cluster - 2) * SectorsPerCluster
     mov ax, [KernelCluster]
     sub ax, 2
+    xor cx, cx
     mov cl, [SectorsPerCluster]
-    mul cl
+    mul cx                  ; Теперь умножаем 16-битный AX на CX
     add ax, [DataRegionLBA]
 
     ; Читаем 15 секторов загруженного кластера (УПРОЩЕНИЕ!)
