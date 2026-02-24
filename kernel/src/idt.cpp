@@ -1,6 +1,8 @@
 #include "kernel/idt.h"
 #include "kernel/pic.h"
 #include "kernel/keyboard.h"
+#include "kernel/timer.h"
+#include "kernel/task_scheduler.h"
 
 namespace re36 {
 
@@ -139,17 +141,22 @@ void init_idt() {
 // Должен быть снаружи namespace re36, но использовать его типы.
 extern "C" void isr_handler(re36::Registers* regs) {
     if (regs->int_no >= 32 && regs->int_no <= 47) {
-        // Мы получили аппаратное прерывание от PIC
-        
+
+        if (regs->int_no == 32) {
+            // IRQ0 - Таймер PIT
+            re36::Timer::tick();
+            re36::pic_send_eoi(0);
+            re36::TaskScheduler::schedule();
+            return;
+        }
+
         if (regs->int_no == 33) {
-            // IRQ1 - Вызываем обработчик драйвера клавиатуры
             re36::KeyboardDriver::handle_interrupt();
         }
 
-        // Отправляем End Of Interrupt (EOI) в PIC
         re36::pic_send_eoi(regs->int_no - 32);
         
-        return; // Возвращаемся из обработчика аппаратного прерывания нормально
+        return;
     }
 
     // Если это исключение CPU (номер 0-31)
