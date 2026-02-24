@@ -44,29 +44,46 @@ extern "C" void kernel_main() {
     printf("-> Keyboard Driver (Ring 0) Loaded via IRQ1\n");
     printf("-> Interrupts Enabled (STI)\n\n");
 
-    // 6. Тест re36::vector
-    printf("[Testing re36::vector]\n");
-    re36::vector<int> my_vector;
-    my_vector.push_back(42);
-    my_vector.push_back(1337);
-    my_vector.push_back(2026);
-    
-    for (size_t i = 0; i < my_vector.size(); i++) {
-        printf("   my_vector[%d] = %d (Hex: 0x%x)\n", i, my_vector[i], my_vector[i]);
-    }
+    printf("Advanced Keyboard Driver Demo (Ring 0)\n");
+    printf("- Type text to see it appear.\n");
+    printf("- Press Alt+Shift to switch Layouts (QWERTY <-> Dvorak).\n");
+    printf("- Try Ctrl+C or F1-F10 keys.\n\n");
+    printf("> ");
 
-    // 7. Тест re36::string
-    printf("\n[Testing re36::string]\n");
-    re36::string str1 = "Hello";
-    re36::string str2 = " World";
-    re36::string result = str1 + str2 + " From User-Space Vector/String API!";
-    
-    printf("   Concat result: %s\n", result.c_str());
-    printf("   String size: %d bytes\n\n", result.size());
-
-    printf("Boot completed! System idling.\n");
+    // Тестовая мини-оболочка
+    re36::string input_buffer;
 
     while (true) {
-        asm volatile("hlt");
+        char c = getchar(); // Блокирующий вызов (ждет прерывания)
+        
+        // Обработка ввода (эхо-вывод уже работает внутри keyboard.cpp, 
+        // но здесь мы собираем строку для анализа команд)
+        if (c == '\n') {
+            if (input_buffer == "hello") {
+                printf("Hello to you too, Kernel Hacker!\n> ");
+            } else if (input_buffer == "clear") {
+                // Очистка экрана (грязный хак для демо)
+                for (int i = 0; i < 80 * 25; i++) {
+                    vga_buffer[i] = (uint16_t(' ') | (0x1F << 8)); 
+                }
+                // Сброс координат putchar
+                printf("\n> "); 
+            } else if (input_buffer.size() > 0) {
+                printf("Unknown command: %s\n> ", input_buffer.c_str());
+            } else {
+                printf("> ");
+            }
+            input_buffer = "";
+        } else if (c == '\b') {
+            if (input_buffer.size() > 0) {
+                // Удаляем последний символ из буфера (это не очень эффективно в re36::string, но для демо сойдет)
+                input_buffer[input_buffer.size() - 1] = '\0';
+                // TODO: Добавить pop_back() в re36::string
+            }
+        } else if (c >= 32 && c <= 126) {
+            // Добавляем печатные символы
+            char temp[2] = {c, '\0'};
+            input_buffer += temp;
+        }
     }
 }

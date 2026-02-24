@@ -11,6 +11,7 @@ int strcmp(const char* s1, const char* s2);
 
 // Minimal stdio
 void putchar(char c);
+char getchar();
 void printf(const char* format, ...);
 
 }

@@ -5,118 +5,202 @@
 namespace re36 {
 
 bool KeyboardDriver::shift_pressed_ = false;
+bool KeyboardDriver::ctrl_pressed_ = false;
+bool KeyboardDriver::alt_pressed_ = false;
 bool KeyboardDriver::caps_lock_active_ = false;
-char KeyboardDriver::last_char_ = 0;
 
-// Американская раскладка QWERTY (Scancode Set 1) - Нажатия (Make codes)
-static const char kbd_us_macromap[128] = {
-    0,  27, '1','2','3','4','5','6','7','8','9','0','-','=', '\b', // 0-14
-    '\t','q','w','e','r','t','y','u','i','o','p','[',']', '\n', // 15-28
-    0, // Left Ctrl
-    'a','s','d','f','g','h','j','k','l',';','\'','`',   // 30-41
-    0, // Left Shift
-    '\\','z','x','c','v','b','n','m',',','.','/',       // 43-53
-    0, // Right Shift
+int KeyboardDriver::current_layout_ = 0; // 0: QWERTY, 1: Dvorak
+
+char KeyboardDriver::char_buffer_[256];
+int KeyboardDriver::buffer_head_ = 0;
+int KeyboardDriver::buffer_tail_ = 0;
+
+// Американская раскладка QWERTY (Scancode Set 1) - Нажатия 
+static const char kbd_us_qwerty[128] = {
+    0,  27, '1','2','3','4','5','6','7','8','9','0','-','=', '\b',
+    '\t','q','w','e','r','t','y','u','i','o','p','[',']', '\n',
+    0, // Left Ctrl (29)
+    'a','s','d','f','g','h','j','k','l',';','\'','`',
+    0, // Left Shift (42)
+    '\\','z','x','c','v','b','n','m',',','.','/',
+    0, // Right Shift (54)
     '*',
-    0, // Alt
-    ' ', // Space
-    0, // CapsLock
-    // Функциональные клавиши F1-F10
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, // Alt (56)
+    ' ', // Space (57)
+    0, // CapsLock (58)
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F1-F10 (59-68)
     0, // NumLock
     0, // ScrollLock
-    // Numpad
     '7','8','9','-','4','5','6','+','1','2','3','0','.'
 };
 
-// Американская раскладка с зажатым Shift
-static const char kbd_us_macromap_shift[128] = {
-    0,  27, '!','@','#','$','%','^','&','*','(',')','_','+', '\b', // 0-14
-    '\t','Q','W','E','R','T','Y','U','I','O','P','{','}', '\n', // 15-28
+static const char kbd_us_qwerty_shift[128] = {
+    0,  27, '!','@','#','$','%','^','&','*','(',')','_','+', '\b',
+    '\t','Q','W','E','R','T','Y','U','I','O','P','{','}', '\n',
     0, // Left Ctrl
-    'A','S','D','F','G','H','J','K','L',':','"','~',   // 30-41
+    'A','S','D','F','G','H','J','K','L',':','"','~',
     0, // Left Shift
-    '|','Z','X','C','V','B','N','M','<','>','?',       // 43-53
+    '|','Z','X','C','V','B','N','M','<','>','?',
     0, // Right Shift
     '*',
     0, // Alt
     ' ', // Space
     0, // CapsLock
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F1-F10
+    0, 0,
+    '7','8','9','-','4','5','6','+','1','2','3','0','.'
+};
+
+// Пример Dvorak раскладки
+static const char kbd_us_dvorak[128] = {
+    0,  27, '1','2','3','4','5','6','7','8','9','0','[',']', '\b',
+    '\t','\'',',','.','p','y','f','g','c','r','l','/','=', '\n',
+    0, // Left Ctrl
+    'a','o','e','u','i','d','h','t','n','s','-','`',
+    0, // Left Shift
+    '\\',';','q','j','k','x','b','m','w','v','z',
+    0, // Right Shift
+    '*',
+    0, // Alt
+    ' ', // Space
+    0, // CapsLock
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F1-F10
+    0, 0,
+    '7','8','9','-','4','5','6','+','1','2','3','0','.'
+};
+
+static const char kbd_us_dvorak_shift[128] = {
+    0,  27, '!','@','#','$','%','^','&','*','(',')','{','}', '\b',
+    '\t','"','<','>','P','Y','F','G','C','R','L','?','+', '\n',
+    0, // Left Ctrl
+    'A','O','E','U','I','D','H','T','N','S','_','~',
+    0, // Left Shift
+    '|',':','Q','J','K','X','B','M','W','V','Z',
+    0, // Right Shift
+    '*',
+    0, // Alt
+    ' ', // Space
+    0, // CapsLock
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F1-F10
     0, 0,
     '7','8','9','-','4','5','6','+','1','2','3','0','.'
 };
 
 void KeyboardDriver::init() {
     shift_pressed_ = false;
+    ctrl_pressed_ = false;
+    alt_pressed_ = false;
     caps_lock_active_ = false;
-    last_char_ = 0;
-    // В будущем тут можно отправить команды сброса клаве через OUT 0x60
+    current_layout_ = 0;
+    buffer_head_ = 0;
+    buffer_tail_ = 0;
 }
 
 void KeyboardDriver::handle_interrupt() {
-    // Читаем 1 байт из порта данных контроллера PS/2 (0x60)
     uint8_t scancode = inb(0x60);
     process_scancode(scancode);
 }
 
 void KeyboardDriver::process_scancode(uint8_t scancode) {
-    // В Scancode Set 1, если установлен старший бит (0x80), это Release код (отпускание)
     bool is_release = (scancode & 0x80) != 0;
     uint8_t make_code = scancode & 0x7F;
 
-    // Проверка Shift
-    if (make_code == 0x2A || make_code == 0x36) { // Left Shift (0x2A), Right Shift (0x36)
-        shift_pressed_ = !is_release; // Если нажали - true, отпустили - false
+    // Модификаторы
+    if (make_code == 0x2A || make_code == 0x36) { // Shift
+        shift_pressed_ = !is_release;
+        return;
+    }
+    if (make_code == 0x1D) { // Ctrl
+        ctrl_pressed_ = !is_release;
+        return;
+    }
+    if (make_code == 0x38) { // Alt
+        alt_pressed_ = !is_release;
         return;
     }
 
-    // Проверка Caps Lock
-    if (make_code == 0x3A && !is_release) { // CapsLock (0x3A) обрабатывается только при нажатии
+    if (make_code == 0x3A && !is_release) { // CapsLock
         caps_lock_active_ = !caps_lock_active_;
         return;
     }
 
-    // Мы игнорируем события "отпускания" клавиш для печати текста
-    if (is_release) {
+    // Горячие клавиши переключения раскладки (Alt + Shift)
+    if (alt_pressed_ && shift_pressed_ && !is_release) {
+        current_layout_ = (current_layout_ + 1) % 2; // Переключаем 0 -> 1 -> 0
+        printf("\n[Layout Switched to %s]\n", current_layout_ == 0 ? "QWERTY" : "Dvorak");
         return;
     }
+
+    // Обработка функциональных клавиш F1 (0x3B) - F10 (0x44)
+    if (make_code >= 0x3B && make_code <= 0x44 && !is_release) {
+        printf("\n[F%d key pressed]\n", make_code - 0x3B + 1);
+        return;
+    }
+
+    // Игнорируем обычное отпускание клавиш
+    if (is_release) return;
 
     // Перевод в ASCII
     if (make_code < 128) {
         char ascii = 0;
         
-        // Логика регистра букв: инвертируется, если нажат Shift ИЛИ включен CapsLock
-        // Но Shift инвертирует еще и цифры в символы.
-        bool is_letter = (make_code >= 0x10 && make_code <= 0x19) || // q-p
-                         (make_code >= 0x1E && make_code <= 0x26) || // a-l
-                         (make_code >= 0x2C && make_code <= 0x32);   // z-m
+        bool is_letter = false;
+        
+        // Выбор таблицы раскладки
+        const char* map_normal = current_layout_ == 0 ? kbd_us_qwerty : kbd_us_dvorak;
+        const char* map_shift  = current_layout_ == 0 ? kbd_us_qwerty_shift : kbd_us_dvorak_shift;
+
+        char base_char = map_normal[make_code];
+        if (base_char >= 'a' && base_char <= 'z') is_letter = true;
         
         if (shift_pressed_) {
-            ascii = kbd_us_macromap_shift[make_code];
-            // Особый случай: CapsLock + Shift = маленькая буква
-            if (caps_lock_active_ && is_letter) {
-                ascii = kbd_us_macromap[make_code];
-            }
+            ascii = map_shift[make_code];
+            if (caps_lock_active_ && is_letter) ascii = map_normal[make_code];
         } else {
-            ascii = kbd_us_macromap[make_code];
-            // Просто CapsLock
-            if (caps_lock_active_ && is_letter) {
-                ascii = kbd_us_macromap_shift[make_code];
-            }
+            ascii = map_normal[make_code];
+            if (caps_lock_active_ && is_letter) ascii = map_shift[make_code];
         }
 
         if (ascii != 0) {
-            last_char_ = ascii;
-            // Пока что мы просто отправляем в putchar для демонстрации работы!
-            putchar(ascii);
+            // Если зажат Ctrl, можно сформировать спец. коды (например, Ctrl+C -> 0x03)
+            if (ctrl_pressed_ && is_letter) {
+                ascii = ascii - 'a' + 1; // Возвращает непечатные символы для систем на базе Unix (Ctrl+C = 3)
+            }
+
+            // Добавляем символ в кольцевой буфер
+            int next_head = (buffer_head_ + 1) % 256;
+            if (next_head != buffer_tail_) { // Защита от переполнения
+                char_buffer_[buffer_head_] = ascii;
+                buffer_head_ = next_head;
+            }
+
+            // Пока все еще печатаем прямо на экран (эхо-вывод, как в DOS)
+            if (ascii >= 32 || ascii == '\n' || ascii == '\b') {
+                // Если не спецсимвол Ctrl, печатаем
+                putchar(ascii);
+            } else if (ctrl_pressed_) {
+                // Демонстрация работы Ctrl+клавиша
+                printf("^%c", base_char - 32); 
+            }
         }
     }
 }
 
-char KeyboardDriver::get_last_char() {
-    char c = last_char_;
-    last_char_ = 0;
+char KeyboardDriver::get_char_nonblocking() {
+    if (buffer_head_ == buffer_tail_) {
+        return 0; // Пусто
+    }
+    char c = char_buffer_[buffer_tail_];
+    buffer_tail_ = (buffer_tail_ + 1) % 256;
+    return c;
+}
+
+char KeyboardDriver::get_char() {
+    char c = 0;
+    while ((c = get_char_nonblocking()) == 0) {
+        // Halt until next interrupt to save CPU power
+        asm volatile("hlt");
+    }
     return c;
 }
 

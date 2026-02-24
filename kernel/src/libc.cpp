@@ -1,8 +1,13 @@
 #include "libc.h"
+#include "kernel/keyboard.h"
 #include <stdint.h>
 #include <stdarg.h>
 
 extern "C" {
+
+char getchar() {
+    return re36::KeyboardDriver::get_char();
+}
 
 void* memcpy(void* dest, const void* src, size_t n) {
     uint8_t* d = (uint8_t*)dest;
@@ -46,6 +51,15 @@ void putchar(char c) {
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
+    } else if (c == '\b') {
+        if (cursor_x > 0) {
+            cursor_x--;
+            vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t(' ') | (0x0F << 8)); 
+        } else if (cursor_y > 0) {
+            cursor_y--;
+            cursor_x = 79;
+            vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t(' ') | (0x0F << 8));
+        }
     } else {
         vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t((unsigned char)c) | (0x0F << 8)); // Белый текст
         cursor_x++;
