@@ -3,6 +3,7 @@
 #include "kernel/keyboard.h"
 #include "kernel/timer.h"
 #include "kernel/task_scheduler.h"
+#include "kernel/vmm.h"
 
 namespace re36 {
 
@@ -156,6 +157,13 @@ extern "C" void isr_handler(re36::Registers* regs) {
 
         re36::pic_send_eoi(regs->int_no - 32);
         
+        return;
+    }
+
+    if (regs->int_no == 14) {
+        uint32_t fault_addr;
+        asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+        re36::VMM::handle_page_fault(fault_addr, regs->err_code);
         return;
     }
 

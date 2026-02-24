@@ -10,6 +10,7 @@
 #include "kernel/timer.h"
 #include "kernel/task_scheduler.h"
 #include "kernel/event_channel.h"
+#include "kernel/vmm.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -46,6 +47,10 @@ void shell_thread() {
                 printf("> ");
             } else if (input_buffer == "ticks") {
                 printf("Timer ticks: %u\n> ", re36::Timer::get_ticks());
+            } else if (input_buffer == "meminfo") {
+                printf("Free RAM: %u KB\n", re36::PhysicalMemoryManager::get_free_memory() / 1024);
+                printf("Used RAM: %u KB\n", re36::PhysicalMemoryManager::get_used_memory() / 1024);
+                printf("Paging: Enabled (CR3 = 0x%x)\n> ", (uint32_t)re36::VMM::get_current_directory());
             } else if (input_buffer.size() > 0) {
                 printf("Unknown command: %s\n> ", input_buffer.c_str());
             } else {
@@ -81,6 +86,8 @@ extern "C" void kernel_main() {
 
     re36::EventSystem::init();
 
+    re36::VMM::init();
+
     asm volatile("sti");
 
     for (int i = 0; i < 80 * 25; i++) {
@@ -97,6 +104,7 @@ extern "C" void kernel_main() {
     printf("-> PIT Timer Initialized (100 Hz)\n");
     printf("-> Task Scheduler Initialized (Priority RR)\n");
     printf("-> Event Channel System Ready\n");
+    printf("-> VMM Paging Enabled (Kernel Supervisor-only)\n");
     printf("-> Interrupts Enabled (STI)\n\n");
 
     re36::thread_create("idle", idle_thread, 255);

@@ -7,6 +7,8 @@ SECTIONS
     /* Загрузчик переходит по адресу 0x10000 */
     . = 0x10000;
 
+    _kernel_start = .;
+
     .text : ALIGN(4K)
     {
         *(.text.entry)
@@ -29,4 +31,7 @@ SECTIONS
         *(COMMON)
         *(.bss)
     }
+
+    . = ALIGN(4K);
+    _kernel_end = .;
 }
