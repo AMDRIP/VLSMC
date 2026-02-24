@@ -13,6 +13,7 @@
 #include "kernel/vmm.h"
 #include "kernel/tss.h"
 #include "kernel/syscall_gate.h"
+#include "kernel/usermode.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -21,6 +22,10 @@ void idle_thread() {
     while (true) {
         asm volatile("hlt");
     }
+}
+
+void user_thread_entry() {
+    re36::enter_usermode();
 }
 
 void shell_thread() {
@@ -59,7 +64,11 @@ void shell_thread() {
                 asm volatile("mov $5, %%eax; int $0x80; mov %%eax, %0" : "=r"(tid) :: "eax");
                 printf("Syscall returned TID = %d\n> ", tid);
             } else if (input_buffer == "help") {
-                printf("Commands: ps, ticks, meminfo, syscall, clear, hello, help\n> ");
+                printf("Commands: ps, ticks, meminfo, syscall, ring3, clear, hello, help\n> ");
+            } else if (input_buffer == "ring3") {
+                printf("Launching Ring 3 user process...\n");
+                re36::thread_create("user0", user_thread_entry, 10);
+                printf("> ");
             } else if (input_buffer.size() > 0) {
                 printf("Unknown command: %s\n> ", input_buffer.c_str());
             } else {
@@ -78,31 +87,45 @@ void shell_thread() {
 }
 
 extern "C" void kernel_main() {
+    volatile uint16_t* dbg = (volatile uint16_t*)0xB8000;
+    dbg[0] = 0x4F31; // '1' красный на белом — IDT
+
     re36::init_idt();
+    dbg[1] = 0x4F32; // '2' — PIC
 
     re36::pic_remap(0x20, 0x28);
+    dbg[2] = 0x4F33; // '3' — PMM
 
     re36::PhysicalMemoryManager::init(0x20000, 32 * 1024 * 1024);
     re36::PhysicalMemoryManager::set_region_free(0x100000, 31 * 1024 * 1024);
+    dbg[3] = 0x4F34; // '4' — kmalloc
 
     re36::kmalloc_init();
+    dbg[4] = 0x4F35; // '5' — Keyboard
 
     re36::KeyboardDriver::init();
+    dbg[5] = 0x4F36; // '6' — Scheduler
 
     re36::TaskScheduler::init();
+    dbg[6] = 0x4F37; // '7' — Timer
 
     re36::Timer::init(100);
+    dbg[7] = 0x4F38; // '8' — Events
 
     re36::EventSystem::init();
+    dbg[8] = 0x4F39; // '9' — VMM
 
     re36::VMM::init();
+    dbg[9] = 0x4F41; // 'A' — TSS
 
     re36::TSS::init(0x90000);
+    dbg[10] = 0x4F42; // 'B' — Syscall
 
     re36::syscall_gate_init();
+    dbg[11] = 0x4F43; // 'C' — STI
 
     asm volatile("sti");
-
+    dbg[12] = 0x4F4F; // 'O' — OK!
     for (int i = 0; i < 80 * 25; i++) {
         vga_buffer[i] = (uint16_t(' ') | (0x1F << 8));
     }

@@ -26,7 +26,7 @@ void thread_init() {
         threads[i].stack_base = thread_stacks[i];
         threads[i].sleep_until = 0;
         threads[i].blocked_channel_id = -1;
-        threads[i].quantum_remaining = 0;
+        threads[i].quantum_remaining = 5;
         threads[i].total_ticks = 0;
         threads[i].name[0] = '\0';
     }

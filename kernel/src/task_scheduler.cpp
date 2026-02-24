@@ -172,7 +172,7 @@ void TaskScheduler::print_threads() {
     for (int i = 0; i < MAX_THREADS; i++) {
         if (threads[i].state == ThreadState::Unused) continue;
         
-        printf(" %d   | %-17s | %-8s | %d   | %d\n",
+        printf(" %d   | %s\t\t| %s\t| %d\t| %d\n",
             threads[i].tid,
             threads[i].name,
             state_names[(int)threads[i].state],
