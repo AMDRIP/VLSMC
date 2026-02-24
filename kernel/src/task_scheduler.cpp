@@ -1,6 +1,7 @@
 #include "kernel/task_scheduler.h"
 #include "kernel/timer.h"
 #include "kernel/spinlock.h"
+#include "kernel/tss.h"
 #include "libc.h"
 
 namespace re36 {
@@ -92,6 +93,8 @@ void TaskScheduler::schedule() {
     
     threads[next_tid].state = ThreadState::Running;
     threads[next_tid].quantum_remaining = DEFAULT_QUANTUM;
+
+    TSS::set_kernel_stack((uint32_t)(threads[next_tid].stack_base + THREAD_STACK_SIZE));
 
     switch_task(&threads[old_tid].esp, threads[next_tid].esp);
 }

@@ -11,6 +11,7 @@
 #include "kernel/task_scheduler.h"
 #include "kernel/event_channel.h"
 #include "kernel/vmm.h"
+#include "kernel/tss.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -88,6 +89,8 @@ extern "C" void kernel_main() {
 
     re36::VMM::init();
 
+    re36::TSS::init(0x90000);
+
     asm volatile("sti");
 
     for (int i = 0; i < 80 * 25; i++) {
@@ -105,6 +108,7 @@ extern "C" void kernel_main() {
     printf("-> Task Scheduler Initialized (Priority RR)\n");
     printf("-> Event Channel System Ready\n");
     printf("-> VMM Paging Enabled (Kernel Supervisor-only)\n");
+    printf("-> TSS Loaded (Ring 3 Ready)\n");
     printf("-> Interrupts Enabled (STI)\n\n");
 
     re36::thread_create("idle", idle_thread, 255);
