@@ -1,0 +1,177 @@
+#include "kernel/idt.h"
+#include "kernel/pic.h"
+
+namespace re36 {
+
+#define IDT_ENTRIES 256
+
+IdtEntry idt[IDT_ENTRIES];
+IdtPtr idt_ptr;
+
+// Внешние обработчики (ISRs) из Assembly
+extern "C" {
+    void isr0();
+    void isr1();
+    void isr2();
+    void isr3();
+    void isr4();
+    void isr5();
+    void isr6();
+    void isr7();
+    void isr8();
+    void isr9();
+    void isr10();
+    void isr11();
+    void isr12();
+    void isr13();
+    void isr14();
+    void isr15();
+    void isr16();
+    void isr17();
+    void isr18();
+    void isr19();
+    void isr20();
+    void isr21();
+    void isr22();
+    void isr23();
+    void isr24();
+    void isr25();
+    void isr26();
+    void isr27();
+    void isr28();
+    void isr29();
+    void isr30();
+    void isr31();
+    
+    // IRQs (Аппаратные)
+    void irq0();
+    void irq1();
+    void irq2();
+    void irq3();
+    void irq4();
+    void irq5();
+    void irq6();
+    void irq7();
+    void irq8();
+    void irq9();
+    void irq10();
+    void irq11();
+    void irq12();
+    void irq13();
+    void irq14();
+    void irq15();
+
+    // Функция загрузки IDT (написана на Assembly)
+    void load_idt(uint32_t idt_ptr);
+}
+
+void set_idt_gate(int n, uint32_t handler, uint16_t selector, uint8_t flags) {
+    idt[n].isr_low = handler & 0xFFFF;
+    idt[n].kernel_cs = selector;
+    idt[n].reserved = 0;
+    idt[n].attributes = flags;
+    idt[n].isr_high = (handler >> 16) & 0xFFFF;
+}
+
+void init_idt() {
+    idt_ptr.base = (uint32_t)&idt;
+    idt_ptr.limit = IDT_ENTRIES * sizeof(IdtEntry) - 1;
+
+    // Исключения CPU (0-31)
+    set_idt_gate(0, (uint32_t)isr0, 0x08, 0x8E);
+    set_idt_gate(1, (uint32_t)isr1, 0x08, 0x8E);
+    set_idt_gate(2, (uint32_t)isr2, 0x08, 0x8E);
+    set_idt_gate(3, (uint32_t)isr3, 0x08, 0x8E);
+    set_idt_gate(4, (uint32_t)isr4, 0x08, 0x8E);
+    set_idt_gate(5, (uint32_t)isr5, 0x08, 0x8E);
+    set_idt_gate(6, (uint32_t)isr6, 0x08, 0x8E);
+    set_idt_gate(7, (uint32_t)isr7, 0x08, 0x8E);
+    set_idt_gate(8, (uint32_t)isr8, 0x08, 0x8E);
+    set_idt_gate(9, (uint32_t)isr9, 0x08, 0x8E);
+    set_idt_gate(10, (uint32_t)isr10, 0x08, 0x8E);
+    set_idt_gate(11, (uint32_t)isr11, 0x08, 0x8E);
+    set_idt_gate(12, (uint32_t)isr12, 0x08, 0x8E);
+    set_idt_gate(13, (uint32_t)isr13, 0x08, 0x8E);
+    set_idt_gate(14, (uint32_t)isr14, 0x08, 0x8E);
+    set_idt_gate(15, (uint32_t)isr15, 0x08, 0x8E);
+    set_idt_gate(16, (uint32_t)isr16, 0x08, 0x8E);
+    set_idt_gate(17, (uint32_t)isr17, 0x08, 0x8E);
+    set_idt_gate(18, (uint32_t)isr18, 0x08, 0x8E);
+    set_idt_gate(19, (uint32_t)isr19, 0x08, 0x8E);
+    set_idt_gate(20, (uint32_t)isr20, 0x08, 0x8E);
+    set_idt_gate(21, (uint32_t)isr21, 0x08, 0x8E);
+    set_idt_gate(22, (uint32_t)isr22, 0x08, 0x8E);
+    set_idt_gate(23, (uint32_t)isr23, 0x08, 0x8E);
+    set_idt_gate(24, (uint32_t)isr24, 0x08, 0x8E);
+    set_idt_gate(25, (uint32_t)isr25, 0x08, 0x8E);
+    set_idt_gate(26, (uint32_t)isr26, 0x08, 0x8E);
+    set_idt_gate(27, (uint32_t)isr27, 0x08, 0x8E);
+    set_idt_gate(28, (uint32_t)isr28, 0x08, 0x8E);
+    set_idt_gate(29, (uint32_t)isr29, 0x08, 0x8E);
+    set_idt_gate(30, (uint32_t)isr30, 0x08, 0x8E);
+    set_idt_gate(31, (uint32_t)isr31, 0x08, 0x8E);
+
+    // Аппаратные прерывания PIC (32-47)
+    set_idt_gate(32, (uint32_t)irq0, 0x08, 0x8E);
+    set_idt_gate(33, (uint32_t)irq1, 0x08, 0x8E);
+    set_idt_gate(34, (uint32_t)irq2, 0x08, 0x8E);
+    set_idt_gate(35, (uint32_t)irq3, 0x08, 0x8E);
+    set_idt_gate(36, (uint32_t)irq4, 0x08, 0x8E);
+    set_idt_gate(37, (uint32_t)irq5, 0x08, 0x8E);
+    set_idt_gate(38, (uint32_t)irq6, 0x08, 0x8E);
+    set_idt_gate(39, (uint32_t)irq7, 0x08, 0x8E);
+    set_idt_gate(40, (uint32_t)irq8, 0x08, 0x8E);
+    set_idt_gate(41, (uint32_t)irq9, 0x08, 0x8E);
+    set_idt_gate(42, (uint32_t)irq10, 0x08, 0x8E);
+    set_idt_gate(43, (uint32_t)irq11, 0x08, 0x8E);
+    set_idt_gate(44, (uint32_t)irq12, 0x08, 0x8E);
+    set_idt_gate(45, (uint32_t)irq13, 0x08, 0x8E);
+    set_idt_gate(46, (uint32_t)irq14, 0x08, 0x8E);
+    set_idt_gate(47, (uint32_t)irq15, 0x08, 0x8E);
+
+    load_idt((uint32_t)&idt_ptr);
+}
+
+} // namespace re36
+
+// Глобальный обработчик прерываний, вызываемый из Assembly.
+// Должен быть снаружи namespace re36, но использовать его типы.
+extern "C" void isr_handler(re36::Registers* regs) {
+    if (regs->int_no >= 32 && regs->int_no <= 47) {
+        // Мы получили аппаратное прерывание от PIC
+        
+        if (regs->int_no == 33) {
+            // IRQ1 - Клавиатура
+            // Мы просто считаем байт из порта, чтобы PIC знал, что мы отреагировали.
+            uint8_t scancode = re36::inb(0x60);
+            
+            volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+            // Выведем символ "K", чтобы показать, что тайпинг работает
+            vga_buffer[0] = (uint16_t('K') | (0x0F << 8));
+        }
+
+        // Отправляем End Of Interrupt (EOI) в PIC
+        re36::pic_send_eoi(regs->int_no - 32);
+        
+        return; // Возвращаемся из обработчика аппаратного прерывания нормально
+    }
+
+    // Если это исключение CPU (номер 0-31)
+    volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+
+    const char* panic_msg = "KERNEL PANIC: UNHANDLED EXCEPTION!";
+    
+    // Простейший синий экран смерти
+    for (int i = 0; i < 80 * 25; i++) {
+        vga_buffer[i] = (uint16_t(' ') | (0x4F << 8)); // Красный фон, Белый текст
+    }
+    
+    int index = 0;
+    while (panic_msg[index] != '\0') {
+        vga_buffer[index] = (uint16_t(panic_msg[index]) | (0x4F << 8));
+        index++;
+    }
+
+    // Зависаем
+    while (true) {}
+}

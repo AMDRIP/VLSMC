@@ -7,18 +7,21 @@ echo "=== VLSMC Bare-Metal Build Script ==="
 echo "[1/4] Assembling bootloader..."
 nasm -f bin boot/bootloader.asm -o bootloader.bin
 
-# 2. Сборка входной точки ядра (Assembly)
-echo "[2/4] Assembling kernel entry..."
+# 2. Сборка входной точки ядра и прерываний (Assembly)
+echo "[2/4] Assembling kernel entry and interrupts..."
 nasm -f elf32 kernel/src/kernel_entry.asm -o kernel_entry.o
+nasm -f elf32 kernel/src/interrupts.asm -o interrupts.o
 
 # 3. Компиляция ядра (C++)
 # Флаги freestanding отключают стандартную библиотеку C/C++
-echo "[3/4] Compiling kernel_main.cpp..."
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Wall -Wextra -c kernel/src/kernel_main.cpp -o kernel_main.o
+echo "[3/4] Compiling C++ kernel sources..."
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/kernel_main.cpp -o kernel_main.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/idt.cpp -o idt.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/pic.cpp -o pic.o
 
 # 4. Компоновка (Link) и извлечение плоского бинарника
 echo "[4/4] Linking kernel..."
-x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld kernel_entry.o kernel_main.o -o kernel.elf
+x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld kernel_entry.o interrupts.o idt.o pic.o kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
 echo "=== Building Disk Image ==="
