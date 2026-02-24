@@ -4,6 +4,7 @@
 #include "kernel/timer.h"
 #include "kernel/task_scheduler.h"
 #include "kernel/vmm.h"
+#include "kernel/syscall_gate.h"
 
 namespace re36 {
 
@@ -164,6 +165,18 @@ extern "C" void isr_handler(re36::Registers* regs) {
         uint32_t fault_addr;
         asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
         re36::VMM::handle_page_fault(fault_addr, regs->err_code);
+        return;
+    }
+
+    if (regs->int_no == 128) {
+        re36::SyscallRegs sregs;
+        sregs.eax = regs->eax;
+        sregs.ebx = regs->ebx;
+        sregs.ecx = regs->ecx;
+        sregs.edx = regs->edx;
+        sregs.esi = regs->esi;
+        sregs.edi = regs->edi;
+        regs->eax = re36::handle_syscall(&sregs);
         return;
     }
 

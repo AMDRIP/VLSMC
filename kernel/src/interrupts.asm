@@ -91,6 +91,14 @@ IRQ_STUB 13, 45
 IRQ_STUB 14, 46
 IRQ_STUB 15, 47
 
+; Syscall Gate (int 0x80 = ISR 128)
+global isr128
+isr128:
+    cli
+    push byte 0         ; Фейковый код ошибки
+    push dword 128      ; Номер прерывания
+    jmp isr_common_stub
+
 ; Общий кусок кода для всех прерываний
 isr_common_stub:
     pusha               ; Сохраняет EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX

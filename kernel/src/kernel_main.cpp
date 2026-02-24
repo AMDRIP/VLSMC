@@ -12,6 +12,7 @@
 #include "kernel/event_channel.h"
 #include "kernel/vmm.h"
 #include "kernel/tss.h"
+#include "kernel/syscall_gate.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -52,6 +53,13 @@ void shell_thread() {
                 printf("Free RAM: %u KB\n", re36::PhysicalMemoryManager::get_free_memory() / 1024);
                 printf("Used RAM: %u KB\n", re36::PhysicalMemoryManager::get_used_memory() / 1024);
                 printf("Paging: Enabled (CR3 = 0x%x)\n> ", (uint32_t)re36::VMM::get_current_directory());
+            } else if (input_buffer == "syscall") {
+                printf("Testing int 0x80 (SYS_GETPID)...\n");
+                uint32_t tid;
+                asm volatile("mov $5, %%eax; int $0x80; mov %%eax, %0" : "=r"(tid) :: "eax");
+                printf("Syscall returned TID = %d\n> ", tid);
+            } else if (input_buffer == "help") {
+                printf("Commands: ps, ticks, meminfo, syscall, clear, hello, help\n> ");
             } else if (input_buffer.size() > 0) {
                 printf("Unknown command: %s\n> ", input_buffer.c_str());
             } else {
@@ -91,6 +99,8 @@ extern "C" void kernel_main() {
 
     re36::TSS::init(0x90000);
 
+    re36::syscall_gate_init();
+
     asm volatile("sti");
 
     for (int i = 0; i < 80 * 25; i++) {
@@ -109,6 +119,7 @@ extern "C" void kernel_main() {
     printf("-> Event Channel System Ready\n");
     printf("-> VMM Paging Enabled (Kernel Supervisor-only)\n");
     printf("-> TSS Loaded (Ring 3 Ready)\n");
+    printf("-> Syscall Gate (int 0x80) Registered\n");
     printf("-> Interrupts Enabled (STI)\n\n");
 
     re36::thread_create("idle", idle_thread, 255);
