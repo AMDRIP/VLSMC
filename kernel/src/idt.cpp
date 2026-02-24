@@ -187,8 +187,9 @@ extern "C" void isr_handler(re36::Registers* regs) {
     // Вспомогательная лямбда для печати строки
     auto print_str = [&](int x, int y, const char* str) {
         int idx = y * 80 + x;
-        while (*str) {
-            vga_buffer[idx++] = (uint16_t(*str++) | (0x4F << 8));
+        for (int i = 0; str[i] != '\0' && i < 80; i++) { // Защита от бесконечного цикла
+            if (idx >= 80 * 25) break; 
+            vga_buffer[idx++] = (uint16_t(str[i]) | (0x4F << 8));
         }
     };
 

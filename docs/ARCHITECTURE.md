@@ -51,6 +51,32 @@
 
 ---
 
+## Future Vision: User-Space Drivers (Hybrid/Microkernel)
+While the initial bootstrap phases place drivers (like keyboard and VGA) inside the Ring 0 kernel monolith, the long-term architecture envisions a transition to a microkernel-like isolation:
+
+### Isolation Strategy
+1. **Virtual Memory Management (VMM)**: The PMM will be backed by a Paging system. Every user-space driver will run in its own isolated virtual address space, preventing stray pointers from crashing the core kernel.
+2. **Ring 3 Execution**: External drivers will be compiled as standalone `.elf` binaries and executed in unprivileged mode (Ring 3). The Global Descriptor Table (GDT) and a Task State Segment (TSS) will manage privilege levels.
+3. **DriverAPI & Syscalls**: Direct hardware access (e.g., `inb`, `outb`) will trigger General Protection Faults in Ring 3. Drivers will use a standardized C++ `DriverAPI` library that wraps software interrupts (`int 0x80`) to request the kernel to perform I/O operations, allocate memory, or register interrupt handlers safely.
+│  │  └────────────┘ └────────────┘                         │  │
+│  │                                                         │  │
+│  │  ┌──────────────────────────────────────────────────┐   │  │
+│  │  │        Hardware Abstraction Layer (HAL)           │   │  │
+│  │  │  ┌───────────┐ ┌────────────┐ ┌───────────────┐  │   │  │
+│  │  │  │ VGA Text  │ │ Keyboard   │ │  Disk (ATA/IDE│  │   │  │
+│  │  │  │ (0xB8000) │ │ (Port 0x60)│ │ (Port 0x1F0)  │  │   │  │
+│  │  │  └───────────┘ └────────────┘ └───────────────┘  │   │  │
+│  │  └──────────────────────────────────────────────────┘   │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────▼─────────────────────────────────┐  │
+│  │                       BIOS / Хардвар                    │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 1. Загрузка Системы (Boot Process)
 
 Процесс запуска кардинально отличается от запуска обычной .exe программы. Он делится на три ступени:

@@ -63,30 +63,13 @@ int _isatty(int file) { (void)file; return 1; }
 int _lseek(int file, int ptr, int dir) { (void)file; (void)ptr; (void)dir; return 0; }
 int _read(int file, char *ptr, int len) { (void)file; (void)ptr; (void)len; return 0; }
 
-// _write используется printf и std::cout! Мы перенаправим это в наш VGA буфер!
+// _write используется libstdc++, но мы сделали свой putchar/printf
+extern "C" void putchar(char c);
+
 int _write(int file, char *ptr, int len) {
     if (file == 1 || file == 2) { // stdout || stderr
-        volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
-        static int cursor_x = 0;
-        static int cursor_y = 15; // Печатаем с 15 строки (чтобы не затереть BSOD и логи клавиатуры)
-
         for (int i = 0; i < len; i++) {
-            if (ptr[i] == '\n') {
-                cursor_y++;
-                cursor_x = 0;
-                continue;
-            }
-            vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t(ptr[i]) | (0x0F << 8)); // Белый текст
-            cursor_x++;
-            
-            if (cursor_x >= 80) {
-                cursor_x = 0;
-                cursor_y++;
-            }
-            if (cursor_y >= 25) {
-                // В идеале - скроллинг экрана вверх. Пока просто сброс
-                cursor_y = 15; 
-            }
+            putchar(ptr[i]);
         }
         return len;
     }

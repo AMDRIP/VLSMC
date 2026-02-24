@@ -21,10 +21,11 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/incl
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/pmm.cpp -o pmm.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/kmalloc.cpp -o kmalloc.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -c kernel/src/syscalls_posix.cpp -o syscalls_posix.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -fno-stack-protector -Wall -Wextra -c kernel/src/libc.cpp -o libc.o
 
 # 4. Компоновка (Link) и извлечение плоского бинарника
 echo "[4/4] Linking kernel..."
-x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld kernel_entry.o interrupts.o idt.o pic.o pmm.o kmalloc.o syscalls_posix.o kernel_main.o -o kernel.elf
+x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld kernel_entry.o interrupts.o idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
 echo "=== Building Disk Image ==="
