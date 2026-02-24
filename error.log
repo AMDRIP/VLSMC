@@ -1,0 +1,108 @@
+In file included from /usr/include/c++/13/vector:60,
+                 from kernel/src/kernel_main.cpp:3:
+/usr/include/c++/13/bits/requires_hosted.h:34:4: error: #error "This header is not available in freestanding mode."
+   34 | #  error "This header is not available in freestanding mode."
+      |    ^~~~~
+In file included from /usr/include/x86_64-linux-gnu/c++/13/32/bits/c++allocator.h:33,
+                 from /usr/include/c++/13/bits/allocator.h:46,
+                 from /usr/include/c++/13/vector:63:
+/usr/include/c++/13/bits/new_allocator.h: In member function ‘_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*)’:
+/usr/include/c++/13/bits/new_allocator.h:139:20: error: ‘__throw_bad_array_new_length’ is not a member of ‘std’; did you mean ‘bad_array_new_length’?
+  139 |               std::__throw_bad_array_new_length();
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                    bad_array_new_length
+/usr/include/c++/13/bits/new_allocator.h:140:18: error: ‘__throw_bad_alloc’ is not a member of ‘std’
+  140 |             std::__throw_bad_alloc();
+      |                  ^~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/allocator.h: At global scope:
+/usr/include/c++/13/bits/allocator.h:75:11: error: ‘allocator’ is not a class template
+   75 |     class allocator<void>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:76:5: error: explicit specialization of non-template ‘std::allocator’
+   76 |     {
+      |     ^
+/usr/include/c++/13/bits/allocator.h:89:19: error: ‘std::allocator’ is not a template
+   89 |         { typedef allocator<_Tp1> other; };
+      |                   ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:130:11: error: ‘std::allocator’ is not a template
+  130 |     class allocator : public __allocator_base<_Tp>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:75:11: note: previous declaration here
+   75 |     class allocator<void>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:237:22: error: ‘std::allocator’ is not a template
+  237 |     operator==(const allocator<_T1>&, const allocator<_T2>&)
+      |                      ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:237:45: error: ‘std::allocator’ is not a template
+  237 |     operator==(const allocator<_T1>&, const allocator<_T2>&)
+      |                                             ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:245:22: error: ‘std::allocator’ is not a template
+  245 |     operator!=(const allocator<_T1>&, const allocator<_T2>&)
+      |                      ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:245:45: error: ‘std::allocator’ is not a template
+  245 |     operator!=(const allocator<_T1>&, const allocator<_T2>&)
+      |                                             ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:255:11: error: ‘allocator’ is not a class template
+  255 |     class allocator<const _Tp>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:255:30: error: ‘std::allocator’ is not a template
+  255 |     class allocator<const _Tp>
+      |                              ^
+/usr/include/c++/13/bits/allocator.h:75:11: note: previous declaration here
+   75 |     class allocator<void>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:264:11: error: ‘allocator’ is not a class template
+  264 |     class allocator<volatile _Tp>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:264:33: error: ‘std::allocator’ is not a template
+  264 |     class allocator<volatile _Tp>
+      |                                 ^
+/usr/include/c++/13/bits/allocator.h:75:11: note: previous declaration here
+   75 |     class allocator<void>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:273:11: error: ‘allocator’ is not a class template
+  273 |     class allocator<const volatile _Tp>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:273:39: error: ‘std::allocator’ is not a template
+  273 |     class allocator<const volatile _Tp>
+      |                                       ^
+/usr/include/c++/13/bits/allocator.h:75:11: note: previous declaration here
+   75 |     class allocator<void>
+      |           ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:287:25: error: ‘allocator’ is not a class template
+  287 |   extern template class allocator<char>;
+      |                         ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:287:25: error: explicit instantiation of non-template type ‘std::allocator’
+/usr/include/c++/13/bits/allocator.h:288:25: error: ‘allocator’ is not a class template
+  288 |   extern template class allocator<wchar_t>;
+      |                         ^~~~~~~~~
+/usr/include/c++/13/bits/allocator.h:288:25: error: explicit instantiation of non-template type ‘std::allocator’
+In file included from /usr/include/c++/13/vector:66:
+/usr/include/c++/13/bits/stl_vector.h:427:44: error: ‘std::allocator’ is not a template
+  427 |   template<typename _Tp, typename _Alloc = std::allocator<_Tp> >
+      |                                            ^~~
+/usr/include/c++/13/bits/stl_vector.h:2020:34: error: ‘std::allocator’ is not a template
+ 2020 |            typename _Allocator = allocator<_ValT>,
+      |                                  ^~~~~~~~~
+In file included from /usr/include/c++/13/vector:80:
+/usr/include/c++/13/bits/memory_resource.h: In member function ‘_Tp* std::pmr::polymorphic_allocator<_Tp>::allocate(std::size_t)’:
+/usr/include/c++/13/bits/memory_resource.h:161:16: error: ‘__throw_bad_array_new_length’ is not a member of ‘std’; did you mean ‘bad_array_new_length’?
+  161 |           std::__throw_bad_array_new_length();
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                bad_array_new_length
+In file included from /usr/include/c++/13/bits/stl_uninitialized.h:64,
+                 from /usr/include/c++/13/vector:65:
+/usr/include/c++/13/ext/alloc_traits.h: In instantiation of ‘struct __gnu_cxx::__alloc_traits<std::allocator, void>’:
+/usr/include/c++/13/bits/stl_vector.h:88:21:   required from ‘struct std::_Vector_base<int, std::allocator>’
+/usr/include/c++/13/bits/stl_vector.h:428:11:   required from ‘class std::vector<int>’
+kernel/src/kernel_main.cpp:39:22:   required from here
+/usr/include/c++/13/ext/alloc_traits.h:59:53: error: forming reference to void
+   59 |     typedef value_type&                             reference;
+      |                                                     ^~~~~~~~~
+/usr/include/c++/13/ext/alloc_traits.h:60:53: error: forming reference to void
+   60 |     typedef const value_type&                       const_reference;
+      |                                                     ^~~~~~~~~~~~~~~
+kernel/src/kernel_main.cpp: In function ‘void kernel_main()’:
+kernel/src/kernel_main.cpp:47:55: error: no match for ‘operator[]’ (operand types are ‘std::vector<int>’ and ‘size_t’ {aka ‘unsigned int’})
+   47 |         uint32_t val = static_cast<uint32_t>(my_vector[i]);
+      |                                                       ^
