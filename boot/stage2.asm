@@ -1,18 +1,23 @@
 [BITS 16]
 [ORG 0x8000]
 
+%define FAT_BUF  0x2000
+
 stage2_entry:
     cli
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
-    mov sp, 0x9FC0
+    mov sp, 0x7C00
     sti
 
     mov [boot_drive], dl
 
     mov si, msg_s2
+    call print
+
+    mov si, msg_map
     call print
 
     xor ah, ah
@@ -32,10 +37,15 @@ stage2_entry:
     mov si, msg_fat
     call print
 
+    xor ax, ax
+    mov es, ax
     mov ax, [ReservedSectors]
     mov cx, [SectorsPerFAT]
-    mov bx, 0x9000
+    mov bx, FAT_BUF
     call read_sectors
+
+    mov si, msg_fok
+    call print
 
     mov si, msg_search
     call print
@@ -63,6 +73,12 @@ stage2_entry:
 
     mov ax, [di + 26]
     mov [kernel_cluster], ax
+
+    mov si, msg_clust
+    call print
+    call print_dec
+    mov si, msg_crlf
+    call print
 
     cmp ax, 2
     jb .bad_cluster
@@ -137,16 +153,11 @@ stage2_entry:
     xor ax, ax
     mov es, ax
 
-    mov ah, 0x4F
-    mov cx, bp
-    add cx, '0'
-    cmp cx, '9'
-    jbe .one_digit
-    mov cx, 'M'
-.one_digit:
-    mov [sec_char], cl
-
     mov si, msg_sec
+    call print
+    mov ax, bp
+    call print_dec
+    mov si, msg_sectors
     call print
 
     mov si, msg_mem
@@ -176,8 +187,6 @@ stage2_entry:
 
     mov ax, [0x0502]
     add ax, 1024
-    mov si, msg_memval
-    call print
     call print_dec
     mov si, msg_kb
     call print
@@ -206,7 +215,7 @@ fat12_next:
     mov bx, ax
     shr bx, 1
     add bx, ax
-    mov ax, [0x9000 + bx]
+    mov ax, [FAT_BUF + bx]
     test cx, 1
     jz .even
     shr ax, 4
@@ -314,31 +323,32 @@ root_sz         dw 0
 data_lba        dw 0
 kernel_cluster  dw 0
 
-BPB_REF:
-ReservedSectors equ 0x7C0E
-NumberOfFATs    equ 0x7C10
-RootEntries     equ 0x7C11
-TotalSectors    equ 0x7C13
-SectorsPerFAT   equ 0x7C16
-SectorsPerTrack equ 0x7C18
+ReservedSectors  equ 0x7C0E
+NumberOfFATs     equ 0x7C10
+RootEntries      equ 0x7C11
+TotalSectors     equ 0x7C13
+SectorsPerFAT    equ 0x7C16
+SectorsPerTrack  equ 0x7C18
 HeadsPerCylinder equ 0x7C1A
 SectorsPerCluster equ 0x7C0D
 
 kname       db "KERNEL  BIN"
 msg_s2      db "[Stage2] Init", 13, 10, 0
-msg_fat     db "[Stage2] Loading FAT...", 13, 10, 0
+msg_map     db "[Stage2] Stack=0:7C00 FAT=0x2000", 13, 10, 0
+msg_fat     db "[Stage2] Reading FAT (9 sec)...", 13, 10, 0
+msg_fok     db "[Stage2] FAT loaded OK", 13, 10, 0
 msg_search  db "[Stage2] Searching KERNEL.BIN...", 13, 10, 0
+msg_clust   db "[Stage2] First cluster: ", 0
 msg_load    db "[Stage2] Loading kernel (FAT12 chain)...", 13, 10, 0
-msg_ok      db "[Stage2] Boot OK! Jumping to 0x10000", 13, 10, 0
-msg_nf      db "[Stage2] ERROR: KERNEL.BIN not found!", 13, 10, 0
-msg_de      db "[Stage2] ERROR: Disk read failed!", 13, 10, 0
-msg_bc      db "[Stage2] ERROR: Bad cluster!", 13, 10, 0
-msg_ce      db "[Stage2] ERROR: FAT chain corrupted!", 13, 10, 0
-msg_lba     db "[Stage2] ERROR: LBA out of range!", 13, 10, 0
-msg_mg      db "[Stage2] ERROR: Bad boot magic!", 13, 10, 0
-msg_mem     db "[Stage2] Memory: ", 0
-msg_memval  db 0
+msg_ok      db "[Stage2] Boot OK! -> 0x10000", 13, 10, 0
+msg_nf      db "[Stage2] ERR: KERNEL.BIN not found!", 13, 10, 0
+msg_de      db "[Stage2] ERR: Disk read!", 13, 10, 0
+msg_bc      db "[Stage2] ERR: Bad cluster!", 13, 10, 0
+msg_ce      db "[Stage2] ERR: Chain corrupt!", 13, 10, 0
+msg_lba     db "[Stage2] ERR: LBA out of range!", 13, 10, 0
+msg_mg      db "[Stage2] ERR: Bad boot magic!", 13, 10, 0
+msg_mem     db "[Stage2] RAM: ", 0
 msg_kb      db " KB", 13, 10, 0
-msg_sec     db "[Stage2] Loaded "
-sec_char    db "0"
-            db " sectors", 13, 10, 0
+msg_sec     db "[Stage2] Loaded ", 0
+msg_sectors db " sectors", 13, 10, 0
+msg_crlf    db 13, 10, 0
