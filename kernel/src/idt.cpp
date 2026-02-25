@@ -5,6 +5,7 @@
 #include "kernel/task_scheduler.h"
 #include "kernel/vmm.h"
 #include "kernel/syscall_gate.h"
+#include "libc.h"
 
 namespace re36 {
 
@@ -181,8 +182,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
     }
 
     // Если это исключение CPU (номер 0-31)
-    volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
-
+    
     // Массив названий стандартных исключений x86
     const char* exception_messages[] = {
         "Division By Zero", "Debug", "Non Maskable Interrupt", "Breakpoint",
@@ -195,7 +195,19 @@ extern "C" void isr_handler(re36::Registers* regs) {
         "Hypervisor Injection", "VMM Communication", "Security Exception", "Reserved"
     };
 
-    // Очистим экран красным цветом (Критическая ошибка)
+    // Защита (ESR Security): Если исключение произошло в пользовательском коде (Ring 3),
+    // мы не должны крашить всю ОС. Просто убиваем упавший поток.
+    if ((regs->cs & 3) == 3) {
+        printf("\n[ESR] User Thread %d crashed!\n", re36::TaskScheduler::get_current_tid());
+        const char* msg = (regs->int_no < 32) ? exception_messages[regs->int_no] : "Unknown";
+        printf("[ESR] Exception: %s, EIP: 0x%x, ERR: 0x%x\n", msg, regs->eip, regs->err_code);
+        re36::TaskScheduler::terminate_current();
+        return;
+    }
+
+    volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+
+    // Очистим экран красным цветом (Критическая ошибка ядра CPL=0)
     for (int i = 0; i < 80 * 25; i++) {
         vga_buffer[i] = (uint16_t(' ') | (0x4F << 8)); // 4 = Красный фон, F = Белый текст
     }

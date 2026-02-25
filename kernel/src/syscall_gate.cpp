@@ -51,7 +51,9 @@ static uint32_t sys_sleep(SyscallRegs* regs) {
 
 static uint32_t sys_yield(SyscallRegs* regs) {
     (void)regs;
-    thread_yield();
+    // Оставляем пустую заглушку. Явный yield внутри системного вызова 
+    // ломает QEMU, так как CPL=0 не возвращается через iret.
+    // Пользовательские процессы должны использовать sys_sleep()
     return 0;
 }
 

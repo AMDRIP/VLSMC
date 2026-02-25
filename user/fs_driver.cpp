@@ -158,7 +158,7 @@ void fs_main() {
                 vlsmc::App::msg_send(sender_tid, err, 14);
             }
         } else {
-            vlsmc::App::yield(); // Ждем новые сообщения
+            vlsmc::App::sleep(10); // Ждем 10мс вместо yield, чтобы квант прошел корректно
         }
     }
 }
