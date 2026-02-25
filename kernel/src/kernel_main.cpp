@@ -14,6 +14,8 @@
 #include "kernel/tss.h"
 #include "kernel/syscall_gate.h"
 #include "kernel/usermode.h"
+#include "kernel/ata.h"
+#include "kernel/fat16.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -64,11 +66,24 @@ void shell_thread() {
                 asm volatile("mov $5, %%eax; int $0x80; mov %%eax, %0" : "=r"(tid) :: "eax");
                 printf("Syscall returned TID = %d\n> ", tid);
             } else if (input_buffer == "help") {
-                printf("Commands: ps, ticks, meminfo, syscall, ring3, clear, hello, help\n> ");
+                printf("Commands: ps, ticks, meminfo, syscall, ring3, ls, cat, clear, hello, help\n> ");
             } else if (input_buffer == "ring3") {
                 printf("Launching Ring 3 user process...\n");
                 re36::thread_create("user0", user_thread_entry, 10);
                 printf("> ");
+            } else if (input_buffer == "ls") {
+                re36::Fat16::list_root();
+                printf("> ");
+            } else if (input_buffer.size() > 4 && input_buffer.c_str()[0] == 'c' && input_buffer.c_str()[1] == 'a' && input_buffer.c_str()[2] == 't' && input_buffer.c_str()[3] == ' ') {
+                const char* fname = input_buffer.c_str() + 4;
+                static uint8_t file_buf[4096];
+                int bytes = re36::Fat16::read_file(fname, file_buf, sizeof(file_buf) - 1);
+                if (bytes < 0) {
+                    printf("File not found: %s\n> ", fname);
+                } else {
+                    file_buf[bytes] = '\0';
+                    printf("%s\n> ", (const char*)file_buf);
+                }
             } else if (input_buffer.size() > 0) {
                 printf("Unknown command: %s\n> ", input_buffer.c_str());
             } else {
@@ -122,10 +137,15 @@ extern "C" void kernel_main() {
     dbg[10] = 0x4F42; // 'B' — Syscall
 
     re36::syscall_gate_init();
-    dbg[11] = 0x4F43; // 'C' — STI
+    dbg[11] = 0x4F43; // 'C' — ATA/FS
+
+    if (re36::ATA::init()) {
+        re36::Fat16::init();
+    }
+    dbg[12] = 0x4F44; // 'D' — STI
 
     asm volatile("sti");
-    dbg[12] = 0x4F4F; // 'O' — OK!
+    dbg[13] = 0x4F4F; // 'O' — OK!
     for (int i = 0; i < 80 * 25; i++) {
         vga_buffer[i] = (uint16_t(' ') | (0x1F << 8));
     }
@@ -143,6 +163,13 @@ extern "C" void kernel_main() {
     printf("-> VMM Paging Enabled (Kernel Supervisor-only)\n");
     printf("-> TSS Loaded (Ring 3 Ready)\n");
     printf("-> Syscall Gate (int 0x80) Registered\n");
+    if (re36::ATA::is_present()) {
+        printf("-> ATA Primary Master Detected\n");
+        if (re36::Fat16::is_mounted())
+            printf("-> FAT16 Filesystem Mounted\n");
+    } else {
+        printf("-> ATA: No IDE disk detected\n");
+    }
     printf("-> Interrupts Enabled (STI)\n\n");
 
     re36::thread_create("idle", idle_thread, 255);

@@ -33,13 +33,15 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/vmm.cpp -o vmm.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/tss.cpp -o tss.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/syscall_gate.cpp -o syscall_gate.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/usermode.cpp -o usermode.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/ata.cpp -o ata.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/fat16.cpp -o fat16.o
 
 # 4. Компоновка (Link) и извлечение плоского бинарника
 echo "[4/4] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
@@ -60,5 +62,12 @@ dd if=bootloader.bin of=disk.img bs=1 skip=62 seek=62 count=450 conv=notrunc sta
 # Копируем само ядро на файловую систему (чтобы загрузчик мог найти KERNEL.BIN)
 mcopy -i disk.img KERNEL.BIN ::/KERNEL.BIN
 
-echo "DONE! Generated disk.img. To test across QEMU:"
-echo "qemu-system-i386 -drive format=raw,file=disk.img"
+echo "=== Building Data Disk (FAT16) ==="
+dd if=/dev/zero of=data.img bs=512 count=32768 status=none
+mkfs.fat -F 16 data.img
+echo "Hello from FAT16 filesystem!" | mcopy -i data.img - ::/HELLO.TXT
+echo "This is a test file for the RE36 OS." | mcopy -i data.img - ::/TEST.TXT
+echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
+
+echo "DONE! To run:"
+echo "qemu-system-i386 -fda disk.img -hda data.img"
