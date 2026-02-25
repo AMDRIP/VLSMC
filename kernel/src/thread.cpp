@@ -1,6 +1,7 @@
 #include "kernel/thread.h"
 #include "kernel/spinlock.h"
 #include "kernel/vmm.h"
+#include "kernel/task_scheduler.h"
 #include "libc.h"
 
 namespace re36 {
@@ -38,6 +39,10 @@ void thread_init() {
     threads[0].name[0] = 'b'; threads[0].name[1] = 'o';
     threads[0].name[2] = 'o'; threads[0].name[3] = 't';
     threads[0].name[4] = '\0';
+    threads[0].page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
+    threads[0].msg_count = 0;
+    threads[0].msg_head = 0;
+    threads[0].msg_tail = 0;
     
     current_tid = 0;
     thread_count = 1;
@@ -110,7 +115,7 @@ void thread_terminate(int tid) {
 }
 
 void thread_yield() {
-    asm volatile("int $0x20"); // IRQ0
+    TaskScheduler::schedule();
 }
 
 } // namespace re36
