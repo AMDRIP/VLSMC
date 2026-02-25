@@ -39,8 +39,9 @@ private:
     static bool alt_pressed_;
     static bool caps_lock_active_;
     
-    // Номер текущей раскладки (0 = US QWERTY, 1 = US Dvorak)
     static int current_layout_;
+
+    static int kbd_channel_id_;
 
     // Кольцевой буфер для символов (256 байт)
     static char char_buffer_[256];

@@ -13,5 +13,6 @@ int strcmp(const char* s1, const char* s2);
 void putchar(char c);
 char getchar();
 void printf(const char* format, ...);
+void serial_init();
 
 }

@@ -39,8 +39,9 @@ void shell_thread() {
 }
 
 extern "C" void kernel_main() {
+    serial_init();
     volatile uint16_t* dbg = (volatile uint16_t*)0xB8000;
-    dbg[0] = 0x4F31; // '1' красный на белом — IDT
+    dbg[0] = 0x4F31;
 
     re36::init_idt();
     dbg[1] = 0x4F32; // '2' — PIC
@@ -53,22 +54,20 @@ extern "C" void kernel_main() {
     re36::PhysicalMemoryManager::set_region_free(0x100000, 31 * 1024 * 1024);
     dbg[3] = 0x4F34; // '4' — kmalloc
 
-    re36::kmalloc_init();
+    re36::EventSystem::init();
     dbg[4] = 0x4F35; // '5' — Keyboard
 
     re36::KeyboardDriver::init();
-    dbg[5] = 0x4F36; // '6' — Scheduler
-
-    re36::TaskScheduler::init();
-    dbg[6] = 0x4F37; // '7' — Timer
-
-    re36::Timer::init(100);
-    dbg[7] = 0x4F38; // '8' — Events
-
-    re36::EventSystem::init();
-    dbg[8] = 0x4F39; // '9' — VMM
+    dbg[5] = 0x4F36; // '6' — VMM
 
     re36::VMM::init();
+    dbg[6] = 0x4F37; // '7' — Scheduler
+
+    re36::TaskScheduler::init();
+    dbg[7] = 0x4F38; // '8' — Timer
+    dbg[8] = 0x4F39; // '9' — Timer
+
+    re36::Timer::init(100);
     dbg[9] = 0x4F41; // 'A' — TSS
 
     re36::TSS::init(0x90000);

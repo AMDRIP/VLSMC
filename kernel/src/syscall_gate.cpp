@@ -172,33 +172,28 @@ static uint32_t sys_recv_msg(SyscallRegs* regs) {
     uint32_t max_size = regs->edx;
 
     while (true) {
-        InterruptGuard guard;
-        Thread& cur = threads[current_tid];
+        {
+            InterruptGuard guard;
+            Thread& cur = threads[current_tid];
 
-        if (cur.msg_count > 0) {
-            IpcMessage& msg = cur.messages[cur.msg_head];
-            if (sender_tid_out) *sender_tid_out = msg.sender_tid;
+            if (cur.msg_count > 0) {
+                IpcMessage& msg = cur.messages[cur.msg_head];
+                if (sender_tid_out) *sender_tid_out = msg.sender_tid;
 
-            uint32_t copy_sz = msg.size < max_size ? msg.size : max_size;
-            for (uint32_t i = 0; i < copy_sz; i++) {
-                buffer[i] = msg.data[i];
+                uint32_t copy_sz = msg.size < max_size ? msg.size : max_size;
+                for (uint32_t i = 0; i < copy_sz; i++) {
+                    buffer[i] = msg.data[i];
+                }
+
+                cur.msg_head = (cur.msg_head + 1) % IPC_MSG_QUEUE_SIZE;
+                cur.msg_count--;
+
+                return copy_sz;
             }
 
-            cur.msg_head = (cur.msg_head + 1) % IPC_MSG_QUEUE_SIZE;
-            cur.msg_count--;
-
-            return copy_sz;
+            cur.waiting_for_msg = true;
         }
 
-        // Очередь пуста. Уходим в спячку.
-        cur.waiting_for_msg = true;
-        
-        // ВАЖНО: Мы должны вызвать block_current, но он должен отпустить InterruptGuard 
-        // до переключения контекста, иначе дедлок! 
-        // TaskScheduler::block_current(-1) сам управляет прерываниями внутри
-        // Но так как у нас деструктор InterruptGuard, мы берем его в блок:
-        guard.~InterruptGuard(); 
-        
         TaskScheduler::block_current(-1);
     }
 }

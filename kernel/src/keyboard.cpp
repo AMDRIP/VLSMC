@@ -1,5 +1,6 @@
 #include "kernel/keyboard.h"
 #include "kernel/pic.h" // Для inb
+#include "kernel/event_channel.h"
 #include "libc.h"       // Для printf/putchar
 
 namespace re36 {
@@ -10,6 +11,7 @@ bool KeyboardDriver::alt_pressed_ = false;
 bool KeyboardDriver::caps_lock_active_ = false;
 
 int KeyboardDriver::current_layout_ = 0; // 0: QWERTY, 1: Dvorak
+int KeyboardDriver::kbd_channel_id_ = -1;
 
 char KeyboardDriver::char_buffer_[256];
 int KeyboardDriver::buffer_head_ = 0;
@@ -96,6 +98,7 @@ void KeyboardDriver::init() {
     buffer_head_ = 0;
     buffer_tail_ = 0;
     extended_key_ = false;
+    kbd_channel_id_ = EventSystem::create_channel("kbd");
 }
 
 void KeyboardDriver::handle_interrupt() {
@@ -122,6 +125,7 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
             if (next_head != buffer_tail_) {
                 char_buffer_[buffer_head_] = special;
                 buffer_head_ = next_head;
+                EventSystem::push(kbd_channel_id_, 1);
             }
         }
         return;
@@ -196,6 +200,7 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
             if (next_head != buffer_tail_) {
                 char_buffer_[buffer_head_] = ascii;
                 buffer_head_ = next_head;
+                EventSystem::push(kbd_channel_id_, 1);
             }
 
             if (ascii == '\t') {
@@ -221,7 +226,7 @@ char KeyboardDriver::get_char() {
     char c = 0;
     while ((c = get_char_nonblocking()) == 0) {
         // Halt until next interrupt to save CPU power
-        asm volatile("hlt");
+        EventSystem::wait(kbd_channel_id_);
     }
     return c;
 }

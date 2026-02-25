@@ -165,6 +165,17 @@ extern "C" void isr_handler(re36::Registers* regs) {
     if (regs->int_no == 14) {
         uint32_t fault_addr;
         asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+
+        if ((regs->cs & 3) == 3) {
+            printf("\n[ESR] User Thread %d: Page Fault at 0x%x (%s %s)\n",
+                re36::TaskScheduler::get_current_tid(),
+                fault_addr,
+                (regs->err_code & 0x1) ? "Protection" : "Not-Present",
+                (regs->err_code & 0x2) ? "Write" : "Read");
+            re36::TaskScheduler::terminate_current();
+            return;
+        }
+
         re36::VMM::handle_page_fault(fault_addr, regs->err_code);
         return;
     }

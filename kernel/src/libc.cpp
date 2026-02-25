@@ -1,5 +1,6 @@
 #include "libc.h"
 #include "kernel/keyboard.h"
+#include "kernel/pic.h"
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -44,10 +45,34 @@ int strcmp(const char* s1, const char* s2) {
 
 // Управление VGA
 static int cursor_x = 0;
-static int cursor_y = 15; // Начинаем писать под логами загрузки
+static int cursor_y = 15;
 volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
 
+#define COM1_PORT 0x3F8
+static bool serial_ready = false;
+
+void serial_init() {
+    using namespace re36;
+    outb(COM1_PORT + 1, 0x00);
+    outb(COM1_PORT + 3, 0x80);
+    outb(COM1_PORT + 0, 0x01);
+    outb(COM1_PORT + 1, 0x00);
+    outb(COM1_PORT + 3, 0x03);
+    outb(COM1_PORT + 2, 0xC7);
+    outb(COM1_PORT + 4, 0x0B);
+    serial_ready = true;
+}
+
+static void serial_putchar(char c) {
+    if (!serial_ready) return;
+    using namespace re36;
+    while ((inb(COM1_PORT + 5) & 0x20) == 0);
+    outb(COM1_PORT, c);
+}
+
 void putchar(char c) {
+    if (c == '\n') serial_putchar('\r');
+    serial_putchar(c);
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
