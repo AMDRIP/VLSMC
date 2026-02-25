@@ -7,6 +7,8 @@
 #include "kernel/vmm.h"
 #include "kernel/keyboard.h"
 #include "kernel/pic.h"
+#include "kernel/ata.h"
+#include "kernel/spinlock.h"
 #include "libc.h"
 
 namespace re36 {
@@ -131,6 +133,62 @@ static uint32_t sys_wait_irq(SyscallRegs* regs) {
     return 0;
 }
 
+static uint32_t sys_send_msg(SyscallRegs* regs) {
+    int target_tid = (int)regs->ebx;
+    const uint8_t* data = (const uint8_t*)regs->ecx;
+    uint32_t size = regs->edx;
+
+    if (target_tid < 0 || target_tid >= MAX_THREADS || size > IPC_MAX_MSG_SIZE) return (uint32_t)-1;
+    
+    InterruptGuard guard;
+    Thread& target = threads[target_tid];
+    if (target.state == ThreadState::Unused || target.state == ThreadState::Terminated) return (uint32_t)-1;
+
+    if (target.msg_count >= IPC_MSG_QUEUE_SIZE) return (uint32_t)-1; // Queue full
+
+    IpcMessage& msg = target.messages[target.msg_tail];
+    msg.sender_tid = current_tid;
+    msg.size = size;
+    for (uint32_t i = 0; i < size; i++) {
+        msg.data[i] = data[i];
+    }
+
+    target.msg_tail = (target.msg_tail + 1) % IPC_MSG_QUEUE_SIZE;
+    target.msg_count++;
+
+    return 0;
+}
+
+static uint32_t sys_recv_msg(SyscallRegs* regs) {
+    int* sender_tid_out = (int*)regs->ebx;
+    uint8_t* buffer = (uint8_t*)regs->ecx;
+    uint32_t max_size = regs->edx;
+
+    InterruptGuard guard;
+    Thread& cur = threads[current_tid];
+
+    if (cur.msg_count == 0) return (uint32_t)-1; // No messages
+
+    IpcMessage& msg = cur.messages[cur.msg_head];
+    if (sender_tid_out) *sender_tid_out = msg.sender_tid;
+
+    uint32_t copy_sz = msg.size < max_size ? msg.size : max_size;
+    for (uint32_t i = 0; i < copy_sz; i++) {
+        buffer[i] = msg.data[i];
+    }
+
+    cur.msg_head = (cur.msg_head + 1) % IPC_MSG_QUEUE_SIZE;
+    cur.msg_count--;
+
+    return copy_sz;
+}
+
+static uint32_t sys_read_sector(SyscallRegs* regs) {
+    uint32_t lba = regs->ebx;
+    uint8_t* buffer = (uint8_t*)regs->ecx;
+    return ATA::read_sectors(lba, 1, buffer) ? 1 : 0;
+}
+
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
 static SyscallHandler syscall_table[] = {
@@ -157,6 +215,9 @@ static SyscallHandler syscall_table[] = {
     sys_outw,
     sys_map_mmio,
     sys_wait_irq,
+    sys_send_msg,
+    sys_recv_msg,
+    sys_read_sector,
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

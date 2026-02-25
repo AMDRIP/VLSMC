@@ -36,6 +36,18 @@ public:
     static uint32_t get_time() {
         return sys_time();
     }
+
+    static int msg_send(int target_tid, const void* buffer, uint32_t size) {
+        return sys_send_msg(target_tid, buffer, size);
+    }
+
+    static int msg_recv(int* sender_tid_out, void* buffer, uint32_t max_size) {
+        return sys_recv_msg(sender_tid_out, buffer, max_size);
+    }
+
+    static bool read_sector(uint32_t lba, void* buffer) {
+        return sys_read_sector(lba, buffer);
+    }
 };
 
 } // namespace vlsmc

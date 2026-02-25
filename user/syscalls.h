@@ -38,6 +38,10 @@ static inline uint32_t syscall3(uint32_t num, uint32_t arg1, uint32_t arg2, uint
 #define SYS_GETPID   5
 #define SYS_TIME     16
 
+#define SYS_SEND_MSG 23
+#define SYS_RECV_MSG 24
+#define SYS_READ_SECTOR 25
+
 static inline void sys_exit(void) {
     syscall0(SYS_EXIT);
 }
@@ -64,6 +68,18 @@ static inline uint32_t sys_getpid(void) {
 
 static inline uint32_t sys_time(void) {
     return syscall0(SYS_TIME);
+}
+
+static inline int sys_send_msg(int target_tid, const void* buffer, uint32_t size) {
+    return (int)syscall3(SYS_SEND_MSG, (uint32_t)target_tid, (uint32_t)buffer, size);
+}
+
+static inline int sys_recv_msg(int* sender_tid_out, void* buffer, uint32_t max_size) {
+    return (int)syscall3(SYS_RECV_MSG, (uint32_t)sender_tid_out, (uint32_t)buffer, max_size);
+}
+
+static inline bool sys_read_sector(uint32_t lba, void* buffer) {
+    return syscall2(SYS_READ_SECTOR, lba, (uint32_t)buffer) != 0;
 }
 
 static inline void print(const char* s) {

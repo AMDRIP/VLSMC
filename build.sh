@@ -81,6 +81,14 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_vesa_test.o -o VESATEST.ELF
 mcopy -i data.img VESATEST.ELF ::/VESATEST.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/fs_driver.cpp -o user_fs_driver.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fs_driver.o -o FSDRIVER.ELF
+mcopy -i data.img FSDRIVER.ELF ::/FSDRIVER.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/cat_test.cpp -o user_cat_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_cat_test.o -o CAT_TEST.ELF
+mcopy -i data.img CAT_TEST.ELF ::/CAT_TEST.ELF
+
 echo ""
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"

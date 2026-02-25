@@ -8,6 +8,15 @@ namespace re36 {
 #define MAX_THREADS 32
 #define THREAD_STACK_SIZE 4096
 
+#define IPC_MAX_MSG_SIZE 512
+#define IPC_MSG_QUEUE_SIZE 4
+
+struct IpcMessage {
+    int sender_tid;
+    uint32_t size;
+    uint8_t data[IPC_MAX_MSG_SIZE];
+};
+
 enum class ThreadState : uint8_t {
     Unused = 0,
     Ready,
@@ -36,6 +45,11 @@ struct Thread {
     uint32_t total_ticks;       // Всего тиков процессорного времени
     
     uint32_t* page_directory_phys; // Каталог страниц потока
+    
+    IpcMessage messages[IPC_MSG_QUEUE_SIZE];
+    int msg_head;
+    int msg_tail;
+    int msg_count;
 };
 
 extern Thread threads[MAX_THREADS];

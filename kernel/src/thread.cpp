@@ -72,6 +72,9 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.quantum_remaining = 5;
     t.total_ticks = 0;
     t.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
+    t.msg_head = 0;
+    t.msg_tail = 0;
+    t.msg_count = 0;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
 
