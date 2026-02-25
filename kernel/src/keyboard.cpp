@@ -14,6 +14,7 @@ int KeyboardDriver::current_layout_ = 0; // 0: QWERTY, 1: Dvorak
 char KeyboardDriver::char_buffer_[256];
 int KeyboardDriver::buffer_head_ = 0;
 int KeyboardDriver::buffer_tail_ = 0;
+bool KeyboardDriver::extended_key_ = false;
 
 // Американская раскладка QWERTY (Scancode Set 1) - Нажатия 
 static const char kbd_us_qwerty[128] = {
@@ -94,6 +95,7 @@ void KeyboardDriver::init() {
     current_layout_ = 0;
     buffer_head_ = 0;
     buffer_tail_ = 0;
+    extended_key_ = false;
 }
 
 void KeyboardDriver::handle_interrupt() {
@@ -102,6 +104,29 @@ void KeyboardDriver::handle_interrupt() {
 }
 
 void KeyboardDriver::process_scancode(uint8_t scancode) {
+    if (scancode == 0xE0) {
+        extended_key_ = true;
+        return;
+    }
+
+    if (extended_key_) {
+        extended_key_ = false;
+        if (scancode & 0x80) return;
+
+        char special = 0;
+        if (scancode == 0x48) special = (char)0x80;
+        if (scancode == 0x50) special = (char)0x81;
+
+        if (special) {
+            int next_head = (buffer_head_ + 1) % 256;
+            if (next_head != buffer_tail_) {
+                char_buffer_[buffer_head_] = special;
+                buffer_head_ = next_head;
+            }
+        }
+        return;
+    }
+
     bool is_release = (scancode & 0x80) != 0;
     uint8_t make_code = scancode & 0x7F;
 
@@ -167,20 +192,17 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
                 ascii = ascii - 'a' + 1; // Возвращает непечатные символы для систем на базе Unix (Ctrl+C = 3)
             }
 
-            // Добавляем символ в кольцевой буфер
             int next_head = (buffer_head_ + 1) % 256;
-            if (next_head != buffer_tail_) { // Защита от переполнения
+            if (next_head != buffer_tail_) {
                 char_buffer_[buffer_head_] = ascii;
                 buffer_head_ = next_head;
             }
 
-            // Пока все еще печатаем прямо на экран (эхо-вывод, как в DOS)
-            if (ascii >= 32 || ascii == '\n' || ascii == '\b') {
-                // Если не спецсимвол Ctrl, печатаем
+            if (ascii == '\t') {
+            } else if (ascii >= 32 || ascii == '\n' || ascii == '\b') {
                 putchar(ascii);
             } else if (ctrl_pressed_) {
-                // Демонстрация работы Ctrl+клавиша
-                printf("^%c", base_char - 32); 
+                printf("^%c", base_char - 32);
             }
         }
     }

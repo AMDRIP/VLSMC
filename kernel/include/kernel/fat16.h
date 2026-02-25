@@ -59,6 +59,8 @@ public:
     static void stat_file(const char* name);
     
     static bool is_mounted();
+    
+    static uint32_t root_dir_lba() { return root_dir_lba_; }
 
 private:
     static FAT16_BPB bpb_;

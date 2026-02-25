@@ -44,8 +44,9 @@ private:
 
     // Кольцевой буфер для символов (256 байт)
     static char char_buffer_[256];
-    static int buffer_head_; // Куда пишем
-    static int buffer_tail_; // Откуда читаем
+    static int buffer_head_;
+    static int buffer_tail_;
+    static bool extended_key_;
 };
 
 } // namespace re36

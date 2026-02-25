@@ -1,5 +1,6 @@
 #include "kernel/fat16.h"
 #include "kernel/ata.h"
+#include "kernel/rtc.h"
 #include "libc.h"
 
 namespace re36 {
@@ -391,8 +392,8 @@ bool Fat16::write_file(const char* name, const uint8_t* data, uint32_t size) {
                 format_83_name(name, entries[i].name);
                 entries[i].attributes = FAT_ATTR_ARCHIVE;
                 for (int r = 0; r < 10; r++) entries[i].reserved[r] = 0;
-                entries[i].time = 0;
-                entries[i].date = 0;
+                entries[i].time = RTC::fat_time();
+                entries[i].date = RTC::fat_date();
                 entries[i].first_cluster = first_cluster;
                 entries[i].file_size = size;
                 
@@ -470,13 +471,19 @@ void Fat16::stat_file(const char* name) {
     if (entry->attributes & FAT_ATTR_ARCHIVE) printf("A ");
     printf("\n");
     
+    uint16_t t = entry->time;
+    uint16_t d = entry->date;
+    printf("  Modified: %d-%d-%d %d:%d:%d\n",
+        1980 + (d >> 9), (d >> 5) & 0xF, d & 0x1F,
+        t >> 11, (t >> 5) & 0x3F, (t & 0x1F) * 2);
+    
     uint16_t cluster = entry->first_cluster;
     int chain_len = 0;
     while (cluster >= 2 && cluster < 0xFFF8) {
         chain_len++;
         cluster = fat_table_[cluster];
     }
-    printf("  Clusters in chain: %d (%d bytes)\n\n", chain_len, chain_len * bpb_.sectors_per_cluster * 512);
+    printf("  Clusters: %d (%d bytes)\n\n", chain_len, chain_len * bpb_.sectors_per_cluster * 512);
 }
 
 } // namespace re36

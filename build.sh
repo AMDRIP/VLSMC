@@ -35,13 +35,20 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/syscall_gate.cpp -o syscall_gate.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/usermode.cpp -o usermode.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/ata.cpp -o ata.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/fat16.cpp -o fat16.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/elf_loader.cpp -o elf_loader.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/rtc.cpp -o rtc.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell.cpp -o shell.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_history.cpp -o shell_history.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_autocomplete.cpp -o shell_autocomplete.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_redirect.cpp -o shell_redirect.o
 
 # 4. Компоновка (Link) и извлечение плоского бинарника
 echo "[4/4] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o elf_loader.o rtc.o \
+    shell.o shell_history.o shell_autocomplete.o shell_redirect.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
@@ -68,6 +75,12 @@ mkfs.fat -F 16 data.img
 echo "Hello from FAT16 filesystem!" | mcopy -i data.img - ::/HELLO.TXT
 echo "This is a test file for the RE36 OS." | mcopy -i data.img - ::/TEST.TXT
 echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
+
+echo "=== Building User Programs ==="
+nasm -f elf32 user/crt0.asm -o user_crt0.o
+x86_64-linux-gnu-gcc -m32 -ffreestanding -fno-pie -nostdlib -nostdinc -Iuser -c user/hello.c -o user_hello.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_hello.o -o HELLO.ELF
+mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img"
