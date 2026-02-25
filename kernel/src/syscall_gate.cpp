@@ -158,6 +158,11 @@ static uint32_t sys_send_msg(SyscallRegs* regs) {
     target.msg_tail = (target.msg_tail + 1) % IPC_MSG_QUEUE_SIZE;
     target.msg_count++;
 
+    if (target.waiting_for_msg) {
+        target.waiting_for_msg = false;
+        TaskScheduler::unblock(target_tid);
+    }
+
     return 0;
 }
 
@@ -166,23 +171,36 @@ static uint32_t sys_recv_msg(SyscallRegs* regs) {
     uint8_t* buffer = (uint8_t*)regs->ecx;
     uint32_t max_size = regs->edx;
 
-    InterruptGuard guard;
-    Thread& cur = threads[current_tid];
+    while (true) {
+        InterruptGuard guard;
+        Thread& cur = threads[current_tid];
 
-    if (cur.msg_count == 0) return (uint32_t)-1; // No messages
+        if (cur.msg_count > 0) {
+            IpcMessage& msg = cur.messages[cur.msg_head];
+            if (sender_tid_out) *sender_tid_out = msg.sender_tid;
 
-    IpcMessage& msg = cur.messages[cur.msg_head];
-    if (sender_tid_out) *sender_tid_out = msg.sender_tid;
+            uint32_t copy_sz = msg.size < max_size ? msg.size : max_size;
+            for (uint32_t i = 0; i < copy_sz; i++) {
+                buffer[i] = msg.data[i];
+            }
 
-    uint32_t copy_sz = msg.size < max_size ? msg.size : max_size;
-    for (uint32_t i = 0; i < copy_sz; i++) {
-        buffer[i] = msg.data[i];
+            cur.msg_head = (cur.msg_head + 1) % IPC_MSG_QUEUE_SIZE;
+            cur.msg_count--;
+
+            return copy_sz;
+        }
+
+        // Очередь пуста. Уходим в спячку.
+        cur.waiting_for_msg = true;
+        
+        // ВАЖНО: Мы должны вызвать block_current, но он должен отпустить InterruptGuard 
+        // до переключения контекста, иначе дедлок! 
+        // TaskScheduler::block_current(-1) сам управляет прерываниями внутри
+        // Но так как у нас деструктор InterruptGuard, мы берем его в блок:
+        guard.~InterruptGuard(); 
+        
+        TaskScheduler::block_current(-1);
     }
-
-    cur.msg_head = (cur.msg_head + 1) % IPC_MSG_QUEUE_SIZE;
-    cur.msg_count--;
-
-    return copy_sz;
 }
 
 static uint32_t sys_read_sector(SyscallRegs* regs) {

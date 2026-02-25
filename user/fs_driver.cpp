@@ -157,8 +157,6 @@ void fs_main() {
                 const char* err = "FILE NOT FOUND";
                 vlsmc::App::msg_send(sender_tid, err, 14);
             }
-        } else {
-            vlsmc::App::sleep(10); // Ждем 10мс вместо yield, чтобы квант прошел корректно
         }
     }
 }

@@ -50,6 +50,7 @@ struct Thread {
     int msg_head;
     int msg_tail;
     int msg_count;
+    bool waiting_for_msg;
 };
 
 extern Thread threads[MAX_THREADS];

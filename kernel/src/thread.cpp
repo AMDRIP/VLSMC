@@ -43,6 +43,7 @@ void thread_init() {
     threads[0].msg_count = 0;
     threads[0].msg_head = 0;
     threads[0].msg_tail = 0;
+    threads[0].waiting_for_msg = false;
     
     current_tid = 0;
     thread_count = 1;
@@ -80,6 +81,7 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.msg_head = 0;
     t.msg_tail = 0;
     t.msg_count = 0;
+    t.waiting_for_msg = false;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
 

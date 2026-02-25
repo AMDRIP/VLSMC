@@ -52,8 +52,6 @@ int main() {
             
             vlsmc::App::print("\n--------------------\n");
             break;
-        } else {
-            vlsmc::App::sleep(10); // Ждем 10мс вместо yield, чтобы квант прошел корректно
         }
     }
 
