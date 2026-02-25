@@ -1,7 +1,6 @@
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
+#include "syscalls.h"
 
 struct DriverContext {
     void* private_data;

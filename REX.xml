@@ -1,0 +1,40 @@
+<NotepadPlus>
+    <UserLang name="reX" ext="rex">
+        <Settings>
+            <Global caseIgnored="no" />
+            <TreatAsSymbol comment="yes" commentLine="yes" />
+            <Prefix words1="no" words2="no" words3="no" words4="no" />
+        </Settings>
+        <KeywordLists>
+            <Keywords name="Delimiters">&quot;00&quot;00</Keywords>
+            <Keywords name="Folder+">{</Keywords>
+            <Keywords name="Folder-">}</Keywords>
+            <Keywords name="Operators">- ! % &amp; ( ) * , . / : ; ? @ [ \ ] ^ { | } ~ + &lt; = &gt;</Keywords>
+            <Keywords name="Comment">1/* 2*/ 0//</Keywords>
+            <!-- Words1: Основные конструкции и управление потоком (Синий цвет) -->
+            <Keywords name="Words1">fn let const struct enum impl import export native if else match loop while for break continue return yield as sizeof typeof</Keywords>
+            <!-- Words2: Базовые типы данных (Зеленый цвет) -->
+            <Keywords name="Words2">i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool str char ptr void any</Keywords>
+            <!-- Words3: Системные и зарезервированные константы (Фиолетовый/Оранжевый) -->
+            <Keywords name="Words3">true false null self super</Keywords>
+            <!-- Words4: Встроенные макросы или системные объекты -->
+            <Keywords name="Words4">sys os memory threads alloc free own</Keywords>
+        </KeywordLists>
+        <Styles>
+            <WordsStyle name="DEFAULT" styleID="11" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="FOLDEROPEN" styleID="12" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="FOLDERCLOSE" styleID="13" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="KEYWORD1" styleID="5" fgColor="0000FF" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            <WordsStyle name="KEYWORD2" styleID="6" fgColor="008000" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            <WordsStyle name="KEYWORD3" styleID="7" fgColor="FF8000" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            <WordsStyle name="KEYWORD4" styleID="8" fgColor="800080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="COMMENT" styleID="1" fgColor="008080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="COMMENT LINE" styleID="2" fgColor="008080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="NUMBER" styleID="4" fgColor="FF0000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="OPERATOR" styleID="10" fgColor="000080" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            <WordsStyle name="DELIM1" styleID="14" fgColor="808080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="DELIM2" styleID="15" fgColor="808080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="DELIM3" styleID="16" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+        </Styles>
+    </UserLang>
+</NotepadPlus>

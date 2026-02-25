@@ -19,6 +19,7 @@
 #include "kernel/elf_loader.h"
 #include "kernel/rtc.h"
 #include "kernel/shell.h"
+#include "kernel/selftest.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -110,6 +111,8 @@ extern "C" void kernel_main() {
         printf("-> ATA: No IDE disk detected\n");
     }
     printf("-> Interrupts Enabled (STI)\n\n");
+
+    re36::run_all_tests();
 
     re36::thread_create("idle", idle_thread, 255);
     re36::thread_create("shell", shell_thread, 1);
