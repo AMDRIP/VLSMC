@@ -14,6 +14,7 @@
 #include "kernel/elf_loader.h"
 #include "kernel/usermode.h"
 #include "kernel/boot_info.h"
+#include "kernel/vga.h"
 #include "libc.h"
 
 namespace re36 {
@@ -91,6 +92,11 @@ static void exec_command(const char* cmd) {
         printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
         printf("System: ps, ticks, meminfo, date, bootinfo, syscall, ring3, clear, help\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
+    } else if (str_eq(cmd, "gfx")) {
+        VGA::demo();
+    } else if (str_eq(cmd, "textmode")) {
+        VGA::init_text_mode();
+        printf("Back to text mode.\n");
     } else if (str_eq(cmd, "bootinfo")) {
         BootInfo* bi = get_boot_info();
         if (bi->magic == BOOT_INFO_MAGIC) {

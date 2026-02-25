@@ -38,13 +38,14 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell.cpp -o shell.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_history.cpp -o shell_history.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_autocomplete.cpp -o shell_autocomplete.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_redirect.cpp -o shell_redirect.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/vga.cpp -o vga.o
 
 echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
     keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o elf_loader.o rtc.o \
-    shell.o shell_history.o shell_autocomplete.o shell_redirect.o \
+    shell.o shell_history.o shell_autocomplete.o shell_redirect.o vga.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
