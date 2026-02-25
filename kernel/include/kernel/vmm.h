@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+extern "C" uint32_t _kernel_start;
+extern "C" uint32_t _kernel_end;
+
 namespace re36 {
 
 #define PAGE_SIZE 4096
@@ -20,9 +23,6 @@ namespace re36 {
 #define PT_ENTRIES 1024
 
 #define KERNEL_SPACE_END 0x00400000   // Первые 4 MB — ядро (Supervisor-only)
-
-extern "C" uint32_t _kernel_start;
-extern "C" uint32_t _kernel_end;
 
 class VMM {
 public:

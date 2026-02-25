@@ -28,8 +28,10 @@ SECTIONS
 
     .bss : ALIGN(4K)
     {
+        _bss_start = .;
         *(COMMON)
         *(.bss)
+        _bss_end = .;
     }
 
     . = ALIGN(4K);

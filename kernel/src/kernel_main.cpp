@@ -111,7 +111,8 @@ extern "C" void kernel_main() {
     re36::pic_remap(0x20, 0x28);
     dbg[2] = 0x4F33; // '3' — PMM
 
-    re36::PhysicalMemoryManager::init(0x20000, 32 * 1024 * 1024);
+    uint32_t pmm_bitmap_addr = ((uint32_t)&_kernel_end + 0xFFF) & ~0xFFF;
+    re36::PhysicalMemoryManager::init(pmm_bitmap_addr, 32 * 1024 * 1024);
     re36::PhysicalMemoryManager::set_region_free(0x100000, 31 * 1024 * 1024);
     dbg[3] = 0x4F34; // '4' — kmalloc
 
