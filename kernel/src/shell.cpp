@@ -13,6 +13,7 @@
 #include "kernel/thread.h"
 #include "kernel/elf_loader.h"
 #include "kernel/usermode.h"
+#include "kernel/boot_info.h"
 #include "libc.h"
 
 namespace re36 {
@@ -88,8 +89,19 @@ static void exec_command(const char* cmd) {
         printf("Syscall returned TID = %d\n", tid);
     } else if (str_eq(cmd, "help")) {
         printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
-        printf("System: ps, ticks, meminfo, date, syscall, ring3, clear, help\n");
+        printf("System: ps, ticks, meminfo, date, bootinfo, syscall, ring3, clear, help\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
+    } else if (str_eq(cmd, "bootinfo")) {
+        BootInfo* bi = get_boot_info();
+        if (bi->magic == BOOT_INFO_MAGIC) {
+            printf("Boot drive: 0x%x\n", bi->boot_drive);
+            printf("Video mode: 0x%x\n", bi->video_mode);
+            uint32_t total_kb = 1024 + bi->mem_below_16m_kb + (uint32_t)bi->mem_above_16m_64kb * 64;
+            printf("Memory: %u KB (%u MB)\n", total_kb, total_kb / 1024);
+            printf("Boot magic: 0x%x (OK)\n", bi->magic);
+        } else {
+            printf("Boot info not available (magic: 0x%x)\n", bi->magic);
+        }
     } else if (str_eq(cmd, "ring3")) {
         printf("Launching Ring 3 user process...\n");
         void (*entry)() = []() { enter_usermode(); };

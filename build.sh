@@ -3,19 +3,16 @@ set -e
 
 echo "=== VLSMC Bare-Metal Build Script ==="
 
-# 1. Сборка загрузчика
-echo "[1/4] Assembling bootloader..."
+echo "[1/5] Assembling bootloader (Stage 1 + Stage 2)..."
 nasm -f bin boot/bootloader.asm -o bootloader.bin
+nasm -f bin boot/stage2.asm -o STAGE2.BIN
 
-# 2. Сборка входной точки ядра и прерываний (Assembly)
-echo "[2/4] Assembling kernel entry and interrupts..."
+echo "[2/5] Assembling kernel entry and interrupts..."
 nasm -f elf32 kernel/src/kernel_entry.asm -o kernel_entry.o
 nasm -f elf32 kernel/src/interrupts.asm -o interrupts.o
 nasm -f elf32 kernel/src/switch_task.asm -o switch_task.o
 
-# 3. Компиляция ядра (C++)
-# Флаги freestanding отключают стандартную библиотеку C/C++
-echo "[3/4] Compiling C++ kernel sources..."
+echo "[3/5] Compiling C++ kernel sources..."
 CXXFLAGS="-m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra"
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/kernel_main.cpp -o kernel_main.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/idt.cpp -o idt.o
@@ -42,8 +39,7 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_history.cpp -o shell_history.
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_autocomplete.cpp -o shell_autocomplete.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell_redirect.cpp -o shell_redirect.o
 
-# 4. Компоновка (Link) и извлечение плоского бинарника
-echo "[4/4] Linking kernel..."
+echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
@@ -52,22 +48,19 @@ x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
 
-echo "=== Building Disk Image ==="
-# Создаем пустой образ дискеты 1.44MB
+echo "[5/5] Building Disk Images..."
+
 dd if=/dev/zero of=disk.img bs=512 count=2880 status=none
+mkfs.fat -F 12 disk.img
 
-# Форматируем как FAT12 (стандарт для 1.44MB дискет)
-mkfs.fat -F 12 disk.img      
-
-# Теперь нам нужно перенести наш код загрузчика в boot sector образа disk.img,
-# при этом сохранив FAT BPB (который сгенерировал mkfs.fat), чтобы файловая система осталась целой.
-# Байты 0-2 (JMP и NOP)
 dd if=bootloader.bin of=disk.img bs=1 count=3 conv=notrunc status=none
-# Байты 62-511 (Boot Code и Сигнатура 0xAA55)
 dd if=bootloader.bin of=disk.img bs=1 skip=62 seek=62 count=450 conv=notrunc status=none
 
-# Копируем само ядро на файловую систему (чтобы загрузчик мог найти KERNEL.BIN)
+mcopy -i disk.img STAGE2.BIN ::/STAGE2.BIN
 mcopy -i disk.img KERNEL.BIN ::/KERNEL.BIN
+
+echo "--- Boot disk ---"
+mdir -i disk.img ::/
 
 echo "=== Building Data Disk (FAT16) ==="
 dd if=/dev/zero of=data.img bs=512 count=32768 status=none
@@ -82,5 +75,6 @@ x86_64-linux-gnu-gcc -m32 -ffreestanding -fno-pie -nostdlib -nostdinc -Iuser -c 
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_hello.o -o HELLO.ELF
 mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 
+echo ""
 echo "DONE! To run:"
-echo "qemu-system-i386 -fda disk.img -hda data.img"
+echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"
