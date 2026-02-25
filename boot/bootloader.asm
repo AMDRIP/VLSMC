@@ -134,11 +134,11 @@ start:
     sub ax, 2
     xor cx, cx
     mov cl, [SectorsPerCluster]
-    mul cx                  ; Теперь умножаем 16-битный AX на CX
+    mul cx
     add ax, [DataRegionLBA]
 
-    ; Читаем 64 сектора загруженного кластера (32 KB - УПРОЩЕНИЕ!)
-    mov cx, 64
+    ; Читаем 128 секторов (64 KB максимум для ядра)
+    mov cx, 128
     mov bx, 0x1000          ; ES = 0x1000
     mov es, bx
     mov bx, 0x0000          ; Offset 0

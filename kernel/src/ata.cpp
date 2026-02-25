@@ -93,4 +93,34 @@ bool ATA::is_present() {
     return present_;
 }
 
+bool ATA::write_sectors(uint32_t lba, uint8_t count, const void* buffer) {
+    if (!present_) return false;
+
+    wait_bsy();
+
+    outb(ATA_PRIMARY_IO + ATA_REG_DRIVE, 0xE0 | ((lba >> 24) & 0x0F));
+    outb(ATA_PRIMARY_IO + ATA_REG_SECCOUNT, count);
+    outb(ATA_PRIMARY_IO + ATA_REG_LBA_LO, (uint8_t)(lba & 0xFF));
+    outb(ATA_PRIMARY_IO + ATA_REG_LBA_MID, (uint8_t)((lba >> 8) & 0xFF));
+    outb(ATA_PRIMARY_IO + ATA_REG_LBA_HI, (uint8_t)((lba >> 16) & 0xFF));
+    outb(ATA_PRIMARY_IO + ATA_REG_COMMAND, ATA_CMD_WRITE_PIO);
+
+    const uint16_t* buf = (const uint16_t*)buffer;
+
+    for (int s = 0; s < count; s++) {
+        wait_bsy();
+        wait_drq();
+
+        for (int i = 0; i < 256; i++) {
+            outw(ATA_PRIMARY_IO + ATA_REG_DATA, buf[s * 256 + i]);
+        }
+    }
+
+    wait_bsy();
+    outb(ATA_PRIMARY_IO + ATA_REG_COMMAND, 0xE7);
+    wait_bsy();
+
+    return true;
+}
+
 } // namespace re36

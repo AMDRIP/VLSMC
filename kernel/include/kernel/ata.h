@@ -19,6 +19,7 @@ namespace re36 {
 #define ATA_REG_COMMAND   7
 
 #define ATA_CMD_READ_PIO  0x20
+#define ATA_CMD_WRITE_PIO 0x30
 #define ATA_CMD_IDENTIFY  0xEC
 
 #define ATA_SR_BSY        0x80
@@ -33,6 +34,8 @@ public:
     static bool init();
     
     static bool read_sectors(uint32_t lba, uint8_t count, void* buffer);
+    
+    static bool write_sectors(uint32_t lba, uint8_t count, const void* buffer);
     
     static bool is_present();
 

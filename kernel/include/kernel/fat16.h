@@ -52,6 +52,12 @@ public:
     
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
     
+    static bool write_file(const char* name, const uint8_t* data, uint32_t size);
+    
+    static bool delete_file(const char* name);
+    
+    static void stat_file(const char* name);
+    
     static bool is_mounted();
 
 private:
@@ -69,6 +75,11 @@ private:
     static bool read_cached_sector(uint32_t lba);
     static uint32_t cluster_to_lba(uint16_t cluster);
     static bool match_filename(const FAT16_DirEntry* entry, const char* name);
+    static uint16_t alloc_cluster();
+    static void free_chain(uint16_t start_cluster);
+    static void flush_fat();
+    static void format_83_name(const char* name, char* out);
+    static int find_dir_entry(const char* name, uint32_t* sector_out, int* index_out);
 };
 
 } // namespace re36

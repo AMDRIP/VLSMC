@@ -66,7 +66,8 @@ void shell_thread() {
                 asm volatile("mov $5, %%eax; int $0x80; mov %%eax, %0" : "=r"(tid) :: "eax");
                 printf("Syscall returned TID = %d\n> ", tid);
             } else if (input_buffer == "help") {
-                printf("Commands: ps, ticks, meminfo, syscall, ring3, ls, cat, clear, hello, help\n> ");
+                printf("File: ls, cat, write, rm, stat, hexdump\n");
+                printf("System: ps, ticks, meminfo, syscall, ring3, clear, help\n> ");
             } else if (input_buffer == "ring3") {
                 printf("Launching Ring 3 user process...\n");
                 re36::thread_create("user0", user_thread_entry, 10);
@@ -83,6 +84,56 @@ void shell_thread() {
                 } else {
                     file_buf[bytes] = '\0';
                     printf("%s\n> ", (const char*)file_buf);
+                }
+            } else if (input_buffer.size() > 6 && input_buffer.c_str()[0] == 'w' && input_buffer.c_str()[1] == 'r' && input_buffer.c_str()[2] == 'i' && input_buffer.c_str()[3] == 't' && input_buffer.c_str()[4] == 'e' && input_buffer.c_str()[5] == ' ') {
+                const char* args = input_buffer.c_str() + 6;
+                const char* space = args;
+                while (*space && *space != ' ') space++;
+                if (*space == ' ') {
+                    int name_len = space - args;
+                    char fname[32];
+                    for (int k = 0; k < name_len && k < 31; k++) fname[k] = args[k];
+                    fname[name_len < 31 ? name_len : 31] = '\0';
+                    const char* content = space + 1;
+                    int clen = 0;
+                    while (content[clen]) clen++;
+                    if (re36::Fat16::write_file(fname, (const uint8_t*)content, clen)) {
+                        printf("Written %d bytes to %s\n> ", clen, fname);
+                    } else {
+                        printf("Write failed!\n> ");
+                    }
+                } else {
+                    printf("Usage: write <filename> <content>\n> ");
+                }
+            } else if (input_buffer.size() > 3 && input_buffer.c_str()[0] == 'r' && input_buffer.c_str()[1] == 'm' && input_buffer.c_str()[2] == ' ') {
+                const char* fname = input_buffer.c_str() + 3;
+                if (re36::Fat16::delete_file(fname)) {
+                    printf("Deleted: %s\n> ", fname);
+                } else {
+                    printf("> ");
+                }
+            } else if (input_buffer.size() > 5 && input_buffer.c_str()[0] == 's' && input_buffer.c_str()[1] == 't' && input_buffer.c_str()[2] == 'a' && input_buffer.c_str()[3] == 't' && input_buffer.c_str()[4] == ' ') {
+                re36::Fat16::stat_file(input_buffer.c_str() + 5);
+                printf("> ");
+            } else if (input_buffer.size() > 8 && input_buffer.c_str()[0] == 'h' && input_buffer.c_str()[1] == 'e' && input_buffer.c_str()[2] == 'x' && input_buffer.c_str()[3] == 'd' && input_buffer.c_str()[4] == 'u' && input_buffer.c_str()[5] == 'm' && input_buffer.c_str()[6] == 'p' && input_buffer.c_str()[7] == ' ') {
+                const char* fname = input_buffer.c_str() + 8;
+                static uint8_t hbuf[256];
+                int bytes = re36::Fat16::read_file(fname, hbuf, sizeof(hbuf));
+                if (bytes < 0) {
+                    printf("File not found: %s\n> ", fname);
+                } else {
+                    for (int off = 0; off < bytes; off += 16) {
+                        printf("%x: ", off);
+                        for (int j = 0; j < 16 && off + j < bytes; j++)
+                            printf("%x ", hbuf[off + j]);
+                        printf(" ");
+                        for (int j = 0; j < 16 && off + j < bytes; j++) {
+                            char ch = hbuf[off + j];
+                            printf("%c", (ch >= 32 && ch <= 126) ? ch : '.');
+                        }
+                        printf("\n");
+                    }
+                    printf("> ");
                 }
             } else if (input_buffer.size() > 0) {
                 printf("Unknown command: %s\n> ", input_buffer.c_str());
