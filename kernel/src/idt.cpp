@@ -167,9 +167,10 @@ extern "C" void isr_handler(re36::Registers* regs) {
         asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
 
         if ((regs->cs & 3) == 3) {
-            printf("\n[ESR] User Thread %d: Page Fault at 0x%x (%s %s)\n",
+            printf("\n[ESR] User Thread %d: Page Fault at 0x%x (EIP: 0x%x) (%s %s)\n",
                 re36::TaskScheduler::get_current_tid(),
                 fault_addr,
+                regs->eip,
                 (regs->err_code & 0x1) ? "Protection" : "Not-Present",
                 (regs->err_code & 0x2) ? "Write" : "Read");
             re36::TaskScheduler::terminate_current();

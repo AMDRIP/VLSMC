@@ -107,6 +107,15 @@ static void elf_thread_entry() {
 
     kfree(elf_buffer);
 
+    uint8_t* code = (uint8_t*)entry;
+    printf("[ELF] Code at entry: %x %x %x %x\n", code[0], code[1], code[2], code[3]);
+
+    // Подготавливаем значения для iret в конкретных регистрах,
+    // чтобы компилятор не мог использовать их под свои нужды во время push.
+    uint32_t eflags;
+    asm volatile("pushf; pop %0" : "=r"(eflags));
+    eflags |= 0x200; // Включаем прерывания (IF)
+
     asm volatile(
         "cli\n\t"
         "mov $0x23, %%ax\n\t"
@@ -114,16 +123,16 @@ static void elf_thread_entry() {
         "mov %%ax, %%es\n\t"
         "mov %%ax, %%fs\n\t"
         "mov %%ax, %%gs\n\t"
-        "push $0x23\n\t"
-        "push %0\n\t"
-        "pushf\n\t"
-        "pop %%eax\n\t"
-        "or $0x200, %%eax\n\t"
-        "push %%eax\n\t"
-        "push $0x1B\n\t"
-        "push %1\n\t"
+
+        // Структура стека для iret: SS, ESP, EFLAGS, CS, EIP
+        "push $0x23\n\t"      // SS
+        "push %%ecx\n\t"      // ESP (передан через ecx)
+        "push %%ebx\n\t"      // EFLAGS (передан через ebx)
+        "push $0x1B\n\t"      // CS
+        "push %%edx\n\t"      // EIP (передан через edx)
+
         "iret\n\t"
-        :: "r"(user_esp), "r"(entry)
+        :: "c"(user_esp), "d"(entry), "b"(eflags)
         : "eax", "memory"
     );
 }
