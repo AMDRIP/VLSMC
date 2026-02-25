@@ -9,29 +9,51 @@
             <Keywords name="Delimiters">&quot;00&quot;00</Keywords>
             <Keywords name="Folder+">{</Keywords>
             <Keywords name="Folder-">}</Keywords>
-            <Keywords name="Operators">- ! % &amp; ( ) * , . / : ; ? @ [ \ ] ^ { | } ~ + &lt; = &gt;</Keywords>
+            
+            <Keywords name="Operators">- ! % &amp; ( ) * , . / : ; ? @[ \ ] ^ { | } ~ + &lt; = &gt; .* ./ .+ .- ** ' |&gt; =&gt; -&gt; ::</Keywords>
             <Keywords name="Comment">1/* 2*/ 0//</Keywords>
-            <!-- Words1: Основные конструкции и управление потоком (Синий цвет) -->
-            <Keywords name="Words1">fn let const struct enum impl import export native if else match loop while for break continue return yield as sizeof typeof</Keywords>
-            <!-- Words2: Базовые типы данных (Зеленый цвет) -->
-            <Keywords name="Words2">i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool str char ptr void any</Keywords>
-            <!-- Words3: Системные и зарезервированные константы (Фиолетовый/Оранжевый) -->
-            <Keywords name="Words3">true false null self super</Keywords>
-            <!-- Words4: Встроенные макросы или системные объекты -->
-            <Keywords name="Words4">sys os memory threads alloc free own</Keywords>
+            
+            <!-- Words1: Основные конструкции + Низкоуровневые элементы (asm, volatile, inline) -->
+            <Keywords name="Words1">fn let const struct enum impl import export native inline if else match loop while for break continue return yield as sizeof typeof fast strict unit alias comptime kernel defer view mut asm volatile</Keywords>
+            
+            <!-- Words2: Типы данных -->
+            <Keywords name="Words2">i8 i16 i32 i64 u8 u16 u32 u64 f16 f32 f64 f128 c32 c64 c128 bool str char ptr void any tensor vec2 vec3 vec4 mat2 mat3 mat4</Keywords>
+            
+            <!-- Words3: Константы, Enum варианты и Регистры процессора -->
+            <!-- НОВОЕ: Регистры (rax, rbx, rcx, rdx, rdi, rsi, cr0, cr3) -->
+            <Keywords name="Words3">true false null self super PI E INF NAN Ok Err rax rbx rcx rdx rdi rsi rsp rbp cr0 cr2 cr3 cr4 al ah bl bh cl ch dl dh</Keywords>
+            
+            <!-- Words4: Декораторы компилятора и линкера (начинаются с @, но в настройках Notepad++ мы парсим их как слова) -->
+            <!-- НОВОЕ: Директивы ядра и линкера -->
+            <Keywords name="Words4">sys os memory threads io alloc free own math linalg perf gpu cuda simd parallel no_std naked interrupt align section</Keywords>
         </KeywordLists>
         <Styles>
-            <WordsStyle name="DEFAULT" styleID="11" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            <WordsStyle name="DEFAULT" styleID="11" fgColor="000000" bgColor="FFFFFF" fontName="Consolas" fontStyle="0" fontSize="" />
             <WordsStyle name="FOLDEROPEN" styleID="12" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
             <WordsStyle name="FOLDERCLOSE" styleID="13" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
-            <WordsStyle name="KEYWORD1" styleID="5" fgColor="0000FF" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
-            <WordsStyle name="KEYWORD2" styleID="6" fgColor="008000" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
-            <WordsStyle name="KEYWORD3" styleID="7" fgColor="FF8000" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
-            <WordsStyle name="KEYWORD4" styleID="8" fgColor="800080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
-            <WordsStyle name="COMMENT" styleID="1" fgColor="008080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
-            <WordsStyle name="COMMENT LINE" styleID="2" fgColor="008080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
-            <WordsStyle name="NUMBER" styleID="4" fgColor="FF0000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            
+            <!-- Синий: Логика языка, модификаторы, asm, volatile -->
+            <WordsStyle name="KEYWORD1" styleID="5" fgColor="0055FF" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            
+            <!-- Зеленый: Типы данных -->
+            <WordsStyle name="KEYWORD2" styleID="6" fgColor="008040" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            
+            <!-- Темно-оранжевый: Константы и Регистры процессора (rax, rcx...) -->
+            <WordsStyle name="KEYWORD3" styleID="7" fgColor="D96600" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            
+            <!-- Пурпурный / Бордовый: Декораторы ядра (naked, align, section) и библиотеки -->
+            <WordsStyle name="KEYWORD4" styleID="8" fgColor="99004C" bgColor="FFFFFF" fontName="" fontStyle="2" fontSize="" />
+            
+            <!-- Серый курсив: Комментарии -->
+            <WordsStyle name="COMMENT" styleID="1" fgColor="808080" bgColor="FFFFFF" fontName="" fontStyle="2" fontSize="" />
+            <WordsStyle name="COMMENT LINE" styleID="2" fgColor="808080" bgColor="FFFFFF" fontName="" fontStyle="2" fontSize="" />
+            
+            <!-- Красный: Числа -->
+            <WordsStyle name="NUMBER" styleID="4" fgColor="CC0000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
+            
+            <!-- Темно-синий: Операторы -->
             <WordsStyle name="OPERATOR" styleID="10" fgColor="000080" bgColor="FFFFFF" fontName="" fontStyle="1" fontSize="" />
+            
             <WordsStyle name="DELIM1" styleID="14" fgColor="808080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
             <WordsStyle name="DELIM2" styleID="15" fgColor="808080" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />
             <WordsStyle name="DELIM3" styleID="16" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" fontSize="" />

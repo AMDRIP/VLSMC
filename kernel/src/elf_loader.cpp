@@ -7,9 +7,9 @@
 #include "kernel/thread.h"
 #include "libc.h"
 
-namespace re36 {
+#include "kernel/kmalloc.h"
 
-static uint8_t elf_buffer[USER_ELF_MAX_SIZE];
+namespace re36 {
 
 static bool validate_elf(const Elf32_Ehdr* ehdr) {
     if (ehdr->e_ident[0] != ELFMAG0 || ehdr->e_ident[1] != ELFMAG1 ||
@@ -29,11 +29,28 @@ static bool validate_elf(const Elf32_Ehdr* ehdr) {
 }
 
 static void elf_thread_entry() {
+    uint8_t* elf_buffer = (uint8_t*)kmalloc(USER_ELF_MAX_SIZE);
+    if (!elf_buffer) {
+        printf("[ELF] Failed to alloc buffer\n");
+        return;
+    }
+
     int bytes = Fat16::read_file((const char*)threads[current_tid].name, elf_buffer, USER_ELF_MAX_SIZE);
     if (bytes < 0) {
         printf("[ELF] File not found: %s\n", threads[current_tid].name);
+        kfree(elf_buffer);
         return;
     }
+
+    uint32_t* new_dir = VMM::create_address_space();
+    if (!new_dir) {
+        printf("[ELF] Failed to create address space\n");
+        kfree(elf_buffer);
+        return;
+    }
+
+    threads[current_tid].page_directory_phys = new_dir;
+    VMM::switch_address_space(new_dir);
 
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)elf_buffer;
     if (!validate_elf(ehdr)) return;
@@ -86,9 +103,9 @@ static void elf_thread_entry() {
     uint32_t entry = ehdr->e_entry;
     uint32_t user_esp = USER_STACK_TOP;
 
-    printf("[ELF] Entry=0x%x, Stack=0x%x\n", entry, user_esp);
-
     TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));
+
+    kfree(elf_buffer);
 
     asm volatile(
         "cli\n\t"

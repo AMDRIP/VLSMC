@@ -39,6 +39,7 @@ public:
     static void flush_tlb();
     
     static uint32_t* create_address_space();
+    static void destroy_address_space(uint32_t* page_dir_phys);
     
     static void switch_address_space(uint32_t* page_dir_phys);
     
@@ -47,6 +48,8 @@ public:
     static void handle_page_fault(uint32_t fault_addr, uint32_t error_code);
     
     static uint32_t* get_current_directory();
+
+    static uint32_t kernel_directory_phys_;
 
 private:
     static uint32_t* current_directory_;      // Виртуальный адрес текущего PD

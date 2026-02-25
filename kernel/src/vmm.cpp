@@ -7,6 +7,7 @@ namespace re36 {
 
 uint32_t* VMM::current_directory_ = nullptr;
 uint32_t VMM::current_directory_phys_ = 0;
+uint32_t VMM::kernel_directory_phys_ = 0;
 
 static inline void invlpg(uint32_t addr) {
     asm volatile("invlpg (%0)" :: "r"(addr) : "memory");
@@ -68,6 +69,7 @@ void VMM::init() {
 
     current_directory_ = page_dir;
     current_directory_phys_ = (uint32_t)page_dir;
+    kernel_directory_phys_ = current_directory_phys_;
 
     load_cr3(current_directory_phys_);
     enable_paging();
@@ -146,6 +148,32 @@ uint32_t* VMM::create_address_space() {
     }
 
     return new_dir;
+}
+
+void VMM::destroy_address_space(uint32_t* page_dir_phys) {
+    if (!page_dir_phys) return;
+    if (page_dir_phys == (uint32_t*)kernel_directory_phys_) return; // Нельзя удалять ядро
+
+    InterruptGuard guard;
+
+    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
+    for (int i = kernel_pd_count; i < PD_ENTRIES; i++) {
+        if (!(page_dir_phys[i] & PAGE_PRESENT)) continue;
+
+        uint32_t* pt = (uint32_t*)(page_dir_phys[i] & 0xFFFFF000);
+        for (int j = 0; j < PT_ENTRIES; j++) {
+            if (pt[j] & PAGE_PRESENT) {
+                // Если фрейм не COW (copy-on-write), мы владеем им и можем освободить
+                if (!(pt[j] & PAGE_COW)) {
+                    uint32_t phys_frame = pt[j] & 0xFFFFF000;
+                    PhysicalMemoryManager::free_frame((void*)phys_frame);
+                }
+            }
+        }
+        PhysicalMemoryManager::free_frame((void*)pt); // Удаляем саму PT
+    }
+
+    PhysicalMemoryManager::free_frame((void*)page_dir_phys); // Удаляем сам PD
 }
 
 void VMM::switch_address_space(uint32_t* page_dir_phys) {

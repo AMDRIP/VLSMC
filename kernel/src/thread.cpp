@@ -1,5 +1,6 @@
 #include "kernel/thread.h"
 #include "kernel/spinlock.h"
+#include "kernel/vmm.h"
 #include "libc.h"
 
 namespace re36 {
@@ -29,6 +30,7 @@ void thread_init() {
         threads[i].quantum_remaining = 5;
         threads[i].total_ticks = 0;
         threads[i].name[0] = '\0';
+        threads[i].page_directory_phys = (uint32_t*)0; // Инициализируется ниже
     }
 
     threads[0].state = ThreadState::Running;
@@ -62,12 +64,14 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     }
     t.name[j] = '\0';
     
+    // Add at top of file
     t.state = ThreadState::Ready;
     t.priority = priority;
     t.sleep_until = 0;
     t.blocked_channel_id = -1;
     t.quantum_remaining = 5;
     t.total_ticks = 0;
+    t.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
 
@@ -88,6 +92,17 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
 
 void thread_terminate(int tid) {
     if (tid < 0 || tid >= MAX_THREADS) return;
+    InterruptGuard guard;
+    
+    if (threads[tid].page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_) {
+        // Если убиваем текущий процесс (самого себя), сначала прыгаем в ядро
+        if (tid == current_tid) {
+            VMM::switch_address_space((uint32_t*)VMM::kernel_directory_phys_);
+        }
+        VMM::destroy_address_space(threads[tid].page_directory_phys);
+        threads[tid].page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
+    }
+    
     threads[tid].state = ThreadState::Terminated;
 }
 

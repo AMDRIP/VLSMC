@@ -34,6 +34,8 @@ struct Thread {
     
     uint32_t quantum_remaining; // Остаток кванта
     uint32_t total_ticks;       // Всего тиков процессорного времени
+    
+    uint32_t* page_directory_phys; // Каталог страниц потока
 };
 
 extern Thread threads[MAX_THREADS];
