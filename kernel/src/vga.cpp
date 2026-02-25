@@ -171,13 +171,52 @@ void VGA::init_mode13h() {
     clear(0);
 }
 
+static void restore_text_font() {
+    outb(0x3C4, 0x02);
+    outb(0x3C5, 0x04);
+    outb(0x3C4, 0x04);
+    outb(0x3C5, 0x07);
+
+    outb(0x3CE, 0x04);
+    outb(0x3CF, 0x02);
+    outb(0x3CE, 0x05);
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x06);
+    outb(0x3CF, 0x04);
+
+    uint8_t* font_mem = (uint8_t*)0xA0000;
+    for (int i = 0; i < 128; i++) {
+        for (int row = 0; row < 16; row++) {
+            if (row < 8) {
+                font_mem[i * 32 + row] = font8x8[i][row];
+            } else {
+                font_mem[i * 32 + row] = 0;
+            }
+        }
+    }
+
+    outb(0x3C4, 0x02);
+    outb(0x3C5, 0x03);
+    outb(0x3C4, 0x04);
+    outb(0x3C5, 0x03);
+
+    outb(0x3CE, 0x04);
+    outb(0x3CF, 0x00);
+    outb(0x3CE, 0x05);
+    outb(0x3CF, 0x10);
+    outb(0x3CE, 0x06);
+    outb(0x3CF, 0x0E);
+}
+
 void VGA::init_text_mode() {
     write_regs(mode03h_regs);
     graphics_mode_ = false;
 
+    restore_text_font();
+
     volatile uint16_t* vga_text = (volatile uint16_t*)0xB8000;
     for (int i = 0; i < 80 * 25; i++)
-        vga_text[i] = (uint16_t)(' ') | (0x1F << 8);
+        vga_text[i] = (uint16_t)(' ') | (0x0F << 8);
 }
 
 bool VGA::is_graphics() {

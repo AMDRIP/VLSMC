@@ -72,7 +72,7 @@ echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
 
 echo "=== Building User Programs ==="
 nasm -f elf32 user/crt0.asm -o user_crt0.o
-x86_64-linux-gnu-gcc -m32 -ffreestanding -fno-pie -nostdlib -nostdinc -Iuser -c user/hello.c -o user_hello.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/hello.cpp -o user_hello.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_hello.o -o HELLO.ELF
 mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 

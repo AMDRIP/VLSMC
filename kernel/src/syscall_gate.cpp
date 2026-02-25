@@ -6,9 +6,11 @@
 #include "kernel/event_channel.h"
 #include "kernel/vmm.h"
 #include "kernel/keyboard.h"
+#include "kernel/pic.h"
 #include "libc.h"
 
 namespace re36 {
+
 
 extern "C" void isr128();
 
@@ -91,26 +93,70 @@ static uint32_t sys_munmap(SyscallRegs* regs) {
     return 0;
 }
 
+static uint32_t sys_inb(SyscallRegs* regs) {
+    uint16_t port = (uint16_t)regs->ebx;
+    return inb(port);
+}
+
+static uint32_t sys_outb(SyscallRegs* regs) {
+    uint16_t port = (uint16_t)regs->ebx;
+    uint8_t data = (uint8_t)regs->ecx;
+    outb(port, data);
+    return 0;
+}
+
+static uint32_t sys_inw(SyscallRegs* regs) {
+    uint16_t port = (uint16_t)regs->ebx;
+    return inw(port);
+}
+
+static uint32_t sys_outw(SyscallRegs* regs) {
+    uint16_t port = (uint16_t)regs->ebx;
+    uint16_t data = (uint16_t)regs->ecx;
+    outw(port, data);
+    return 0;
+}
+
+static uint32_t sys_map_mmio(SyscallRegs* regs) {
+    uint32_t virt = regs->ebx;
+    uint32_t phys = regs->ecx;
+    uint32_t flags = regs->edx;
+    VMM::map_page(virt, phys, flags);
+    return virt;
+}
+
+static uint32_t sys_wait_irq(SyscallRegs* regs) {
+    uint8_t irq = (uint8_t)regs->ebx;
+    EventSystem::wait((int)irq + 1000);
+    return 0;
+}
+
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
 static SyscallHandler syscall_table[] = {
-    sys_exit,       // 0
-    sys_print,      // 1
-    sys_getchar,    // 2
-    sys_sleep,      // 3
-    sys_yield,      // 4
-    sys_getpid,     // 5
-    nullptr,        // 6 (fork — TODO)
-    nullptr,        // 7 (exec — TODO)
-    nullptr,        // 8 (open — TODO)
-    nullptr,        // 9 (read — TODO)
-    nullptr,        // 10 (write — TODO)
-    nullptr,        // 11 (close — TODO)
-    sys_mmap,       // 12
-    sys_munmap,     // 13
-    sys_send,       // 14
-    sys_recv,       // 15
-    sys_time,       // 16
+    sys_exit,
+    sys_print,
+    sys_getchar,
+    sys_sleep,
+    sys_yield,
+    sys_getpid,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    sys_mmap,
+    sys_munmap,
+    sys_send,
+    sys_recv,
+    sys_time,
+    sys_inb,
+    sys_outb,
+    sys_inw,
+    sys_outw,
+    sys_map_mmio,
+    sys_wait_irq,
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))
