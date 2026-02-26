@@ -14,6 +14,7 @@
 #include "kernel/elf_loader.h"
 #include "kernel/usermode.h"
 #include "kernel/boot_info.h"
+#include "kernel/pci.h"
 #include "kernel/vga.h"
 #include "libc.h"
 
@@ -87,6 +88,8 @@ static void exec_command(const char* cmd) {
         DateTime dt;
         RTC::read(dt);
         printf("%d-%d-%d %d:%d:%d\n", dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds);
+    } else if (str_eq(cmd, "pci")) {
+        PCI::scan_bus();
     } else if (str_eq(cmd, "syscall")) {
         printf("Testing int 0x80 (SYS_GETPID)...\n");
         uint32_t tid;
@@ -94,7 +97,7 @@ static void exec_command(const char* cmd) {
         printf("Syscall returned TID = %d\n", tid);
     } else if (str_eq(cmd, "help")) {
         printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
-        printf("System: ps, ticks, meminfo, date, bootinfo, syscall, ring3, clear, help\n");
+        printf("System: ps, ticks, meminfo, date, pci, bootinfo, syscall, ring3, clear, help\n");
         printf("Display: mode text, mode gfx, gfx\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
     } else if (str_eq(cmd, "gfx")) {

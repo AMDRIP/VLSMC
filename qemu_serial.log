@@ -17,8 +17,6 @@
 -> Interrupts Enabled (STI)
 
 [ELF] Spawned 'STACKBM.ELF' as TID 2
-
-[ESR] User Thread 2: Page Fault at 0xBFBCEC (EIP: 0x400198) (Not-Present Write)
 Spawned threads: idle (pri=255), shell (pri=1)
 Switching to shell thread...
 
@@ -26,3 +24,4 @@ RAND Elecorner 36 Shell v2.0
 Type 'help' for commands. Tab=complete, Up/Down=history
 
 > 
+[ESR] User Thread 2: Page Fault at 0xBFBCEC (EIP: 0x400198) (Not-Present Write)
