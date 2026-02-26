@@ -89,6 +89,10 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_cat_test.o -o CAT_TEST.ELF
 mcopy -i data.img CAT_TEST.ELF ::/CAT_TEST.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/stack_bomb.cpp -o user_stack_bomb.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stack_bomb.o -o STACKBM.ELF
+mcopy -i data.img STACKBM.ELF ::/STACKBM.ELF
+
 echo ""
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"

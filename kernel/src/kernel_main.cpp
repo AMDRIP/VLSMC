@@ -117,9 +117,8 @@ extern "C" void kernel_main() {
     
     set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
-    re36::run_all_tests();
-
     re36::thread_create("idle", idle_thread, 255);
+    re36::elf_exec("STACKBM.ELF");
     re36::thread_create("shell", shell_thread, 1);
 
     set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);

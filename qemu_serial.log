@@ -16,29 +16,13 @@
 -> FAT16 Filesystem Mounted
 -> Interrupts Enabled (STI)
 
---- Running Kernel Self-Tests ---
-[TEST] kmalloc... OK
-[TEST] string... OK
-[TEST] vector... OK
-[OK] All internal self-tests passed.
+[ELF] Spawned 'STACKBM.ELF' as TID 2
 
-[ELF] Spawned 'HELLO.ELF' as TID 2
-[ELF] Spawned 'CAT_TEST.ELF' as TID 3
+[ESR] User Thread 2: Page Fault at 0xBFBCEC (EIP: 0x400198) (Not-Present Write)
 Spawned threads: idle (pri=255), shell (pri=1)
 Switching to shell thread...
+
 RAND Elecorner 36 Shell v2.0
 Type 'help' for commands. Tab=complete, Up/Down=history
 
-> [ELF] read_file_offset returned 4096 bytes. Magic: 7F 45 4C 46
-=========================
-  Hello from C++ AppAPI!
-[ELF] read_file_offset returned 4096 bytes. Magic: 7F 45 4C 46
-[CAT] Requesting file 'HELLO.TXT' from FS driver...
-[CAT] Error: fsdriver.elf thread not found!
-  Running in Ring 3
-=========================
-  PID: 2
-
-  Counting: 0 
-1 2 3 4 
-  Done!
+> 

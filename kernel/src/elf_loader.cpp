@@ -59,22 +59,21 @@ static void elf_thread_entry() {
     threads[current_tid].page_directory_phys = new_dir;
     VMM::switch_address_space(new_dir);
     
-    // Очищаем массив VMA
-    for (int i = 0; i < 8; i++) {
-        threads[current_tid].vmas[i].active = false;
+    // Очищаем старые VMA (на всякий случай, хотя они д.б. очищены в thread_init)
+    VMA* curr = threads[current_tid].vma_list;
+    while (curr) {
+        VMA* next = curr->next;
+        kfree(curr);
+        curr = next;
     }
+    threads[current_tid].vma_list = nullptr;
 
     Elf32_Phdr* phdrs = (Elf32_Phdr*)(header_buf + ehdr->e_phoff);
     uint32_t max_vaddr = 0;
-    int vma_idx = 0;
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type != PT_LOAD) continue;
         if (phdrs[i].p_memsz == 0) continue;
-        if (vma_idx >= 8) {
-            printf("[ELF] Too many PT_LOAD segments\n");
-            break;
-        }
 
         uint32_t vaddr_start = phdrs[i].p_vaddr & ~0xFFF;
         uint32_t vaddr_end = (phdrs[i].p_vaddr + phdrs[i].p_memsz + 0xFFF) & ~0xFFF;
@@ -86,18 +85,23 @@ static void elf_thread_entry() {
         uint32_t flags = PAGE_PRESENT | PAGE_USER;
         if (phdrs[i].p_flags & PF_W) flags |= PAGE_WRITABLE;
 
-        threads[current_tid].vmas[vma_idx].start = vaddr_start;
-        threads[current_tid].vmas[vma_idx].end = vaddr_end;
-        threads[current_tid].vmas[vma_idx].file_offset = phdrs[i].p_offset;
-        // Важно: нужно хранить точный виртуальный адрес начала сегмента, чтобы правильно вычислять отступ
-        // Сохраним реальный vaddr в start (он выровнен), а file_offset сдвинем
-        uint32_t align_diff = phdrs[i].p_vaddr - vaddr_start;
-        threads[current_tid].vmas[vma_idx].file_offset = phdrs[i].p_offset - align_diff;
-        threads[current_tid].vmas[vma_idx].file_size = phdrs[i].p_filesz + align_diff;
-        threads[current_tid].vmas[vma_idx].flags = flags;
-        threads[current_tid].vmas[vma_idx].active = true;
+        VMA* new_vma = (VMA*)kmalloc(sizeof(VMA));
+        if (!new_vma) {
+            printf("[ELF] Out of memory for VMA structure\n");
+            break;
+        }
+
+        new_vma->start = vaddr_start;
+        new_vma->end = vaddr_end;
         
-        vma_idx++;
+        uint32_t align_diff = phdrs[i].p_vaddr - vaddr_start;
+        new_vma->file_offset = phdrs[i].p_offset - align_diff;
+        new_vma->file_size = phdrs[i].p_filesz + align_diff;
+        new_vma->flags = flags;
+        
+        // Вставляем в начало списка VMA текущего потока
+        new_vma->next = threads[current_tid].vma_list;
+        threads[current_tid].vma_list = new_vma;
     }
 
     uint32_t entry = ehdr->e_entry;
@@ -105,6 +109,7 @@ static void elf_thread_entry() {
     kfree(header_buf);
 
     // Guard gap: оставляем 1 страницу (4096 байт) пустой между кодом/данными и началом кучи
+    // Это гарантирует, что heap_start никогда не соприкоснется с VMA
     uint32_t heap_base = (max_vaddr + 0xFFF) & ~0xFFF;
     heap_base += 4096;
 
@@ -112,18 +117,22 @@ static void elf_thread_entry() {
     threads[current_tid].heap_end = heap_base;
     threads[current_tid].heap_lock = false;
 
-    // Стек выделяем жестко (не лениво пока что)
+    // Стек выделяем жестко, но оставляем одну страницу невыделенной ПОСЛЕ НЕГО (по адресам ниже)
+    // чтобы служить страницей-стражем от Stack Overflow
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
         void* frame = PhysicalMemoryManager::alloc_frame();
         if (!frame) {
             printf("[ELF] Out of memory for stack\n");
             return;
         }
+        // vaddr вычисляется в обратную сторону: USER_STACK_TOP, -4096, -8192 ...
         uint32_t vaddr = USER_STACK_TOP - (USER_STACK_PAGES - p) * 4096;
         VMM::map_page(vaddr, (uint32_t)frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
         uint8_t* page_ptr = (uint8_t*)vaddr;
         for (int b = 0; b < 4096; b++) page_ptr[b] = 0;
     }
+    // Страница по адресу: (USER_STACK_TOP - (USER_STACK_PAGES + 1) * 4096) остается НЕ выделенной (Not Present)
+    // Если стек достигнет этого адреса, мы получим мгновенный аппаратный сбой защиты!
 
     uint32_t user_esp = USER_STACK_TOP;
     TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));

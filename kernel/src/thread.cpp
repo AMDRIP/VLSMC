@@ -2,6 +2,7 @@
 #include "kernel/spinlock.h"
 #include "kernel/vmm.h"
 #include "kernel/task_scheduler.h"
+#include "kernel/kmalloc.h"
 #include "libc.h"
 
 namespace re36 {
@@ -32,6 +33,7 @@ void thread_init() {
         threads[i].total_ticks = 0;
         threads[i].name[0] = '\0';
         threads[i].page_directory_phys = (uint32_t*)0; // Инициализируется ниже
+        threads[i].vma_list = nullptr;
     }
 
     threads[0].state = ThreadState::Running;
@@ -82,6 +84,7 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.msg_tail = 0;
     t.msg_count = 0;
     t.waiting_for_msg = false;
+    t.vma_list = nullptr;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
 
@@ -112,6 +115,15 @@ void thread_terminate(int tid) {
         VMM::destroy_address_space(threads[tid].page_directory_phys);
         threads[tid].page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
     }
+    
+    // Очистка динамических VMA
+    VMA* curr = threads[tid].vma_list;
+    while (curr) {
+        VMA* next = curr->next;
+        kfree(curr);
+        curr = next;
+    }
+    threads[tid].vma_list = nullptr;
     
     threads[tid].state = ThreadState::Terminated;
 }

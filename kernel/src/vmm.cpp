@@ -290,10 +290,9 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             }
 
             // Demand Paging для ELF (проверка VMA)
-            for (int i = 0; i < 8; i++) {
-                if (!cur.vmas[i].active) continue;
-
-                if (fault_addr >= cur.vmas[i].start && fault_addr < cur.vmas[i].end) {
+            VMA* curr_vma = cur.vma_list;
+            while (curr_vma) {
+                if (fault_addr >= curr_vma->start && fault_addr < curr_vma->end) {
                     void* new_frame = PhysicalMemoryManager::alloc_frame();
                     if (!new_frame) {
                         printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x !!!\n", fault_addr);
@@ -305,11 +304,11 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                     for (int b = 0; b < 4096; b++) frame_ptr[b] = 0;
 
                     // Если страница пересекается с данными из файла ELF
-                    uint32_t file_data_end = cur.vmas[i].start + cur.vmas[i].file_size;
+                    uint32_t file_data_end = curr_vma->start + curr_vma->file_size;
 
                     if (page_addr < file_data_end) {
-                        uint32_t offset_in_vma = page_addr - cur.vmas[i].start;
-                        uint32_t file_offset = cur.vmas[i].file_offset + offset_in_vma;
+                        uint32_t offset_in_vma = page_addr - curr_vma->start;
+                        uint32_t file_offset = curr_vma->file_offset + offset_in_vma;
                         
                         uint32_t read_size = 4096;
                         if (page_addr + 4096 > file_data_end) {
@@ -323,9 +322,10 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                         }
                     }
 
-                    VMM::map_page(page_addr, (uint32_t)new_frame, cur.vmas[i].flags);
+                    VMM::map_page(page_addr, (uint32_t)new_frame, curr_vma->flags);
                     return true;
                 }
+                curr_vma = curr_vma->next;
             }
         }
     }
