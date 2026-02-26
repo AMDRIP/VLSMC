@@ -28,6 +28,15 @@ enum class ThreadState : uint8_t {
 
 typedef void (*ThreadEntry)();
 
+struct VMA {
+    uint32_t start;
+    uint32_t end;
+    uint32_t file_offset;
+    uint32_t file_size;
+    uint32_t flags;
+    bool active;
+};
+
 struct Thread {
     uint32_t tid;
     char name[32];
@@ -47,7 +56,10 @@ struct Thread {
     uint32_t* page_directory_phys; // Каталог страниц потока
     uint32_t heap_start;        // Начало кучи (после кода)
     uint32_t heap_end;          // Текущий конец кучи
-    
+    bool heap_lock;             // Спинлок для кучи
+
+    VMA vmas[8];                // Области виртуальной памяти (для ELF Demand Paging)
+
     IpcMessage messages[IPC_MSG_QUEUE_SIZE];
     int msg_head;
     int msg_tail;

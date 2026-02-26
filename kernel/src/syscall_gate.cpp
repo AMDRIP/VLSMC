@@ -9,6 +9,7 @@
 #include "kernel/pic.h"
 #include "kernel/ata.h"
 #include "kernel/spinlock.h"
+#include "kernel/pmm.h"
 #include "libc.h"
 
 namespace re36 {
@@ -243,21 +244,64 @@ static uint32_t sys_sbrk(SyscallRegs* regs) {
     int increment = (int)regs->ebx;
     Thread& cur = threads[current_tid];
     
-    InterruptGuard guard; // Да, тут спинлок/запрет прерываний, на случай если мы будем менять что-то важное
+    // Блокируем кучу (spinlock)
+    while (__atomic_test_and_set(&cur.heap_lock, __ATOMIC_ACQUIRE)) {
+        asm volatile("pause");
+    }
     
     if (increment == 0) {
-        return cur.heap_end;
+        uint32_t ret = cur.heap_end;
+        __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+        return ret;
     }
 
     uint32_t old_end = cur.heap_end;
     uint32_t new_end = old_end + increment;
 
-    if (new_end < cur.heap_start) return (uint32_t)-1;
+    // Overflow проверка
+    if (increment > 0 && new_end < old_end) {
+        __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+        return (uint32_t)-1;
+    }
+    if (increment < 0 && new_end > old_end) {
+        __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+        return (uint32_t)-1;
+    }
+
+    if (new_end < cur.heap_start) {
+        __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+        return (uint32_t)-1;
+    }
     
     // Куча не должна лезть в область ядра
-    if (new_end < KERNEL_SPACE_END) return (uint32_t)-1; // Ядро в области 0 - 4МБ. ELF грузится на 0x10000000. Вроде ок.
+    if (new_end < KERNEL_SPACE_END) {
+        __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+        return (uint32_t)-1;
+    }
+    
+    // Лимит user space (не задеваем стек, который на 0xB0000000 - 0xB0010000)
+    // Лимит кучи ставим 0x8FFFFFFF.
+    if (new_end >= 0x8FFFFFFF) {
+        __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+        return (uint32_t)-1;
+    }
+    
+    if (increment < 0) {
+        // Мы сужаем кучу. Вычисляем страницы, которые больше не нужны
+        uint32_t old_page_end = (old_end + 0xFFF) & ~0xFFF;
+        uint32_t new_page_end = (new_end + 0xFFF) & ~0xFFF;
+
+        for (uint32_t p = new_page_end; p < old_page_end; p += 4096) {
+            uint32_t phys = VMM::get_physical(p);
+            if (phys) {
+                PhysicalMemoryManager::free_frame((void*)phys);
+                VMM::unmap_page(p);
+            }
+        }
+    }
     
     cur.heap_end = new_end;
+    __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
     return old_end;
 }
 

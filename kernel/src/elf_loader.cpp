@@ -29,75 +29,90 @@ static bool validate_elf(const Elf32_Ehdr* ehdr) {
 }
 
 static void elf_thread_entry() {
-    uint8_t* elf_buffer = (uint8_t*)kmalloc(USER_ELF_MAX_SIZE);
-    if (!elf_buffer) {
-        printf("[ELF] Failed to alloc buffer\n");
+    uint8_t* header_buf = (uint8_t*)kmalloc(4096);
+    if (!header_buf) {
+        printf("[ELF] Failed to alloc header buffer\n");
         return;
     }
 
-    int bytes = Fat16::read_file((const char*)threads[current_tid].name, elf_buffer, USER_ELF_MAX_SIZE);
-    if (bytes < 0) {
-        printf("[ELF] File not found: %s\n", threads[current_tid].name);
-        kfree(elf_buffer);
+    // Читаем только первую страницу (заголовки ELF)
+    int bytes = Fat16::read_file_offset((const char*)threads[current_tid].name, 0, header_buf, 4096);
+    if (bytes < sizeof(Elf32_Ehdr)) {
+        printf("[ELF] File too small or not found: %s (bytes=%d)\n", threads[current_tid].name, bytes);
+        kfree(header_buf);
         return;
     }
-    printf("[ELF] Loaded %d bytes from FAT\n", bytes);
+
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)header_buf;
+    if (!validate_elf(ehdr)) {
+        kfree(header_buf);
+        return;
+    }
 
     uint32_t* new_dir = VMM::create_address_space();
     if (!new_dir) {
         printf("[ELF] Failed to create address space\n");
-        kfree(elf_buffer);
+        kfree(header_buf);
         return;
     }
 
     threads[current_tid].page_directory_phys = new_dir;
     VMM::switch_address_space(new_dir);
+    
+    // Очищаем массив VMA
+    for (int i = 0; i < 8; i++) {
+        threads[current_tid].vmas[i].active = false;
+    }
 
-    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)elf_buffer;
-    if (!validate_elf(ehdr)) return;
-
-    Elf32_Phdr* phdrs = (Elf32_Phdr*)(elf_buffer + ehdr->e_phoff);
-
+    Elf32_Phdr* phdrs = (Elf32_Phdr*)(header_buf + ehdr->e_phoff);
     uint32_t max_vaddr = 0;
+    int vma_idx = 0;
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type != PT_LOAD) continue;
         if (phdrs[i].p_memsz == 0) continue;
+        if (vma_idx >= 8) {
+            printf("[ELF] Too many PT_LOAD segments\n");
+            break;
+        }
 
         uint32_t vaddr_start = phdrs[i].p_vaddr & ~0xFFF;
         uint32_t vaddr_end = (phdrs[i].p_vaddr + phdrs[i].p_memsz + 0xFFF) & ~0xFFF;
-        uint32_t pages_needed = (vaddr_end - vaddr_start) / 4096;
         
         if (vaddr_end > max_vaddr) {
             max_vaddr = vaddr_end;
         }
 
-        for (uint32_t p = 0; p < pages_needed; p++) {
-            uint32_t vaddr = vaddr_start + p * 4096;
-            void* frame = PhysicalMemoryManager::alloc_frame();
-            if (!frame) {
-                printf("[ELF] Out of memory\n");
-                return;
-            }
+        uint32_t flags = PAGE_PRESENT | PAGE_USER;
+        if (phdrs[i].p_flags & PF_W) flags |= PAGE_WRITABLE;
 
-            uint32_t flags = PAGE_PRESENT | PAGE_USER;
-            if (phdrs[i].p_flags & PF_W) flags |= PAGE_WRITABLE;
-            VMM::map_page(vaddr, (uint32_t)frame, flags);
-
-            uint8_t* page_ptr = (uint8_t*)vaddr;
-            for (int b = 0; b < 4096; b++) page_ptr[b] = 0;
-        }
-
-        uint8_t* seg_src = elf_buffer + phdrs[i].p_offset;
-        uint8_t* seg_dst = (uint8_t*)phdrs[i].p_vaddr;
-        for (uint32_t b = 0; b < phdrs[i].p_filesz; b++) {
-            seg_dst[b] = seg_src[b];
-        }
+        threads[current_tid].vmas[vma_idx].start = vaddr_start;
+        threads[current_tid].vmas[vma_idx].end = vaddr_end;
+        threads[current_tid].vmas[vma_idx].file_offset = phdrs[i].p_offset;
+        // Важно: нужно хранить точный виртуальный адрес начала сегмента, чтобы правильно вычислять отступ
+        // Сохраним реальный vaddr в start (он выровнен), а file_offset сдвинем
+        uint32_t align_diff = phdrs[i].p_vaddr - vaddr_start;
+        threads[current_tid].vmas[vma_idx].file_offset = phdrs[i].p_offset - align_diff;
+        threads[current_tid].vmas[vma_idx].file_size = phdrs[i].p_filesz + align_diff;
+        threads[current_tid].vmas[vma_idx].flags = flags;
+        threads[current_tid].vmas[vma_idx].active = true;
+        
+        vma_idx++;
     }
 
-    threads[current_tid].heap_start = max_vaddr;
-    threads[current_tid].heap_end = max_vaddr;
+    uint32_t entry = ehdr->e_entry;
 
+    kfree(header_buf);
+
+    // Guard gap: оставляем 1 страницу (4096 байт) пустой между кодом/данными и началом кучи
+    uint32_t heap_base = (max_vaddr + 0xFFF) & ~0xFFF;
+    heap_base += 4096;
+
+    threads[current_tid].heap_start = heap_base;
+    threads[current_tid].heap_end = heap_base;
+    threads[current_tid].heap_lock = false;
+
+    // Стек выделяем жестко (не лениво пока что)
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
         void* frame = PhysicalMemoryManager::alloc_frame();
         if (!frame) {
@@ -110,15 +125,8 @@ static void elf_thread_entry() {
         for (int b = 0; b < 4096; b++) page_ptr[b] = 0;
     }
 
-    uint32_t entry = ehdr->e_entry;
     uint32_t user_esp = USER_STACK_TOP;
-
     TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));
-
-    kfree(elf_buffer);
-
-    uint8_t* code = (uint8_t*)entry;
-    printf("[ELF] Code at entry: %x %x %x %x\n", code[0], code[1], code[2], code[3]);
 
     // Подготавливаем значения для iret в конкретных регистрах,
     // чтобы компилятор не мог использовать их под свои нужды во время push.

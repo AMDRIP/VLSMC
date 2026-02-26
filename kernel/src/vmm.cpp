@@ -3,6 +3,7 @@
 #include "kernel/spinlock.h"
 #include "kernel/thread.h"
 #include "kernel/task_scheduler.h"
+#include "kernel/fat16.h"
 #include "libc.h"
 
 namespace re36 {
@@ -229,7 +230,7 @@ uint32_t* VMM::clone_directory() {
     return new_dir;
 }
 
-void VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
+bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
     uint32_t pd_index = fault_addr >> 22;
     uint32_t pt_index = (fault_addr >> 12) & 0x3FF;
 
@@ -261,14 +262,22 @@ void VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                 pt[pt_index] &= ~PAGE_COW;
 
                 invlpg(fault_addr & 0xFFFFF000);
-                return;
+                return true;
             }
         }
-    } else if (!is_present) {
+    } else if (!is_present && is_user) {
         // Ленивое выделение памяти (Lazy Allocation) для кучи
         if (current_tid >= 0 && current_tid < MAX_THREADS) {
             Thread& cur = threads[current_tid];
-            if (fault_addr >= cur.heap_start && fault_addr < cur.heap_end) {
+            
+            while (__atomic_test_and_set(&cur.heap_lock, __ATOMIC_ACQUIRE)) {
+                asm volatile("pause");
+            }
+            uint32_t start = cur.heap_start;
+            uint32_t end   = cur.heap_end;
+            __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+            
+            if (fault_addr >= start && fault_addr < end) {
                 void* new_frame = PhysicalMemoryManager::alloc_frame();
                 if (!new_frame) {
                     printf("\n!!! PAGE FAULT: Out of memory for heap at 0x%x !!!\n", fault_addr);
@@ -277,22 +286,51 @@ void VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                 
                 uint32_t page_addr = fault_addr & 0xFFFFF000;
                 VMM::map_page(page_addr, (uint32_t)new_frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-                return; // Страница выделена, возвращаемся к выполнению юзер-кода
+                return true; // Страница выделена, возвращаемся к выполнению юзер-кода
+            }
+
+            // Demand Paging для ELF (проверка VMA)
+            for (int i = 0; i < 8; i++) {
+                if (!cur.vmas[i].active) continue;
+
+                if (fault_addr >= cur.vmas[i].start && fault_addr < cur.vmas[i].end) {
+                    void* new_frame = PhysicalMemoryManager::alloc_frame();
+                    if (!new_frame) {
+                        printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x !!!\n", fault_addr);
+                        while(1) asm volatile("cli; hlt");
+                    }
+
+                    uint32_t page_addr = fault_addr & ~0xFFF;
+                    uint8_t* frame_ptr = (uint8_t*)new_frame;
+                    for (int b = 0; b < 4096; b++) frame_ptr[b] = 0;
+
+                    // Если страница пересекается с данными из файла ELF
+                    uint32_t file_data_end = cur.vmas[i].start + cur.vmas[i].file_size;
+
+                    if (page_addr < file_data_end) {
+                        uint32_t offset_in_vma = page_addr - cur.vmas[i].start;
+                        uint32_t file_offset = cur.vmas[i].file_offset + offset_in_vma;
+                        
+                        uint32_t read_size = 4096;
+                        if (page_addr + 4096 > file_data_end) {
+                            read_size = file_data_end - page_addr;
+                        }
+
+                        // Временно маппим фрейм в ядро, чтобы загрузить данные (или пишем по физ. адресу, т.к. identity map)
+                        // identity mapping 1:1, значит new_frame - валидный указатель!
+                        if (read_size > 0) {
+                            Fat16::read_file_offset(cur.name, file_offset, frame_ptr, read_size);
+                        }
+                    }
+
+                    VMM::map_page(page_addr, (uint32_t)new_frame, cur.vmas[i].flags);
+                    return true;
+                }
             }
         }
     }
 
-    printf("\n");
-    printf("=== PAGE FAULT ===\n");
-    printf("Address: 0x%x\n", fault_addr);
-    printf("Error:   %s %s %s\n",
-        is_present ? "Protection" : "Not-Present",
-        is_write ? "Write" : "Read",
-        is_user ? "User" : "Kernel");
-    printf("PD Index: %d, PT Index: %d\n", pd_index, pt_index);
-    printf("SYSTEM HALTED.\n");
-
-    while (1) asm volatile("cli; hlt");
+    return false;
 }
 
 uint32_t* VMM::get_current_directory() {

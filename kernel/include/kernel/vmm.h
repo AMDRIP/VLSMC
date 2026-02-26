@@ -44,8 +44,8 @@ public:
     static void switch_address_space(uint32_t* page_dir_phys);
     
     static uint32_t* clone_directory();
-    
-    static void handle_page_fault(uint32_t fault_addr, uint32_t error_code);
+    // Обработчик Page Fault. Возвращает true если обработано (Demand Paging), иначе false.
+    static bool handle_page_fault(uint32_t fault_addr, uint32_t error_code);
     
     static uint32_t* get_current_directory();
 

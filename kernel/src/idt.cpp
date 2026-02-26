@@ -166,6 +166,10 @@ extern "C" void isr_handler(re36::Registers* regs) {
         uint32_t fault_addr;
         asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
 
+        if (re36::VMM::handle_page_fault(fault_addr, regs->err_code)) {
+            return; // Успешно обработано Demand Paging / CoW / Heap
+        }
+
         if ((regs->cs & 3) == 3) {
             printf("\n[ESR] User Thread %d: Page Fault at 0x%x (EIP: 0x%x) (%s %s)\n",
                 re36::TaskScheduler::get_current_tid(),
@@ -177,8 +181,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
             return;
         }
 
-        re36::VMM::handle_page_fault(fault_addr, regs->err_code);
-        return;
+        // В противном случае проваливаемся вниз для KERNEL PANIC
     }
 
     if (regs->int_no == 128) {

@@ -233,6 +233,68 @@ read_data:
     return bytes_read;
 }
 
+int Fat16::read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, uint32_t size) {
+    if (!mounted_) return -1;
+
+    uint32_t sector;
+    int index;
+    if (find_dir_entry(name, &sector, &index) != 0) return -1;
+
+    uint8_t dir_buf[512];
+    ATA::read_sectors(sector, 1, dir_buf);
+    FAT16_DirEntry* entry = &((FAT16_DirEntry*)dir_buf)[index];
+
+    if (offset >= entry->file_size) return 0; // чтение за пределами файла
+    if (offset + size > entry->file_size) {
+        size = entry->file_size - offset; // ограничим размер до конца файла
+    }
+
+    uint16_t cluster = entry->first_cluster;
+    uint32_t cluster_size = bpb_.sectors_per_cluster * 512;
+
+    // Пропускаем ненужные кластеры
+    uint32_t clusters_to_skip = offset / cluster_size;
+    for (uint32_t i = 0; i < clusters_to_skip; i++) {
+        if (cluster < 2 || cluster >= 0xFFF8) return -1; // Цепочка неожиданно оборвалась
+        cluster = fat_table_[cluster];
+    }
+
+    uint32_t offset_in_cluster = offset % cluster_size;
+    uint32_t bytes_read = 0;
+
+    while (cluster >= 2 && cluster < 0xFFF8 && bytes_read < size) {
+        uint32_t lba = cluster_to_lba(cluster);
+        uint32_t sector_offset = offset_in_cluster / 512;
+        uint32_t offset_in_sector = offset_in_cluster % 512;
+
+        for (uint8_t s = sector_offset; s < bpb_.sectors_per_cluster; s++) {
+            if (bytes_read >= size) break;
+
+            uint8_t sec_buf[512];
+            if (!ATA::read_sectors(lba + s, 1, sec_buf)) {
+                return bytes_read;
+            }
+
+            uint32_t to_copy = 512 - offset_in_sector;
+            if (bytes_read + to_copy > size) {
+                to_copy = size - bytes_read;
+            }
+
+            for (uint32_t b = 0; b < to_copy; b++) {
+                buffer[bytes_read + b] = sec_buf[offset_in_sector + b];
+            }
+
+            bytes_read += to_copy;
+            offset_in_sector = 0; // Смещение применяется только к первому прочитанному сектору
+        }
+        
+        offset_in_cluster = 0; // Смещение применяется только к первому кластеру
+        cluster = fat_table_[cluster];
+    }
+
+    return bytes_read;
+}
+
 bool Fat16::is_mounted() {
     return mounted_;
 }

@@ -67,6 +67,12 @@ int main() {
         vlsmc::App::print("[HEAP TEST] Second allocation is linearly higher. Bump allocator works.\n");
     }
 
+    vlsmc::App::print("[HEAP TEST] Freeing second allocation...\n");
+    vlsmc::App::free(ptr2);
+    vlsmc::App::print("[HEAP TEST] Freeing first allocation (1 MB)...\n");
+    vlsmc::App::free(ptr);
+    vlsmc::App::print("[HEAP TEST] Memory cleanly freed!\n");
+
     vlsmc::App::print("[HEAP TEST] All tests done. Exiting.\n");
     return 0;
 }

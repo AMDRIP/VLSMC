@@ -52,6 +52,8 @@ public:
     
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
     
+    static int read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, uint32_t size);
+    
     static bool write_file(const char* name, const uint8_t* data, uint32_t size);
     
     static bool delete_file(const char* name);
