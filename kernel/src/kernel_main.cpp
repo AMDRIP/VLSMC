@@ -89,10 +89,12 @@ extern "C" void kernel_main() {
         vga_buffer[i] = (uint16_t(' ') | (0x1F << 8));
     }
 
+    set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     printf("==========================================\n");
     printf("   RAND Elecorner 36 OS (Bare-Metal)      \n");
     printf("==========================================\n\n");
 
+    set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     printf("-> PMM Initialized (32 MB RAM)\n");
     printf("-> Heap Initialized\n");
     printf("-> Keyboard Driver (Ring 0) Loaded via IRQ1\n");
@@ -107,17 +109,23 @@ extern "C" void kernel_main() {
         if (re36::Fat16::is_mounted())
             printf("-> FAT16 Filesystem Mounted\n");
     } else {
+        set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         printf("-> ATA: No IDE disk detected\n");
+        set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     }
     printf("-> Interrupts Enabled (STI)\n\n");
+    
+    set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     re36::run_all_tests();
 
     re36::thread_create("idle", idle_thread, 255);
     re36::thread_create("shell", shell_thread, 1);
 
+    set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     printf("Spawned threads: idle (pri=255), shell (pri=1)\n");
     printf("Switching to shell thread...\n\n");
+    set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     while (true) {
         asm volatile("hlt");

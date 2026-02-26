@@ -68,8 +68,12 @@ static void exec_command(const char* cmd) {
     if (str_eq(cmd, "hello")) {
         printf("Hello to you too, Kernel Hacker!\n");
     } else if (str_eq(cmd, "clear")) {
-        for (int i = 0; i < 80 * 25; i++)
-            vga[i] = (uint16_t)(' ') | (0x1F << 8);
+        if (VGA::is_graphics()) {
+            VGA::clear(0);
+        } else {
+            for (int i = 0; i < 80 * 25; i++)
+                vga[i] = (uint16_t(' ') | (0x0F << 8));
+        }
         printf("\n");
     } else if (str_eq(cmd, "ps")) {
         TaskScheduler::print_threads();
@@ -91,12 +95,18 @@ static void exec_command(const char* cmd) {
     } else if (str_eq(cmd, "help")) {
         printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
         printf("System: ps, ticks, meminfo, date, bootinfo, syscall, ring3, clear, help\n");
+        printf("Display: mode text, mode gfx, gfx\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
     } else if (str_eq(cmd, "gfx")) {
         VGA::demo();
-    } else if (str_eq(cmd, "textmode")) {
+    } else if (str_eq(cmd, "mode text")) {
         VGA::init_text_mode();
-        printf("Back to text mode.\n");
+        set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+        printf("Switched to VGA Text Mode (80x25)\n");
+    } else if (str_eq(cmd, "mode gfx")) {
+        VGA::init_mode13h();
+        set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        printf("Switched to VGA Graphics Text Mode (40x25)\n");
     } else if (str_eq(cmd, "bootinfo")) {
         BootInfo* bi = get_boot_info();
         if (bi->magic == BOOT_INFO_MAGIC) {
@@ -221,9 +231,14 @@ static void process_line(const char* line) {
 void shell_main() {
     ShellHistory::init();
 
+    set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     printf("RAND Elecorner 36 Shell v2.0\n");
+    set_color(VGA_COLOR_DARK_GREY, VGA_COLOR_BLACK);
     printf("Type 'help' for commands. Tab=complete, Up/Down=history\n\n");
+    
+    set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     printf("> ");
+    set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 
     input_len = 0;
     input_buf[0] = '\0';
@@ -233,11 +248,14 @@ void shell_main() {
 
         if (c == '\n') {
             printf("\n");
+            set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
             process_line(input_buf);
             ShellHistory::reset_cursor();
             input_len = 0;
             input_buf[0] = '\0';
+            set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
             printf("> ");
+            set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
         } else if (c == '\b') {
             if (input_len > 0) {
                 input_len--;

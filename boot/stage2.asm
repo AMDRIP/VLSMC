@@ -126,13 +126,9 @@ stage2_entry:
     pop ax
     inc bp
 
-    add bx, 512
-    jnc .no_wrap
     mov cx, es
     add cx, 0x0020
     mov es, cx
-    xor bx, bx
-.no_wrap:
 
     call fat12_next
     mov [kernel_cluster], ax
