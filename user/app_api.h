@@ -56,6 +56,17 @@ public:
     static int find_thread(const char* name) {
         return sys_find_thread(name);
     }
+
+    static void* malloc(size_t size) {
+        void* ptr = sys_sbrk(size);
+        if ((uint32_t)ptr == (uint32_t)-1) return nullptr;
+        return ptr;
+    }
+
+    static void free(void* ptr) {
+        (void)ptr;
+        // bump allocator has no free yet
+    }
 };
 
 } // namespace vlsmc

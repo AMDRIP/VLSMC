@@ -239,6 +239,28 @@ static uint32_t sys_find_thread(SyscallRegs* regs) {
     return (uint32_t)-1;
 }
 
+static uint32_t sys_sbrk(SyscallRegs* regs) {
+    int increment = (int)regs->ebx;
+    Thread& cur = threads[current_tid];
+    
+    InterruptGuard guard; // Да, тут спинлок/запрет прерываний, на случай если мы будем менять что-то важное
+    
+    if (increment == 0) {
+        return cur.heap_end;
+    }
+
+    uint32_t old_end = cur.heap_end;
+    uint32_t new_end = old_end + increment;
+
+    if (new_end < cur.heap_start) return (uint32_t)-1;
+    
+    // Куча не должна лезть в область ядра
+    if (new_end < KERNEL_SPACE_END) return (uint32_t)-1; // Ядро в области 0 - 4МБ. ELF грузится на 0x10000000. Вроде ок.
+    
+    cur.heap_end = new_end;
+    return old_end;
+}
+
 static uint32_t sys_read_sector(SyscallRegs* regs) {
     uint32_t lba = regs->ebx;
     uint8_t* buffer = (uint8_t*)regs->ecx;
@@ -276,6 +298,7 @@ static SyscallHandler syscall_table[] = {
     sys_read_sector, // 25
     sys_map_mmio,    // 26
     sys_find_thread, // 27
+    sys_sbrk,        // 28
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

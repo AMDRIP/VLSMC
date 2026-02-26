@@ -58,6 +58,8 @@ static void elf_thread_entry() {
 
     Elf32_Phdr* phdrs = (Elf32_Phdr*)(elf_buffer + ehdr->e_phoff);
 
+    uint32_t max_vaddr = 0;
+
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type != PT_LOAD) continue;
         if (phdrs[i].p_memsz == 0) continue;
@@ -65,6 +67,10 @@ static void elf_thread_entry() {
         uint32_t vaddr_start = phdrs[i].p_vaddr & ~0xFFF;
         uint32_t vaddr_end = (phdrs[i].p_vaddr + phdrs[i].p_memsz + 0xFFF) & ~0xFFF;
         uint32_t pages_needed = (vaddr_end - vaddr_start) / 4096;
+        
+        if (vaddr_end > max_vaddr) {
+            max_vaddr = vaddr_end;
+        }
 
         for (uint32_t p = 0; p < pages_needed; p++) {
             uint32_t vaddr = vaddr_start + p * 4096;
@@ -88,6 +94,9 @@ static void elf_thread_entry() {
             seg_dst[b] = seg_src[b];
         }
     }
+
+    threads[current_tid].heap_start = max_vaddr;
+    threads[current_tid].heap_end = max_vaddr;
 
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
         void* frame = PhysicalMemoryManager::alloc_frame();

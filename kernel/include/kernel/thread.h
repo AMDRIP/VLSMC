@@ -45,6 +45,8 @@ struct Thread {
     uint32_t total_ticks;       // Всего тиков процессорного времени
     
     uint32_t* page_directory_phys; // Каталог страниц потока
+    uint32_t heap_start;        // Начало кучи (после кода)
+    uint32_t heap_end;          // Текущий конец кучи
     
     IpcMessage messages[IPC_MSG_QUEUE_SIZE];
     int msg_head;

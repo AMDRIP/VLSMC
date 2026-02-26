@@ -1,6 +1,8 @@
 #include "kernel/vmm.h"
 #include "kernel/pmm.h"
 #include "kernel/spinlock.h"
+#include "kernel/thread.h"
+#include "kernel/task_scheduler.h"
 #include "libc.h"
 
 namespace re36 {
@@ -260,6 +262,22 @@ void VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
 
                 invlpg(fault_addr & 0xFFFFF000);
                 return;
+            }
+        }
+    } else if (!is_present) {
+        // Ленивое выделение памяти (Lazy Allocation) для кучи
+        if (current_tid >= 0 && current_tid < MAX_THREADS) {
+            Thread& cur = threads[current_tid];
+            if (fault_addr >= cur.heap_start && fault_addr < cur.heap_end) {
+                void* new_frame = PhysicalMemoryManager::alloc_frame();
+                if (!new_frame) {
+                    printf("\n!!! PAGE FAULT: Out of memory for heap at 0x%x !!!\n", fault_addr);
+                    while(1) asm volatile("cli; hlt");
+                }
+                
+                uint32_t page_addr = fault_addr & 0xFFFFF000;
+                VMM::map_page(page_addr, (uint32_t)new_frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+                return; // Страница выделена, возвращаемся к выполнению юзер-кода
             }
         }
     }
