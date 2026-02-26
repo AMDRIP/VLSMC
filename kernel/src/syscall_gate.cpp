@@ -213,6 +213,32 @@ static uint32_t sys_recv_msg(SyscallRegs* regs) {
     }
 }
 
+static uint32_t sys_find_thread(SyscallRegs* regs) {
+    const char* target_name = (const char*)regs->ebx;
+    if (!target_name) return (uint32_t)-1;
+
+    InterruptGuard guard;
+    for (int i = 0; i < MAX_THREADS; i++) {
+        if (threads[i].state != ThreadState::Unused && threads[i].state != ThreadState::Terminated) {
+            // Сравнение строк
+            bool match = true;
+            for (int j = 0; j < 32; j++) {
+                if (threads[i].name[j] != target_name[j]) {
+                    match = false;
+                    break;
+                }
+                if (threads[i].name[j] == '\0' && target_name[j] == '\0') {
+                    break; // Конец обеих строк
+                }
+            }
+            if (match) {
+                return (uint32_t)i;
+            }
+        }
+    }
+    return (uint32_t)-1;
+}
+
 static uint32_t sys_read_sector(SyscallRegs* regs) {
     uint32_t lba = regs->ebx;
     uint8_t* buffer = (uint8_t*)regs->ecx;
@@ -249,6 +275,7 @@ static SyscallHandler syscall_table[] = {
     sys_recv_msg,    // 24
     sys_read_sector, // 25
     sys_map_mmio,    // 26
+    sys_find_thread, // 27
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

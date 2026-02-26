@@ -1,8 +1,5 @@
 #include "app_api.h"
 
-// Драйвер FS мы будем запускать в tid 1 (0 - shell, 1 - FS, 2 - CAT_TEST)
-#define FS_TID 1
-
 // Заглушки для C++ рантайма
 extern "C" void __cxa_pure_virtual() {
     while (1);
@@ -21,13 +18,19 @@ void operator delete(void* p, unsigned int size) {
 int main() {
     vlsmc::App::print("[CAT] Requesting file 'HELLO.TXT' from FS driver...\n");
 
+    int fs_tid = vlsmc::App::find_thread("fsdriver.elf");
+    if (fs_tid < 0) {
+        vlsmc::App::print("[CAT] Error: fsdriver.elf thread not found!\n");
+        return 1;
+    }
+
     const char* req = "HELLO   TXT";
     int req_len = 11;
     
     // Пытаемся отправить запрос драйверу файловой системы
-    int ret = vlsmc::App::msg_send(FS_TID, req, req_len);
+    int ret = vlsmc::App::msg_send(fs_tid, req, req_len);
     if (ret < 0) {
-        vlsmc::App::print("[CAT] FS Driver not found or queue is full!\n");
+        vlsmc::App::print("[CAT] FS Driver queue is full or invalid!\n");
         return 1;
     }
 
@@ -44,8 +47,6 @@ int main() {
             
             // Выводим полученный текст (ограничивая размер, чтобы не мусорить)
             for (int i = 0; i < sz && i < 200; i++) {
-                vlsmc::App::print((const char*)&buf[i]); // Нужно написать print для 1 символа, но у нас print принимает null-terminated.
-                // Сделаем хак:
                 char tmp[2] = {(char)buf[i], 0};
                 vlsmc::App::print(tmp);
             }

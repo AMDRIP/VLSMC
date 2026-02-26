@@ -52,6 +52,10 @@ public:
     static void* map_mmio(uint32_t virt_addr, uint32_t phys_addr, uint32_t size_pages) {
         return sys_map_mmio(virt_addr, phys_addr, size_pages);
     }
+
+    static int find_thread(const char* name) {
+        return sys_find_thread(name);
+    }
 };
 
 } // namespace vlsmc

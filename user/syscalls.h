@@ -42,6 +42,7 @@ static inline uint32_t syscall3(uint32_t num, uint32_t arg1, uint32_t arg2, uint
 #define SYS_RECV_MSG 24
 #define SYS_READ_SECTOR 25
 #define SYS_MAP_MMIO 26
+#define SYS_FIND_THREAD 27
 
 static inline void sys_exit(void) {
     syscall0(SYS_EXIT);
@@ -85,6 +86,10 @@ static inline bool sys_read_sector(uint32_t lba, void* buffer) {
 
 static inline void* sys_map_mmio(uint32_t virt_addr, uint32_t phys_addr, uint32_t size_pages) {
     return (void*)syscall3(SYS_MAP_MMIO, virt_addr, phys_addr, size_pages);
+}
+
+static inline int sys_find_thread(const char* name) {
+    return (int)syscall1(SYS_FIND_THREAD, (uint32_t)name);
 }
 
 static inline void print(const char* s) {

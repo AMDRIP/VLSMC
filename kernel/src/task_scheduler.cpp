@@ -120,6 +120,7 @@ void TaskScheduler::block_current(int channel_id) {
             VMM::switch_address_space(threads[next_tid].page_directory_phys);
         }
 
+        TSS::set_kernel_stack((uint32_t)(threads[next_tid].stack_base + THREAD_STACK_SIZE));
         switch_task(&threads[old_tid].esp, threads[next_tid].esp);
     }
 }
@@ -152,6 +153,7 @@ void TaskScheduler::sleep_current(uint32_t ms) {
             VMM::switch_address_space(threads[next_tid].page_directory_phys);
         }
 
+        TSS::set_kernel_stack((uint32_t)(threads[next_tid].stack_base + THREAD_STACK_SIZE));
         switch_task(&threads[old_tid].esp, threads[next_tid].esp);
     }
 }
@@ -171,6 +173,7 @@ void TaskScheduler::terminate_current() {
             VMM::switch_address_space(threads[next_tid].page_directory_phys);
         }
 
+        TSS::set_kernel_stack((uint32_t)(threads[next_tid].stack_base + THREAD_STACK_SIZE));
         switch_task(&threads[old_tid].esp, threads[next_tid].esp);
     }
 }
