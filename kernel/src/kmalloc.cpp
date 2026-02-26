@@ -65,17 +65,17 @@ void* kmalloc(size_t size) {
     }
 
     // Если не нашли свободного места, мы должны попросить у PMM еще памяти.
-    // Упрощение: мы просим новый фрейм(ы) и линкуем к куче
-    size_t pages_needed = total_size / PMM_FRAME_SIZE + 1;
-    MemoryBlock* new_area = (MemoryBlock*)PhysicalMemoryManager::alloc_frame();
+    // Просим нужное количество фреймов и линкуем к куче
+    size_t pages_needed = total_size / PMM_FRAME_SIZE;
+    if (total_size % PMM_FRAME_SIZE != 0) pages_needed++;
+
+    MemoryBlock* new_area = (MemoryBlock*)PhysicalMemoryManager::alloc_blocks(pages_needed);
     
     // В полноценной ОС здесь надо просить VMM замаппить вирт в физическую 
-    // последовательно, а пока мы работаем с физической, и мы не гарантируем,
-    // что два alloc_frame() дадут подряд идущие адреса.
-    // Для простого аллокатора мы просто скармливаем 1 новый блок в список.
+    // последовательно, а пока мы работаем с физической, и мы просим смежные фреймы у PMM.
     if (!new_area) return nullptr;
 
-    new_area->size = PMM_FRAME_SIZE;
+    new_area->size = pages_needed * PMM_FRAME_SIZE;
     new_area->is_free = false; // Сразу забираем под нашу аллокацию
     new_area->next = nullptr;
     

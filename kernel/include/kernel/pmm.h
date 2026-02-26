@@ -26,6 +26,9 @@ public:
     // Выделяет первый попавшийся свободный фрейм (4 КБ) и возвращает его физический адрес
     static void* alloc_frame();
     
+    // Выделяет непрерывный блок из count фреймов и возвращает физический адрес
+    static void* alloc_blocks(uint32_t count);
+    
     // Освобождает фрейм по физическому адресу
     static void free_frame(void* frame_addr);
 
@@ -43,6 +46,9 @@ private:
 
     // Найти первый свободный фрейм (index)
     static uint32_t get_first_free_frame();
+    
+    // Найти последовательность из count свободных фреймов
+    static uint32_t get_free_blocks(uint32_t count);
 
 private:
     static uint32_t* memory_bitmap_; // Указатель на массив битмапа

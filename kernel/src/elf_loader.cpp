@@ -41,6 +41,7 @@ static void elf_thread_entry() {
         kfree(elf_buffer);
         return;
     }
+    printf("[ELF] Loaded %d bytes from FAT\n", bytes);
 
     uint32_t* new_dir = VMM::create_address_space();
     if (!new_dir) {

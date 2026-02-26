@@ -1,6 +1,9 @@
 #pragma once
 
 #include "driver_api.h"
+#include "app_api.h"
+
+using namespace vlsmc;
 
 #define VESA_CMD_GET_RES 1
 #define VESA_CMD_FLUSH   2
@@ -30,7 +33,9 @@ public:
         uint32_t phys_lfb = 0xA0000;
         
         // Мапим физический адрес видеобуфера в наше виртуальное пространство 
-        framebuffer = (uint8_t*)sys_map_mmio(0xC0000000, phys_lfb, 0x03); // Условный вирт адрес +RW
+        // Mode 13h (320x200 = 64000 байт), нам нужно 16 страниц по 4096
+        framebuffer = (uint8_t*)App::map_mmio(0xC0000000, phys_lfb, 16); 
+        
         if (!framebuffer) return -2;
 
         is_initialized = true;

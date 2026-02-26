@@ -124,8 +124,23 @@ static uint32_t sys_outw(SyscallRegs* regs) {
 static uint32_t sys_map_mmio(SyscallRegs* regs) {
     uint32_t virt = regs->ebx;
     uint32_t phys = regs->ecx;
-    uint32_t flags = regs->edx;
-    VMM::map_page(virt, phys, flags);
+    uint32_t size_pages = regs->edx;
+    
+    printf("[SYSCALL] map_mmio: virt=0x%x, phys=0x%x, pages=%d\n", virt, phys, size_pages);
+
+    // Простейшая проверка безопасности: не даем маппить в адресное пространство ядра
+    if (virt < KERNEL_SPACE_END) {
+        printf("[SYSCALL] map_mmio failed: virt addr 0x%x is below KERNEL_SPACE_END\n", virt);
+        return 0; // Ошибка
+    }
+
+    // Маппим каждую страницу
+    for (uint32_t i = 0; i < size_pages; i++) {
+        uint32_t v = virt + i * 4096;
+        uint32_t p = phys + i * 4096;
+        VMM::map_page(v, p, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+    }
+    
     return virt;
 }
 
@@ -207,32 +222,33 @@ static uint32_t sys_read_sector(SyscallRegs* regs) {
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
 static SyscallHandler syscall_table[] = {
-    sys_exit,
-    sys_print,
-    sys_getchar,
-    sys_sleep,
-    sys_yield,
-    sys_getpid,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    sys_mmap,
-    sys_munmap,
-    sys_send,
-    sys_recv,
-    sys_time,
-    sys_inb,
-    sys_outb,
-    sys_inw,
-    sys_outw,
-    sys_map_mmio,
-    sys_wait_irq,
-    sys_send_msg,
-    sys_recv_msg,
-    sys_read_sector,
+    sys_exit,        // 0
+    sys_print,       // 1
+    sys_getchar,     // 2
+    sys_sleep,       // 3
+    sys_yield,       // 4
+    sys_getpid,      // 5
+    nullptr,         // 6
+    nullptr,         // 7
+    nullptr,         // 8
+    nullptr,         // 9
+    nullptr,         // 10
+    nullptr,         // 11
+    sys_mmap,        // 12
+    sys_munmap,      // 13
+    sys_send,        // 14
+    sys_recv,        // 15
+    sys_time,        // 16
+    sys_inb,         // 17
+    sys_outb,        // 18
+    sys_inw,         // 19
+    sys_outw,        // 20
+    nullptr,         // 21
+    sys_wait_irq,    // 22
+    sys_send_msg,    // 23
+    sys_recv_msg,    // 24
+    sys_read_sector, // 25
+    sys_map_mmio,    // 26
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

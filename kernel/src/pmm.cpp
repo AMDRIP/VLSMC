@@ -80,6 +80,39 @@ void* PhysicalMemoryManager::alloc_frame() {
     return (void*)(frame * PMM_FRAME_SIZE);
 }
 
+uint32_t PhysicalMemoryManager::get_free_blocks(uint32_t count) {
+    if (count == 0) return 0xFFFFFFFF;
+    if (count == 1) return get_first_free_frame();
+
+    uint32_t current_count = 0;
+    uint32_t start_frame = 0xFFFFFFFF;
+
+    for (uint32_t i = 0; i < max_frames_; i++) {
+        if (!test_frame(i)) {
+            if (current_count == 0) start_frame = i;
+            current_count++;
+            if (current_count == count) return start_frame;
+        } else {
+            current_count = 0;
+        }
+    }
+    return 0xFFFFFFFF; // Нет подходящего блока
+}
+
+void* PhysicalMemoryManager::alloc_blocks(uint32_t count) {
+    if (get_free_memory() < count * PMM_FRAME_SIZE) return nullptr;
+
+    uint32_t start_frame = get_free_blocks(count);
+    if (start_frame == 0xFFFFFFFF) return nullptr;
+
+    for (uint32_t i = 0; i < count; i++) {
+        set_frame(start_frame + i);
+        used_frames_++;
+    }
+    
+    return (void*)(start_frame * PMM_FRAME_SIZE);
+}
+
 void PhysicalMemoryManager::free_frame(void* frame_addr) {
     uint32_t addr = (uint32_t)frame_addr;
     uint32_t frame = addr / PMM_FRAME_SIZE;

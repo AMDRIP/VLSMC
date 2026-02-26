@@ -48,6 +48,10 @@ public:
     static bool read_sector(uint32_t lba, void* buffer) {
         return sys_read_sector(lba, buffer);
     }
+
+    static void* map_mmio(uint32_t virt_addr, uint32_t phys_addr, uint32_t size_pages) {
+        return sys_map_mmio(virt_addr, phys_addr, size_pages);
+    }
 };
 
 } // namespace vlsmc
