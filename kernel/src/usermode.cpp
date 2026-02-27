@@ -39,6 +39,14 @@ static uint8_t user_program[] = {
 };
 
 void enter_usermode() {
+    uint32_t* new_dir = VMM::create_address_space();
+    if (!new_dir) {
+        printf("[USERMODE] Failed to create address space!\n");
+        return;
+    }
+    threads[current_tid].page_directory_phys = new_dir;
+    VMM::switch_address_space(new_dir);
+
     void* code_frame = PhysicalMemoryManager::alloc_frame();
     void* stack_frame = PhysicalMemoryManager::alloc_frame();
 

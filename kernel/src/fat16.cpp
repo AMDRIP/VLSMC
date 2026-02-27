@@ -1,5 +1,5 @@
 #include "kernel/fat16.h"
-#include "kernel/ata.h"
+#include "kernel/disk.h"
 #include "kernel/rtc.h"
 #include "libc.h"
 
@@ -17,7 +17,7 @@ uint32_t Fat16::cached_sector_ = 0xFFFFFFFF;
 
 bool Fat16::read_cached_sector(uint32_t lba) {
     if (lba == cached_sector_) return true;
-    if (!ATA::read_sectors(lba, 1, sector_cache_)) return false;
+    if (!Disk::read_sectors(lba, 1, sector_cache_)) return false;
     cached_sector_ = lba;
     return true;
 }
@@ -65,13 +65,13 @@ bool Fat16::match_filename(const FAT16_DirEntry* entry, const char* name) {
 }
 
 bool Fat16::init() {
-    if (!ATA::is_present()) {
+    if (!Disk::is_present()) {
         printf("[FAT16] No ATA disk found\n");
         return false;
     }
 
     uint8_t boot_sector[512];
-    if (!ATA::read_sectors(0, 1, boot_sector)) {
+    if (!Disk::read_sectors(0, 1, boot_sector)) {
         printf("[FAT16] Failed to read boot sector\n");
         return false;
     }
@@ -99,7 +99,7 @@ bool Fat16::init() {
     uint8_t fat_buf[512];
     uint32_t entry_idx = 0;
     for (uint32_t s = 0; s < fat_sectors && entry_idx < fat_entries; s++) {
-        if (!ATA::read_sectors(fat_start_lba_ + s, 1, fat_buf)) {
+        if (!Disk::read_sectors(fat_start_lba_ + s, 1, fat_buf)) {
             printf("[FAT16] Failed to read FAT sector %d\n", s);
             return false;
         }
@@ -137,7 +137,7 @@ void Fat16::list_root() {
     int file_count = 0;
 
     for (uint32_t s = 0; s < root_dir_sectors_; s++) {
-        if (!ATA::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
+        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
 
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
         int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
@@ -177,7 +177,7 @@ int Fat16::read_file(const char* name, uint8_t* buffer, uint32_t max_size) {
 
     uint8_t dir_buf[512];
     for (uint32_t s = 0; s < root_dir_sectors_; s++) {
-        if (!ATA::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
+        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
 
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
         int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
@@ -213,7 +213,7 @@ read_data:
             if (bytes_read >= found_entry.file_size) break;
 
             uint8_t sec_buf[512];
-            if (!ATA::read_sectors(lba + s, 1, sec_buf)) return bytes_read;
+            if (!Disk::read_sectors(lba + s, 1, sec_buf)) return bytes_read;
 
             uint32_t to_copy = 512;
             if (bytes_read + to_copy > found_entry.file_size)
@@ -241,7 +241,7 @@ int Fat16::read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, 
     if (find_dir_entry(name, &sector, &index) != 0) return -1;
 
     uint8_t dir_buf[512];
-    ATA::read_sectors(sector, 1, dir_buf);
+    Disk::read_sectors(sector, 1, dir_buf);
     FAT16_DirEntry* entry = &((FAT16_DirEntry*)dir_buf)[index];
 
     if (offset >= entry->file_size) return 0; // чтение за пределами файла
@@ -271,7 +271,7 @@ int Fat16::read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, 
             if (bytes_read >= size) break;
 
             uint8_t sec_buf[512];
-            if (!ATA::read_sectors(lba + s, 1, sec_buf)) {
+            if (!Disk::read_sectors(lba + s, 1, sec_buf)) {
                 return bytes_read;
             }
 
@@ -327,7 +327,7 @@ int Fat16::find_dir_entry(const char* name, uint32_t* sector_out, int* index_out
     
     uint8_t dir_buf[512];
     for (uint32_t s = 0; s < root_dir_sectors_; s++) {
-        if (!ATA::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
+        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
         
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
         int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
@@ -381,7 +381,7 @@ void Fat16::flush_fat() {
         }
         
         for (uint8_t f = 0; f < bpb_.num_fats; f++) {
-            ATA::write_sectors(fat_start_lba_ + f * bpb_.fat_size_16 + s, 1, fat_buf);
+            Disk::write_sectors(fat_start_lba_ + f * bpb_.fat_size_16 + s, 1, fat_buf);
         }
     }
     cached_sector_ = 0xFFFFFFFF;
@@ -394,13 +394,13 @@ bool Fat16::write_file(const char* name, const uint8_t* data, uint32_t size) {
     int old_index;
     if (find_dir_entry(name, &old_sector, &old_index) == 0) {
         uint8_t dir_buf[512];
-        ATA::read_sectors(old_sector, 1, dir_buf);
+        Disk::read_sectors(old_sector, 1, dir_buf);
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
         if (entries[old_index].first_cluster >= 2) {
             free_chain(entries[old_index].first_cluster);
         }
         entries[old_index].name[0] = 0xE5;
-        ATA::write_sectors(old_sector, 1, dir_buf);
+        Disk::write_sectors(old_sector, 1, dir_buf);
     }
     
     uint16_t first_cluster = 0;
@@ -433,7 +433,7 @@ bool Fat16::write_file(const char* name, const uint8_t* data, uint32_t size) {
                 sec_buf[b] = data[bytes_written + b];
             }
             
-            ATA::write_sectors(lba + s, 1, sec_buf);
+            Disk::write_sectors(lba + s, 1, sec_buf);
             bytes_written += to_copy;
         }
         
@@ -444,7 +444,7 @@ bool Fat16::write_file(const char* name, const uint8_t* data, uint32_t size) {
     
     uint8_t dir_buf[512];
     for (uint32_t s = 0; s < root_dir_sectors_; s++) {
-        if (!ATA::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
+        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dir_buf)) continue;
         
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
         int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
@@ -459,7 +459,7 @@ bool Fat16::write_file(const char* name, const uint8_t* data, uint32_t size) {
                 entries[i].first_cluster = first_cluster;
                 entries[i].file_size = size;
                 
-                ATA::write_sectors(root_dir_lba_ + s, 1, dir_buf);
+                Disk::write_sectors(root_dir_lba_ + s, 1, dir_buf);
                 return true;
             }
         }
@@ -480,7 +480,7 @@ bool Fat16::delete_file(const char* name) {
     }
     
     uint8_t dir_buf[512];
-    ATA::read_sectors(sector, 1, dir_buf);
+    Disk::read_sectors(sector, 1, dir_buf);
     FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
     
     if (entries[index].first_cluster >= 2) {
@@ -489,7 +489,7 @@ bool Fat16::delete_file(const char* name) {
     }
     
     entries[index].name[0] = 0xE5;
-    ATA::write_sectors(sector, 1, dir_buf);
+    Disk::write_sectors(sector, 1, dir_buf);
     
     return true;
 }
@@ -508,7 +508,7 @@ void Fat16::stat_file(const char* name) {
     }
     
     uint8_t dir_buf[512];
-    ATA::read_sectors(sector, 1, dir_buf);
+    Disk::read_sectors(sector, 1, dir_buf);
     FAT16_DirEntry* entry = &((FAT16_DirEntry*)dir_buf)[index];
     
     char fname[13];

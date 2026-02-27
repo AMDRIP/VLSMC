@@ -15,6 +15,7 @@
 #include "kernel/usermode.h"
 #include "kernel/boot_info.h"
 #include "kernel/pci.h"
+#include "kernel/ahci.h"
 #include "kernel/vga.h"
 #include "kernel/bga.h"
 #include "kernel/pic.h"
@@ -139,12 +140,46 @@ static void exec_command(const char* cmd) {
         uint32_t tid;
         asm volatile("mov $5, %%eax; int $0x80; mov %%eax, %0" : "=r"(tid) :: "eax");
         printf("Syscall returned TID = %d\n", tid);
+    } else if (str_starts(cmd, "ahcitest ", 9)) {
+        int port = atoi(str_after(cmd, 9));
+        printf("Testing AHCI Port %d...\n", port);
+        
+        void* test_buf = PhysicalMemoryManager::alloc_frame();
+        if (!test_buf) {
+            printf("Failed to allocate test buffer!\n");
+        } else {
+            uint8_t* ptr = (uint8_t*)test_buf;
+            for (int i = 0; i < 512; i++) ptr[i] = (i % 256);
+            
+            printf("Writing sector 10000...\n");
+            bool wr_ok = AHCIDriver::write(port, 10000, 1, test_buf);
+            if (!wr_ok) printf("Write FAILED!\n");
+            else {
+                printf("Write OK. Clearing buffer and reading back...\n");
+                for (int i = 0; i < 512; i++) ptr[i] = 0;
+                
+                bool rd_ok = AHCIDriver::read(port, 10000, 1, test_buf);
+                if (!rd_ok) printf("Read FAILED!\n");
+                else {
+                    bool data_ok = true;
+                    for (int i = 0; i < 512; i++) {
+                        if (ptr[i] != (i % 256)) {
+                            data_ok = false;
+                            break;
+                        }
+                    }
+                    if (data_ok) printf("Read OK and Data matches perfectly! AHCI works.\n");
+                    else printf("Read OK but Data CORRUPTED!\n");
+                }
+            }
+            PhysicalMemoryManager::free_frame(test_buf);
+        }
     } else if (str_eq(cmd, "help")) {
         printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
-        printf("Tests:  memtest, pmmtest, vmmtest\n");
+        printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
     } else if (str_eq(cmd, "gfx")) {
