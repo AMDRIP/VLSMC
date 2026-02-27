@@ -21,6 +21,7 @@
 #include "kernel/shell.h"
 #include "kernel/selftest.h"
 #include "kernel/pci.h"
+#include "kernel/memory_validator.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -63,6 +64,11 @@ extern "C" void kernel_main() {
 
     re36::VMM::init();
     dbg[6] = 0x4F37; // '7' — Scheduler
+
+    if (!re36::MemoryValidator::run_all_tests()) {
+        printf("FATAL: Memory subsystem validation failed!\n");
+        while(1) asm volatile("cli; hlt");
+    }
 
     re36::TaskScheduler::init();
     dbg[7] = 0x4F38; // '8' — Timer
