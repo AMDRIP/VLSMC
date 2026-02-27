@@ -193,7 +193,9 @@ extern "C" void isr_handler(re36::Registers* regs) {
         sregs.edx = regs->edx;
         sregs.esi = regs->esi;
         sregs.edi = regs->edi;
+        re36::g_current_isr_regs = regs;
         regs->eax = re36::handle_syscall(&sregs);
+        re36::g_current_isr_regs = nullptr;
         return;
     }
 

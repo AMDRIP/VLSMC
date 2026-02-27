@@ -36,3 +36,9 @@ void syscall_gate_init();
 uint32_t handle_syscall(SyscallRegs* regs);
 
 } // namespace re36
+
+#include "kernel/idt.h"
+
+namespace re36 {
+extern Registers* g_current_isr_regs;
+} // namespace re36

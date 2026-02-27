@@ -188,10 +188,8 @@ void VMM::destroy_address_space(uint32_t* page_dir_phys) {
         uint32_t* pt = (uint32_t*)(page_dir_phys[i] & 0xFFFFF000);
         for (int j = 0; j < PT_ENTRIES; j++) {
             if (pt[j] & PAGE_PRESENT) {
-                if (!(pt[j] & PAGE_COW)) {
-                    uint32_t phys_frame = pt[j] & 0xFFFFF000;
-                    PhysicalMemoryManager::free_frame((void*)phys_frame);
-                }
+                uint32_t phys_frame = pt[j] & 0xFFFFF000;
+                PhysicalMemoryManager::dec_ref(phys_frame);
             }
         }
         PhysicalMemoryManager::free_frame((void*)pt);
@@ -237,11 +235,15 @@ uint32_t* VMM::clone_directory() {
                 continue;
             }
 
-            new_pt[j] = (*src_pte & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
+            uint32_t phys = *src_pte & 0xFFFFF000;
+
+            new_pt[j] = phys | PAGE_PRESENT | PAGE_USER | PAGE_COW;
             new_pt[j] &= ~PAGE_WRITABLE;
 
-            *src_pte = (*src_pte & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
+            *src_pte = phys | PAGE_PRESENT | PAGE_USER | PAGE_COW;
             *src_pte &= ~PAGE_WRITABLE;
+
+            PhysicalMemoryManager::inc_ref(phys);
 
             uint32_t virt_addr = (i << 22) | (j << 12);
             invlpg(virt_addr);
@@ -272,17 +274,26 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             if (pte_val & PAGE_COW) {
                 uint32_t old_phys = pte_val & 0xFFFFF000;
 
+                if (PhysicalMemoryManager::get_refcount(old_phys) == 1) {
+                    *pte = old_phys | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
+                    *pte &= ~PAGE_COW;
+                    invlpg(fault_addr & 0xFFFFF000);
+                    return true;
+                }
+
                 void* new_frame = PhysicalMemoryManager::alloc_frame();
                 if (!new_frame) {
                     printf("\n!!! PAGE FAULT: Out of memory for CoW copy at 0x%x !!!\n", fault_addr);
                     while(1) asm volatile("cli; hlt");
                 }
 
-                uint8_t* src = (uint8_t*)old_phys;
+                uint8_t* src = (uint8_t*)(old_phys);
                 uint8_t* dst = (uint8_t*)new_frame;
                 for (int i = 0; i < (int)PAGE_SIZE; i++) {
                     dst[i] = src[i];
                 }
+
+                PhysicalMemoryManager::dec_ref(old_phys);
 
                 *pte = (uint32_t)new_frame | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
                 *pte &= ~PAGE_COW;

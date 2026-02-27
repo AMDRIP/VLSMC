@@ -85,6 +85,8 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.msg_count = 0;
     t.waiting_for_msg = false;
     t.vma_list = nullptr;
+    t.parent_tid = -1;
+    t.exit_code = 0;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
 

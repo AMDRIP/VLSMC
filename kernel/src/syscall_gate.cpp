@@ -11,9 +11,15 @@
 #include "kernel/spinlock.h"
 #include "kernel/pmm.h"
 #include "kernel/fat16.h"
+#include "kernel/elf.h"
+#include "kernel/elf_loader.h"
+#include "kernel/tss.h"
+#include "kernel/kmalloc.h"
 #include "libc.h"
 
 namespace re36 {
+
+Registers* g_current_isr_regs = nullptr;
 
 
 extern "C" void isr128();
@@ -25,7 +31,49 @@ void syscall_gate_init() {
 }
 
 static uint32_t sys_exit(SyscallRegs* regs) {
-    (void)regs;
+    int exit_code = (int)regs->ebx;
+    Thread& cur = threads[current_tid];
+    cur.exit_code = exit_code;
+
+    if (cur.parent_tid >= 0 && cur.parent_tid < MAX_THREADS &&
+        threads[cur.parent_tid].state != ThreadState::Unused) {
+
+        if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_ &&
+            cur.page_directory_phys != nullptr) {
+            VMM::destroy_address_space(cur.page_directory_phys);
+            cur.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
+        }
+
+        VMA* v = cur.vma_list;
+        while (v) { VMA* n = v->next; kfree(v); v = n; }
+        cur.vma_list = nullptr;
+
+        {
+            InterruptGuard guard;
+            cur.state = ThreadState::Zombie;
+
+            if (threads[cur.parent_tid].state == ThreadState::Blocked &&
+                threads[cur.parent_tid].blocked_channel_id == -2) {
+                TaskScheduler::unblock(cur.parent_tid);
+            }
+        }
+
+        int next_tid = TaskScheduler::pick_next_thread();
+        if (next_tid != current_tid) {
+            InterruptGuard guard;
+            int old_tid = current_tid;
+            current_tid = next_tid;
+            threads[next_tid].state = ThreadState::Running;
+            threads[next_tid].quantum_remaining = 5;
+            if (threads[next_tid].page_directory_phys != threads[old_tid].page_directory_phys) {
+                VMM::switch_address_space(threads[next_tid].page_directory_phys);
+            }
+            TSS::set_kernel_stack((uint32_t)(threads[next_tid].stack_base + THREAD_STACK_SIZE));
+            switch_task(&threads[old_tid].esp, threads[next_tid].esp);
+        }
+        return 0;
+    }
+
     TaskScheduler::terminate_current();
     return 0;
 }
@@ -468,6 +516,262 @@ static uint32_t sys_fsize(SyscallRegs* regs) {
     if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].in_use) return (uint32_t)-1;
     return open_files[fd].size;
 }
+struct ForkChildInfo {
+    uint32_t user_eip;
+    uint32_t user_esp;
+    uint32_t user_eflags;
+};
+
+static ForkChildInfo fork_child_info;
+
+static void fork_child_entry() {
+    uint32_t eip = fork_child_info.user_eip;
+    uint32_t esp = fork_child_info.user_esp;
+    uint32_t eflags = fork_child_info.user_eflags | 0x200;
+
+    TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));
+
+    asm volatile(
+        "cli\n\t"
+        "mov $0x23, %%ax\n\t"
+        "mov %%ax, %%ds\n\t"
+        "mov %%ax, %%es\n\t"
+        "mov %%ax, %%fs\n\t"
+        "mov %%ax, %%gs\n\t"
+        "push $0x23\n\t"
+        "push %%ecx\n\t"
+        "push %%ebx\n\t"
+        "push $0x1B\n\t"
+        "push %%edx\n\t"
+        "xor %%eax, %%eax\n\t"
+        "iret\n\t"
+        :: "c"(esp), "d"(eip), "b"(eflags)
+        : "eax", "memory"
+    );
+}
+
+static uint32_t sys_fork(SyscallRegs* regs) {
+    (void)regs;
+    InterruptGuard guard;
+
+    if (!g_current_isr_regs) return (uint32_t)-1;
+
+    fork_child_info.user_eip = g_current_isr_regs->eip;
+    fork_child_info.user_esp = g_current_isr_regs->useresp;
+    fork_child_info.user_eflags = g_current_isr_regs->eflags;
+
+    int child_tid = -1;
+    for (int i = 1; i < MAX_THREADS; i++) {
+        if (threads[i].state == ThreadState::Unused) {
+            child_tid = i;
+            break;
+        }
+    }
+    if (child_tid == -1) return (uint32_t)-1;
+
+    Thread& parent = threads[current_tid];
+    Thread& child = threads[child_tid];
+
+    for (int j = 0; j < 32; j++) child.name[j] = parent.name[j];
+
+    child.tid = child_tid;
+    child.state = ThreadState::Ready;
+    child.priority = parent.priority;
+    child.sleep_until = 0;
+    child.blocked_channel_id = -1;
+    child.quantum_remaining = 5;
+    child.total_ticks = 0;
+    child.msg_head = 0;
+    child.msg_tail = 0;
+    child.msg_count = 0;
+    child.waiting_for_msg = false;
+    child.parent_tid = current_tid;
+    child.exit_code = 0;
+    child.heap_start = parent.heap_start;
+    child.heap_end = parent.heap_end;
+    child.heap_lock = false;
+
+    child.vma_list = nullptr;
+    VMA* src_vma = parent.vma_list;
+    VMA** dst_ptr = &child.vma_list;
+    while (src_vma) {
+        VMA* copy = (VMA*)kmalloc(sizeof(VMA));
+        if (!copy) break;
+        copy->start = src_vma->start;
+        copy->end = src_vma->end;
+        copy->file_offset = src_vma->file_offset;
+        copy->file_size = src_vma->file_size;
+        copy->flags = src_vma->flags;
+        copy->next = nullptr;
+        *dst_ptr = copy;
+        dst_ptr = &copy->next;
+        src_vma = src_vma->next;
+    }
+
+    uint32_t* new_dir = VMM::clone_directory();
+    if (!new_dir) return (uint32_t)-1;
+    child.page_directory_phys = new_dir;
+
+    uint32_t* stack_top = (uint32_t*)(child.stack_base + THREAD_STACK_SIZE);
+
+    *(--stack_top) = (uint32_t)fork_child_entry;
+
+    *(--stack_top) = 0x202;
+    *(--stack_top) = 0;
+    *(--stack_top) = 0;
+    *(--stack_top) = 0;
+    *(--stack_top) = 0;
+
+    child.esp = (uint32_t)stack_top;
+
+    thread_count++;
+    return (uint32_t)child_tid;
+}
+
+static uint32_t sys_exec(SyscallRegs* regs) {
+    const char* filename = (const char*)regs->ebx;
+    if (!filename) return (uint32_t)-1;
+
+    Thread& cur = threads[current_tid];
+
+    for (int j = 0; j < 31 && filename[j]; j++) {
+        cur.name[j] = filename[j];
+        cur.name[j + 1] = '\0';
+    }
+
+    uint8_t* header_buf = (uint8_t*)kmalloc(4096);
+    if (!header_buf) return (uint32_t)-1;
+
+    int bytes = Fat16::read_file_offset(filename, 0, header_buf, 4096);
+    if (bytes < (int)sizeof(Elf32_Ehdr)) {
+        kfree(header_buf);
+        return (uint32_t)-1;
+    }
+
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)header_buf;
+    if (ehdr->e_ident[0] != ELFMAG0 || ehdr->e_ident[1] != ELFMAG1 ||
+        ehdr->e_ident[2] != ELFMAG2 || ehdr->e_ident[3] != ELFMAG3) {
+        kfree(header_buf);
+        return (uint32_t)-1;
+    }
+
+    if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_) {
+        VMM::destroy_address_space(cur.page_directory_phys);
+    }
+
+    VMA* v = cur.vma_list;
+    while (v) {
+        VMA* next = v->next;
+        kfree(v);
+        v = next;
+    }
+    cur.vma_list = nullptr;
+
+    uint32_t* new_dir = VMM::create_address_space();
+    if (!new_dir) {
+        kfree(header_buf);
+        return (uint32_t)-1;
+    }
+    cur.page_directory_phys = new_dir;
+    VMM::switch_address_space(new_dir);
+
+    Elf32_Phdr* phdrs = (Elf32_Phdr*)(header_buf + ehdr->e_phoff);
+    uint32_t max_vaddr = 0;
+
+    for (int i = 0; i < ehdr->e_phnum; i++) {
+        if (phdrs[i].p_type != PT_LOAD || phdrs[i].p_memsz == 0) continue;
+
+        uint32_t vaddr_start = phdrs[i].p_vaddr & ~0xFFF;
+        uint32_t vaddr_end = (phdrs[i].p_vaddr + phdrs[i].p_memsz + 0xFFF) & ~0xFFF;
+        if (vaddr_end > max_vaddr) max_vaddr = vaddr_end;
+
+        uint32_t flags = PAGE_PRESENT | PAGE_USER;
+        if (phdrs[i].p_flags & PF_W) flags |= PAGE_WRITABLE;
+
+        VMA* new_vma = (VMA*)kmalloc(sizeof(VMA));
+        if (!new_vma) break;
+        new_vma->start = vaddr_start;
+        new_vma->end = vaddr_end;
+        uint32_t align_diff = phdrs[i].p_vaddr - vaddr_start;
+        new_vma->file_offset = phdrs[i].p_offset - align_diff;
+        new_vma->file_size = phdrs[i].p_filesz + align_diff;
+        new_vma->flags = flags;
+        new_vma->next = cur.vma_list;
+        cur.vma_list = new_vma;
+    }
+
+    uint32_t entry = ehdr->e_entry;
+    kfree(header_buf);
+
+    uint32_t heap_base = (max_vaddr + 0xFFF) & ~0xFFF;
+    heap_base += 4096;
+    cur.heap_start = heap_base;
+    cur.heap_end = heap_base;
+    cur.heap_lock = false;
+
+    for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
+        void* frame = PhysicalMemoryManager::alloc_frame();
+        if (!frame) return (uint32_t)-1;
+        uint32_t vaddr = USER_STACK_TOP - (USER_STACK_PAGES - p) * 4096;
+        VMM::map_page(vaddr, (uint32_t)frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+        uint8_t* pp = (uint8_t*)vaddr;
+        for (int b = 0; b < 4096; b++) pp[b] = 0;
+    }
+
+    uint32_t user_esp = USER_STACK_TOP;
+    TSS::set_kernel_stack((uint32_t)(cur.stack_base + THREAD_STACK_SIZE));
+
+    uint32_t eflags;
+    asm volatile("pushf; pop %0" : "=r"(eflags));
+    eflags |= 0x200;
+
+    asm volatile(
+        "cli\n\t"
+        "mov $0x23, %%ax\n\t"
+        "mov %%ax, %%ds\n\t"
+        "mov %%ax, %%es\n\t"
+        "mov %%ax, %%fs\n\t"
+        "mov %%ax, %%gs\n\t"
+        "push $0x23\n\t"
+        "push %%ecx\n\t"
+        "push %%ebx\n\t"
+        "push $0x1B\n\t"
+        "push %%edx\n\t"
+        "iret\n\t"
+        :: "c"(user_esp), "d"(entry), "b"(eflags)
+        : "eax", "memory"
+    );
+
+    return 0;
+}
+
+static uint32_t sys_wait(SyscallRegs* regs) {
+    int* status_ptr = (int*)regs->ebx;
+
+    while (true) {
+        {
+            InterruptGuard guard;
+
+            bool has_children = false;
+            for (int i = 1; i < MAX_THREADS; i++) {
+                if (threads[i].parent_tid == current_tid) {
+                    has_children = true;
+                    if (threads[i].state == ThreadState::Zombie) {
+                        int child_tid = i;
+                        if (status_ptr) *status_ptr = threads[i].exit_code;
+                        threads[i].state = ThreadState::Unused;
+                        thread_count--;
+                        return (uint32_t)child_tid;
+                    }
+                }
+            }
+
+            if (!has_children) return (uint32_t)-1;
+        }
+
+        TaskScheduler::block_current(-2);
+    }
+}
 
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
@@ -506,6 +810,9 @@ static SyscallHandler syscall_table[] = {
     sys_fwrite,      // 31
     sys_fclose,      // 32
     sys_fsize,       // 33
+    sys_fork,        // 34
+    sys_exec,        // 35
+    sys_wait,        // 36
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

@@ -23,7 +23,8 @@ enum class ThreadState : uint8_t {
     Running,
     Blocked,
     Sleeping,
-    Terminated
+    Terminated,
+    Zombie
 };
 
 typedef void (*ThreadEntry)();
@@ -65,6 +66,9 @@ struct Thread {
     int msg_tail;
     int msg_count;
     bool waiting_for_msg;
+
+    int parent_tid;
+    int exit_code;
 };
 
 extern Thread threads[MAX_THREADS];

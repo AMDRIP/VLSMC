@@ -123,3 +123,15 @@ int rand(void) {
 void srand(unsigned int seed) {
     next_rand = seed;
 }
+
+int fork(void) {
+    return (int)syscall(SYS_FORK);
+}
+
+int exec(const char* path) {
+    return (int)syscall(SYS_EXEC, (long)path);
+}
+
+int wait(int* status) {
+    return (int)syscall(SYS_WAIT, (long)status);
+}
