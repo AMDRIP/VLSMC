@@ -12,6 +12,11 @@ public:
     static void put_pixel(uint32_t x, uint32_t y, uint32_t color);
     static void clear_screen(uint32_t color);
 
+    static bool is_initialized() { return initialized_; }
+
+    static void draw_char(uint32_t x, uint32_t y, char c, uint32_t fg_color, uint32_t bg_color);
+    static void scroll(uint32_t lines, uint32_t bg_color);
+
     static uint16_t get_width() { return width_; }
     static uint16_t get_height() { return height_; }
     static uint16_t get_bpp() { return bpp_; }
@@ -20,6 +25,8 @@ public:
 private:
     static void write_register(uint16_t index, uint16_t val);
     static uint16_t read_register(uint16_t index);
+
+    static bool initialized_;
 
     static uint16_t width_;
     static uint16_t height_;

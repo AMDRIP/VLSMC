@@ -10,10 +10,10 @@ public:
     // Запускает все тесты памяти.
     // Возвращает true, если тесты пройдены успешно, иначе false.
     static bool run_all_tests();
-
-private:
     static bool test_pmm();
     static bool test_vmm();
+
+private:
     static bool test_heap();
 };
 

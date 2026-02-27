@@ -16,6 +16,9 @@
 #include "kernel/boot_info.h"
 #include "kernel/pci.h"
 #include "kernel/vga.h"
+#include "kernel/bga.h"
+#include "kernel/pic.h"
+#include "kernel/memory_validator.h"
 #include "libc.h"
 
 namespace re36 {
@@ -76,20 +79,61 @@ static void exec_command(const char* cmd) {
                 vga[i] = (uint16_t(' ') | (0x0F << 8));
         }
         printf("\n");
-    } else if (str_eq(cmd, "ps")) {
-        TaskScheduler::print_threads();
     } else if (str_eq(cmd, "ticks")) {
         printf("Timer ticks: %u\n", Timer::get_ticks());
-    } else if (str_eq(cmd, "meminfo")) {
-        printf("Free RAM: %u KB\n", PhysicalMemoryManager::get_free_memory() / 1024);
-        printf("Used RAM: %u KB\n", PhysicalMemoryManager::get_used_memory() / 1024);
-        printf("Paging: Enabled (CR3 = 0x%x)\n", (uint32_t)VMM::get_current_directory());
     } else if (str_eq(cmd, "date")) {
         DateTime dt;
         RTC::read(dt);
         printf("%d-%d-%d %d:%d:%d\n", dt.year, dt.month, dt.day, dt.hours, dt.minutes, dt.seconds);
     } else if (str_eq(cmd, "pci")) {
         PCI::scan_bus();
+    } else if (str_starts(cmd, "echo ", 5)) {
+        printf("%s\n", str_after(cmd, 5));
+    } else if (str_eq(cmd, "uptime")) {
+        uint32_t ticks = Timer::get_ticks();
+        uint32_t seconds = ticks / 1000; // Timer runs at 1000Hz
+        uint32_t minutes = seconds / 60;
+        uint32_t hours = minutes / 60;
+        printf("Uptime: %u:%u:%u (%u ticks)\n", hours, minutes % 60, seconds % 60, ticks);
+    } else if (str_eq(cmd, "reboot")) {
+        printf("Rebooting system...\n");
+        // Using 8042 keyboard controller to pulse the reset line
+        uint8_t good = 0x02;
+        while (good & 0x02) {
+            good = inb(0x64);
+        }
+        outb(0x64, 0xFE);
+        while(1) { asm volatile ("hlt"); } // Wait for reset
+    } else if (str_starts(cmd, "kill ", 5)) {
+        int tid = atoi(str_after(cmd, 5));
+        printf("Killing thread ID %d...\n", tid);
+        re36::thread_terminate(tid);
+    } else if (str_eq(cmd, "killall")) {
+        int current = TaskScheduler::get_current_tid();
+        printf("Terminating all user/background threads...\n");
+        for (int i = 2; i < MAX_THREADS; i++) { // Skip 0 (Idle) and 1 (usually kernel init)
+            if (i != current && threads[i].state != ThreadState::Unused && threads[i].state != ThreadState::Terminated) {
+                printf(" - Killing TID %d\n", i);
+                re36::thread_terminate(i);
+            }
+        }
+        printf("Done.\n");
+    } else if (str_starts(cmd, "sleep ", 6)) {
+        int ms = atoi(str_after(cmd, 6));
+        printf("Sleeping for %d ms...\n", ms);
+        TaskScheduler::sleep_current(ms);
+        printf("Awake!\n");
+    } else if (str_eq(cmd, "yield")) {
+        re36::thread_yield();
+    } else if (str_eq(cmd, "kernelpanic")) {
+        printf("KERNEL PANIC: User Requested Panic\n");
+        while(1) asm volatile ("cli; hlt");
+    } else if (str_eq(cmd, "memtest")) {
+        MemoryValidator::run_all_tests();
+    } else if (str_eq(cmd, "pmmtest")) {
+        MemoryValidator::test_pmm();
+    } else if (str_eq(cmd, "vmmtest")) {
+        MemoryValidator::test_vmm();
     } else if (str_eq(cmd, "syscall")) {
         printf("Testing int 0x80 (SYS_GETPID)...\n");
         uint32_t tid;
@@ -97,11 +141,28 @@ static void exec_command(const char* cmd) {
         printf("Syscall returned TID = %d\n", tid);
     } else if (str_eq(cmd, "help")) {
         printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
-        printf("System: ps, ticks, meminfo, date, pci, bootinfo, syscall, ring3, clear, help\n");
-        printf("Display: mode text, mode gfx, gfx\n");
+        printf("System: ps (threads), kill, killall, ticks, uptime, date\n");
+        printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
+        printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
+        printf("Tests:  memtest, pmmtest, vmmtest\n");
+        printf("Display: mode text, mode gfx, gfx, bga\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
     } else if (str_eq(cmd, "gfx")) {
         VGA::demo();
+    } else if (str_eq(cmd, "bga")) {
+        // Alias to 'mode gfx' which handles BGA if initialized (or you can use BgaDriver::init logic here, but mode gfx is safer)
+        if (!BgaDriver::is_initialized()) {
+            printf("Initializing BGA (1024x768x32)...\n");
+            BgaDriver::init(1024, 768, 32);
+        } else {
+            printf("BGA is already active.\n");
+        }
+    } else if (str_eq(cmd, "ps") || str_eq(cmd, "threads")) {
+        TaskScheduler::print_threads();
+    } else if (str_eq(cmd, "meminfo") || str_eq(cmd, "mems")) {
+        printf("Free RAM: %u KB\n", PhysicalMemoryManager::get_free_memory() / 1024);
+        printf("Used RAM: %u KB\n", PhysicalMemoryManager::get_used_memory() / 1024);
+        printf("Paging: Enabled (CR3 = 0x%x)\n", (uint32_t)VMM::get_current_directory());
     } else if (str_eq(cmd, "mode text")) {
         VGA::init_text_mode();
         set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);

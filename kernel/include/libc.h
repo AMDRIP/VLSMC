@@ -11,6 +11,7 @@ size_t strlen(const char* s);
 int strcmp(const char* s1, const char* s2);
 
 // Minimal stdio
+int atoi(const char* str);
 void putchar(char c);
 char getchar();
 #define VGA_COLOR_BLACK         0

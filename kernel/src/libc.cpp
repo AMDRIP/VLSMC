@@ -2,6 +2,7 @@
 #include "kernel/keyboard.h"
 #include "kernel/pic.h"
 #include "kernel/vga.h"
+#include "kernel/bga.h"
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -44,6 +45,27 @@ int strcmp(const char* s1, const char* s2) {
     return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
 
+int atoi(const char* str) {
+    int res = 0;
+    int sign = 1;
+
+    while (*str == ' ' || *str == '\t' || *str == '\n') str++;
+
+    if (*str == '-') {
+        sign = -1;
+        str++;
+    } else if (*str == '+') {
+        str++;
+    }
+
+    while (*str >= '0' && *str <= '9') {
+        res = res * 10 + (*str - '0');
+        str++;
+    }
+
+    return res * sign;
+}
+
 // Управление терминалом
 static int cursor_x = 0;
 static int cursor_y = 15;
@@ -51,12 +73,40 @@ static uint8_t term_fg = 0x0F;
 static uint8_t term_bg = 0x00;
 static uint8_t term_color = 0x0F;
 
+static uint32_t bga_fg = 0xFFFFFF; // White
+static uint32_t bga_bg = 0x000000; // Black
+
 volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+
+// Simple VGA color to 32-bit hex mapping for compatibility
+static uint32_t vga_to_hex(uint8_t color) {
+    switch (color & 0x0F) {
+        case 0: return 0x000000; // Black
+        case 1: return 0x0000AA; // Blue
+        case 2: return 0x00AA00; // Green
+        case 3: return 0x00AAAA; // Cyan
+        case 4: return 0xAA0000; // Red
+        case 5: return 0xAA00AA; // Magenta
+        case 6: return 0xAA5500; // Brown
+        case 7: return 0xAAAAAA; // Light Gray
+        case 8: return 0x555555; // Dark Gray
+        case 9: return 0x5555FF; // Light Blue
+        case 10: return 0x55FF55; // Light Green
+        case 11: return 0x55FFFF; // Light Cyan
+        case 12: return 0xFF5555; // Light Red
+        case 13: return 0xFF55FF; // Light Magenta
+        case 14: return 0xFFFF55; // Yellow
+        case 15: return 0xFFFFFF; // White
+        default: return 0xFFFFFF;
+    }
+}
 
 void set_color(uint8_t fg, uint8_t bg) {
     term_fg = fg;
     term_bg = bg;
     term_color = fg | (bg << 4);
+    bga_fg = vga_to_hex(fg);
+    bga_bg = vga_to_hex(bg);
 }
 
 #define COM1_PORT 0x3F8
@@ -85,9 +135,18 @@ void putchar(char c) {
     if (c == '\n') serial_putchar('\r');
     serial_putchar(c);
 
+    bool is_bga = re36::BgaDriver::is_initialized();
     bool is_gfx = re36::VGA::is_graphics();
-    int max_x = is_gfx ? 40 : 80;
+    
+    int max_x = 80;
     int max_y = 25;
+    
+    if (is_bga) {
+        max_x = re36::BgaDriver::get_width() / 8;
+        max_y = re36::BgaDriver::get_height() / 8;
+    } else if (is_gfx) {
+        max_x = 40;
+    }
 
     if (c == '\n') {
         cursor_x = 0;
@@ -95,7 +154,9 @@ void putchar(char c) {
     } else if (c == '\b') {
         if (cursor_x > 0) {
             cursor_x--;
-            if (is_gfx) {
+            if (is_bga) {
+                re36::BgaDriver::draw_char(cursor_x * 8, cursor_y * 8, ' ', bga_fg, bga_bg);
+            } else if (is_gfx) {
                 re36::VGA::draw_char(cursor_x * 8, cursor_y * 8, ' ', term_fg, term_bg);
             } else {
                 vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t(' ') | (term_color << 8)); 
@@ -103,14 +164,18 @@ void putchar(char c) {
         } else if (cursor_y > 0) {
             cursor_y--;
             cursor_x = max_x - 1;
-            if (is_gfx) {
+            if (is_bga) {
+                re36::BgaDriver::draw_char(cursor_x * 8, cursor_y * 8, ' ', bga_fg, bga_bg);
+            } else if (is_gfx) {
                 re36::VGA::draw_char(cursor_x * 8, cursor_y * 8, ' ', term_fg, term_bg);
             } else {
                 vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t(' ') | (term_color << 8));
             }
         }
     } else {
-        if (is_gfx) {
+        if (is_bga) {
+            re36::BgaDriver::draw_char(cursor_x * 8, cursor_y * 8, c, bga_fg, bga_bg);
+        } else if (is_gfx) {
             re36::VGA::draw_char(cursor_x * 8, cursor_y * 8, c, term_fg, term_bg);
         } else {
             vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t((unsigned char)c) | (term_color << 8));
@@ -122,10 +187,14 @@ void putchar(char c) {
         cursor_x = 0;
         cursor_y++;
     }
+    
     if (cursor_y >= max_y) {
-        if (is_gfx) {
+        if (is_bga) {
+            re36::BgaDriver::scroll(1, bga_bg);
+            cursor_y = max_y - 1;
+        } else if (is_gfx) {
             re36::VGA::clear(term_bg);
-            cursor_y = 0; // Simple wrap-around in graphics mode for now (scrolling is expensive)
+            cursor_y = 0; // Simple wrap-around in pure VGA graphics mode
         } else {
             // Text mode scrolling
             for (int y = 1; y < max_y; y++) {

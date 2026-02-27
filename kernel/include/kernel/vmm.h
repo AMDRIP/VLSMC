@@ -22,7 +22,7 @@ namespace re36 {
 #define PD_ENTRIES 1024
 #define PT_ENTRIES 1024
 
-#define KERNEL_SPACE_END 0x00400000   // Первые 4 MB — ядро (Supervisor-only)
+#define KERNEL_SPACE_END 0x00800000   // Первые 8 MB — ядро (Supervisor-only)
 
 class VMM {
 public:
