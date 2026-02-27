@@ -3,7 +3,6 @@
 #include "kernel/spinlock.h"
 #include "kernel/thread.h"
 #include "kernel/task_scheduler.h"
-#include "kernel/fat16.h"
 #include "kernel/vfs.h"
 #include "libc.h"
 
@@ -354,6 +353,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                             vnode* vn = nullptr;
                             if (vfs_resolve_path(cur.name, &vn) == 0 && vn && vn->ops && vn->ops->read) {
                                 vn->ops->read(vn, file_offset, frame_ptr, read_size);
+                                vnode_release(vn);
                             }
                         }
                     }

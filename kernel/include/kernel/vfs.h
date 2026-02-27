@@ -18,6 +18,23 @@ enum class VnodeType {
     MountPoint
 };
 
+struct vfs_dir_entry {
+    char name[13];
+    uint32_t size;
+    uint8_t type;
+};
+
+#define VFS_DIR_MAX_ENTRIES 64
+
+struct vfs_stat_t {
+    uint32_t size;
+    VnodeType type;
+    uint16_t first_cluster;
+    uint16_t mod_time;
+    uint16_t mod_date;
+    uint8_t attributes;
+};
+
 // Open file flags
 #define O_RDONLY    0x0000
 #define O_WRONLY    0x0001
@@ -37,6 +54,8 @@ struct vnode_operations {
     int (*create)(vnode* dir, const char* name, int mode, vnode** out);
     int (*mkdir)(vnode* dir, const char* name, int mode);
     int (*unlink)(vnode* dir, const char* name);
+    int (*readdir)(vnode* dir, vfs_dir_entry* entries, int max_entries);
+    int (*stat)(vnode* dir, const char* name, vfs_stat_t* out);
 };
 
 // Abstract representation of a file/directory
@@ -78,18 +97,19 @@ struct file {
     uint32_t refcount;
 };
 
-// VFS Core API
+void vnode_release(vnode* vn);
+void file_release(file* f);
+
 void vfs_init();
 int vfs_register(vfs_filesystem_driver* driver);
 int vfs_mount(const char* fs_type, const char* target_path, block_device* bdev);
 
-// VFS Path Operations (Syscall targets)
 int vfs_open(const char* path, int flags, int mode);
-int vfs_read(int fd, uint8_t* buffer, uint32_t size);
-int vfs_write(int fd, const uint8_t* buffer, uint32_t size);
-int vfs_close(int fd);
 
-// Internal helper
 int vfs_resolve_path(const char* path, vnode** out);
+int vfs_readdir(const char* path, vfs_dir_entry* entries, int max_entries);
+int vfs_stat(const char* path, vfs_stat_t* out);
+int vfs_unlink(const char* path);
+int vfs_write_file(const char* path, const uint8_t* data, uint32_t size);
 
 } // namespace re36

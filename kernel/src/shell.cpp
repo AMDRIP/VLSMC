@@ -3,7 +3,7 @@
 #include "kernel/shell_autocomplete.h"
 #include "kernel/shell_redirect.h"
 #include "kernel/keyboard.h"
-#include "kernel/fat16.h"
+#include "kernel/vfs.h"
 #include "kernel/ata.h"
 #include "kernel/pmm.h"
 #include "kernel/vmm.h"
@@ -223,17 +223,36 @@ static void exec_command(const char* cmd) {
         void (*entry)() = []() { enter_usermode(); };
         thread_create("user0", entry, 10);
     } else if (str_eq(cmd, "ls")) {
-        Fat16::list_root();
+        vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
+        int count = vfs_readdir("/", dir_entries, VFS_DIR_MAX_ENTRIES);
+        if (count < 0) {
+            printf("No filesystem mounted\n");
+        } else {
+            printf("\n  Name          Size     Type\n");
+            printf("  ------------- -------- ----\n");
+            for (int i = 0; i < count; i++) {
+                printf("  [%c] %s\t%d B\n", dir_entries[i].type, dir_entries[i].name, dir_entries[i].size);
+            }
+            printf("\n  Total: %d entries\n\n", count);
+        }
     } else if (str_starts(cmd, "exec ", 5)) {
         elf_exec(str_after(cmd, 5));
     } else if (str_starts(cmd, "cat ", 4)) {
         static uint8_t file_buf[4096];
-        int bytes = Fat16::read_file(str_after(cmd, 4), file_buf, sizeof(file_buf) - 1);
-        if (bytes < 0) {
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(str_after(cmd, 4), &vn) != 0 || !vn) {
             printf("File not found: %s\n", str_after(cmd, 4));
         } else {
-            file_buf[bytes] = '\0';
-            printf("%s\n", (const char*)file_buf);
+            int bytes = -1;
+            if (vn->ops && vn->ops->read)
+                bytes = vn->ops->read(vn, 0, file_buf, sizeof(file_buf) - 1);
+            vnode_release(vn);
+            if (bytes < 0) {
+                printf("Read failed: %s\n", str_after(cmd, 4));
+            } else {
+                file_buf[bytes] = '\0';
+                printf("%s\n", (const char*)file_buf);
+            }
         }
     } else if (str_starts(cmd, "write ", 6)) {
         const char* args = str_after(cmd, 6);
@@ -247,7 +266,7 @@ static void exec_command(const char* cmd) {
             const char* content = space + 1;
             int clen = 0;
             while (content[clen]) clen++;
-            if (Fat16::write_file(fname, (const uint8_t*)content, clen))
+            if (vfs_write_file(fname, (const uint8_t*)content, clen) >= 0)
                 printf("Written %d bytes to %s\n", clen, fname);
             else
                 printf("Write failed!\n");
@@ -255,13 +274,39 @@ static void exec_command(const char* cmd) {
             printf("Usage: write <filename> <content>\n");
         }
     } else if (str_starts(cmd, "rm ", 3)) {
-        if (Fat16::delete_file(str_after(cmd, 3)))
+        if (vfs_unlink(str_after(cmd, 3)) == 0)
             printf("Deleted: %s\n", str_after(cmd, 3));
     } else if (str_starts(cmd, "stat ", 5)) {
-        Fat16::stat_file(str_after(cmd, 5));
+        vfs_stat_t st;
+        if (vfs_stat(str_after(cmd, 5), &st) != 0) {
+            printf("File not found: %s\n", str_after(cmd, 5));
+        } else {
+            printf("\n  File: %s\n", str_after(cmd, 5));
+            printf("  Size: %d bytes\n", st.size);
+            printf("  Cluster: %d\n", st.first_cluster);
+            printf("  Attr: ");
+            if (st.attributes & 0x01) printf("R ");
+            if (st.attributes & 0x02) printf("H ");
+            if (st.attributes & 0x04) printf("S ");
+            if (st.attributes & 0x10) printf("D ");
+            if (st.attributes & 0x20) printf("A ");
+            printf("\n");
+            uint16_t t = st.mod_time;
+            uint16_t d = st.mod_date;
+            printf("  Modified: %d-%d-%d %d:%d:%d\n",
+                1980 + (d >> 9), (d >> 5) & 0xF, d & 0x1F,
+                t >> 11, (t >> 5) & 0x3F, (t & 0x1F) * 2);
+            printf("\n");
+        }
     } else if (str_starts(cmd, "hexdump ", 8)) {
         static uint8_t hbuf[256];
-        int bytes = Fat16::read_file(str_after(cmd, 8), hbuf, sizeof(hbuf));
+        vnode* hvn = nullptr;
+        int bytes = -1;
+        if (vfs_resolve_path(str_after(cmd, 8), &hvn) == 0 && hvn) {
+            if (hvn->ops && hvn->ops->read)
+                bytes = hvn->ops->read(hvn, 0, hbuf, sizeof(hbuf));
+            vnode_release(hvn);
+        }
         if (bytes < 0) {
             printf("File not found: %s\n", str_after(cmd, 8));
         } else {
@@ -301,7 +346,7 @@ static void process_line(const char* line) {
         if (str_starts(cmd2, "write ", 6)) {
             const char* fname = str_after(cmd2, 6);
             int plen = ShellRedirect::get_length();
-            if (Fat16::write_file(fname, (const uint8_t*)pipe_data, plen))
+            if (vfs_write_file(fname, (const uint8_t*)pipe_data, plen) >= 0)
                 printf("Piped %d bytes to %s\n", plen, fname);
             else
                 printf("Pipe write failed!\n");
@@ -318,7 +363,7 @@ static void process_line(const char* line) {
         ShellRedirect::end_capture();
 
         int len = ShellRedirect::get_length();
-        if (Fat16::write_file(redir_file, (const uint8_t*)ShellRedirect::get_buffer(), len))
+        if (vfs_write_file(redir_file, (const uint8_t*)ShellRedirect::get_buffer(), len) >= 0)
             printf("Redirected %d bytes to %s\n", len, redir_file);
         else
             printf("Redirect failed!\n");

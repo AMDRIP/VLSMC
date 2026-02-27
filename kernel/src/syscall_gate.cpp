@@ -10,7 +10,6 @@
 #include "kernel/ata.h"
 #include "kernel/spinlock.h"
 #include "kernel/pmm.h"
-#include "kernel/fat16.h"
 #include "kernel/elf.h"
 #include "kernel/elf_loader.h"
 #include "kernel/tss.h"
@@ -35,36 +34,25 @@ static uint32_t sys_exit(SyscallRegs* regs) {
     Thread& cur = threads[current_tid];
     cur.exit_code = exit_code;
 
+    if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_ &&
+        cur.page_directory_phys != nullptr) {
+        VMM::destroy_address_space(cur.page_directory_phys);
+        cur.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
+    }
+
+    VMA* v = cur.vma_list;
+    while (v) { VMA* n = v->next; kfree(v); v = n; }
+    cur.vma_list = nullptr;
+
+    for (int f = 0; f < MAX_OPEN_FILES; f++) {
+        if (cur.fd_table[f]) {
+            file_release(cur.fd_table[f]);
+            cur.fd_table[f] = nullptr;
+        }
+    }
+
     if (cur.parent_tid >= 0 && cur.parent_tid < MAX_THREADS &&
         threads[cur.parent_tid].state != ThreadState::Unused) {
-
-        if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_ &&
-            cur.page_directory_phys != nullptr) {
-            VMM::destroy_address_space(cur.page_directory_phys);
-            cur.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
-        }
-
-        VMA* v = cur.vma_list;
-        while (v) { VMA* n = v->next; kfree(v); v = n; }
-        cur.vma_list = nullptr;
-        
-        for (int f = 0; f < MAX_OPEN_FILES; f++) {
-            if (cur.fd_table[f]) {
-                if (__atomic_sub_fetch(&cur.fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-                    if (cur.fd_table[f]->vn) {
-                        if (__atomic_sub_fetch(&cur.fd_table[f]->vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-                            if (cur.fd_table[f]->vn->ops && cur.fd_table[f]->vn->ops->close) {
-                                cur.fd_table[f]->vn->ops->close(cur.fd_table[f]->vn);
-                            }
-                            if (cur.fd_table[f]->vn->fs_data) kfree(cur.fd_table[f]->vn->fs_data);
-                            kfree(cur.fd_table[f]->vn);
-                        }
-                    }
-                    kfree(cur.fd_table[f]);
-                }
-                cur.fd_table[f] = nullptr;
-            }
-        }
 
         {
             InterruptGuard guard;
@@ -482,16 +470,7 @@ static uint32_t sys_fclose(SyscallRegs* regs) {
     file* f = cur.fd_table[fd];
     if (!f) return (uint32_t)-1;
 
-    if (__atomic_sub_fetch(&f->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-        if (f->vn) {
-            if (__atomic_sub_fetch(&f->vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-                if (f->vn->ops && f->vn->ops->close) f->vn->ops->close(f->vn);
-                if (f->vn->fs_data) kfree(f->vn->fs_data);
-                kfree(f->vn);
-            }
-        }
-        kfree(f);
-    }
+    file_release(f);
 
     cur.fd_table[fd] = nullptr;
     return 0;
@@ -606,13 +585,28 @@ static uint32_t sys_fork(SyscallRegs* regs) {
         if (parent.fd_table[f]) {
             child.fd_table[f] = parent.fd_table[f];
             __atomic_add_fetch(&child.fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST);
+            if (child.fd_table[f]->vn) {
+                __atomic_add_fetch(&child.fd_table[f]->vn->refcount, 1, __ATOMIC_SEQ_CST);
+            }
         } else {
             child.fd_table[f] = nullptr;
         }
     }
 
     uint32_t* new_dir = VMM::clone_directory();
-    if (!new_dir) return (uint32_t)-1;
+    if (!new_dir) {
+        for (int f = 0; f < MAX_OPEN_FILES; f++) {
+            if (child.fd_table[f]) {
+                file_release(child.fd_table[f]);
+                child.fd_table[f] = nullptr;
+            }
+        }
+        VMA* rv = child.vma_list;
+        while (rv) { VMA* rn = rv->next; kfree(rv); rv = rn; }
+        child.vma_list = nullptr;
+        child.state = ThreadState::Unused;
+        return (uint32_t)-1;
+    }
     child.page_directory_phys = new_dir;
 
     uint32_t* stack_top = (uint32_t*)(child.stack_base + THREAD_STACK_SIZE);
@@ -655,6 +649,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     if (vn->ops && vn->ops->read) {
         bytes = vn->ops->read(vn, 0, header_buf, 4096);
     }
+    vnode_release(vn);
 
     if (bytes < (int)sizeof(Elf32_Ehdr)) {
         kfree(header_buf);
@@ -666,6 +661,13 @@ static uint32_t sys_exec(SyscallRegs* regs) {
         ehdr->e_ident[2] != ELFMAG2 || ehdr->e_ident[3] != ELFMAG3) {
         kfree(header_buf);
         return (uint32_t)-1;
+    }
+
+    for (int f = 0; f < MAX_OPEN_FILES; f++) {
+        if (cur.fd_table[f]) {
+            file_release(cur.fd_table[f]);
+            cur.fd_table[f] = nullptr;
+        }
     }
 
     if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_) {

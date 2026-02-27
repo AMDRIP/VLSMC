@@ -1,6 +1,5 @@
 #include "kernel/elf_loader.h"
 #include "kernel/elf.h"
-#include "kernel/fat16.h"
 #include "kernel/vfs.h"
 #include "kernel/vmm.h"
 #include "kernel/pmm.h"

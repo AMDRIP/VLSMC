@@ -558,8 +558,11 @@ int Fat16::fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size
 }
 
 int Fat16::fat16_write(vnode* vn, uint32_t offset, const uint8_t* buffer, uint32_t size) {
-    (void)vn; (void)offset; (void)buffer; (void)size;
-    // Not fully implemented for VFS in this MVP, requires extending FAT16 write_file to support offsets
+    (void)offset;
+    if (!mounted_ || !vn) return -1;
+    const char* filename = (const char*)vn->fs_data;
+    if (!filename) return -1;
+    if (write_file(filename, buffer, size)) return (int)size;
     return -1;
 }
 
@@ -639,6 +642,67 @@ int Fat16::fat16_mount(block_device* bdev, superblock* sb) {
     return 0;
 }
 
+int Fat16::fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries) {
+    (void)dir;
+    if (!mounted_) return -1;
+
+    int count = 0;
+    for (uint32_t s = 0; s < root_dir_sectors_ && count < max_entries; s++) {
+        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dma_buffer_)) continue;
+
+        FAT16_DirEntry* dir_entries = (FAT16_DirEntry*)dma_buffer_;
+        int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+
+        for (int i = 0; i < entries_per_sector && count < max_entries; i++) {
+            if (dir_entries[i].name[0] == 0x00) goto done;
+            if ((uint8_t)dir_entries[i].name[0] == 0xE5) continue;
+            if (dir_entries[i].attributes & FAT_ATTR_LFN) continue;
+            if (dir_entries[i].attributes & FAT_ATTR_VOLUME_ID) continue;
+
+            int ci = 0;
+            for (int j = 0; j < 8 && dir_entries[i].name[j] != ' '; j++)
+                entries[count].name[ci++] = dir_entries[i].name[j];
+            if (dir_entries[i].ext[0] != ' ') {
+                entries[count].name[ci++] = '.';
+                for (int j = 0; j < 3 && dir_entries[i].ext[j] != ' '; j++)
+                    entries[count].name[ci++] = dir_entries[i].ext[j];
+            }
+            entries[count].name[ci] = '\0';
+            entries[count].size = dir_entries[i].file_size;
+            entries[count].type = (dir_entries[i].attributes & FAT_ATTR_DIRECTORY) ? 'D' : 'F';
+            count++;
+        }
+    }
+done:
+    return count;
+}
+
+int Fat16::fat16_stat(vnode* dir, const char* name, vfs_stat_t* out) {
+    (void)dir;
+    if (!mounted_ || !name || !out) return -1;
+
+    uint32_t sector;
+    int index;
+    if (find_dir_entry(name, &sector, &index) != 0) return -1;
+
+    Disk::read_sectors(sector, 1, dma_buffer_);
+    FAT16_DirEntry* entry = &((FAT16_DirEntry*)dma_buffer_)[index];
+
+    out->size = entry->file_size;
+    out->type = (entry->attributes & FAT_ATTR_DIRECTORY) ? VnodeType::Directory : VnodeType::File;
+    out->first_cluster = entry->first_cluster;
+    out->mod_time = entry->time;
+    out->mod_date = entry->date;
+    out->attributes = entry->attributes;
+    return 0;
+}
+
+int Fat16::fat16_unlink(vnode* dir, const char* name) {
+    (void)dir;
+    if (!mounted_ || !name) return -1;
+    return delete_file(name) ? 0 : -1;
+}
+
 vnode_operations Fat16::fat16_vnode_ops = {
     Fat16::fat16_open,
     Fat16::fat16_close,
@@ -646,14 +710,16 @@ vnode_operations Fat16::fat16_vnode_ops = {
     Fat16::fat16_write,
     Fat16::fat16_lookup,
     Fat16::fat16_create,
-    nullptr, // mkdir
-    nullptr  // unlink
+    nullptr,
+    Fat16::fat16_unlink,
+    Fat16::fat16_readdir,
+    Fat16::fat16_stat,
 };
 
 vfs_filesystem_driver fat16_driver = {
     "fat16",
     Fat16::fat16_mount,
-    nullptr // unmount
+    nullptr
 };
 
 } // namespace re36

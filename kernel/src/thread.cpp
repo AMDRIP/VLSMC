@@ -125,21 +125,9 @@ void thread_cleanup(int tid) {
     }
     threads[tid].vma_list = nullptr;
     
-    // Cleanup open files if the thread terminates abruptly / cleanup is called
     for (int f = 0; f < MAX_OPEN_FILES; f++) {
         if (threads[tid].fd_table[f]) {
-            if (__atomic_sub_fetch(&threads[tid].fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-                if (threads[tid].fd_table[f]->vn) {
-                    if (__atomic_sub_fetch(&threads[tid].fd_table[f]->vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-                        if (threads[tid].fd_table[f]->vn->ops && threads[tid].fd_table[f]->vn->ops->close) {
-                            threads[tid].fd_table[f]->vn->ops->close(threads[tid].fd_table[f]->vn);
-                        }
-                        if (threads[tid].fd_table[f]->vn->fs_data) kfree(threads[tid].fd_table[f]->vn->fs_data);
-                        kfree(threads[tid].fd_table[f]->vn);
-                    }
-                }
-                kfree(threads[tid].fd_table[f]);
-            }
+            file_release(threads[tid].fd_table[f]);
             threads[tid].fd_table[f] = nullptr;
         }
     }

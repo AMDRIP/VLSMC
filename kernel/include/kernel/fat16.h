@@ -61,6 +61,9 @@ public:
     static int fat16_close(vnode* vn);
     static int fat16_lookup(vnode* dir, const char* name, vnode** out);
     static int fat16_create(vnode* dir, const char* name, int mode, vnode** out);
+    static int fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries);
+    static int fat16_stat(vnode* dir, const char* name, vfs_stat_t* out);
+    static int fat16_unlink(vnode* dir, const char* name);
 
     // Old API (kept for internal use/transition)
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);

@@ -4,6 +4,23 @@
 
 namespace re36 {
 
+void vnode_release(vnode* vn) {
+    if (!vn) return;
+    if (__atomic_sub_fetch(&vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        if (vn->ops && vn->ops->close) vn->ops->close(vn);
+        if (vn->fs_data) kfree(vn->fs_data);
+        kfree(vn);
+    }
+}
+
+void file_release(file* f) {
+    if (!f) return;
+    if (__atomic_sub_fetch(&f->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        vnode_release(f->vn);
+        kfree(f);
+    }
+}
+
 #define MAX_VFS_DRIVERS 8
 #define MAX_MOUNT_POINTS 8
 
@@ -138,22 +155,85 @@ int vfs_open(const char* path, int flags, int mode) {
     return (int)vn;
 }
 
-int vfs_read(int fd, uint8_t* buffer, uint32_t size) {
-    // В VFS API мы работаем с `struct file`, поэтому мы передаем сюда распакованные параметры
-    // из `syscall_gate`. `fd` - это просто идентификатор, нам нужен `file*`.
-    // Истинная реализация будет в syscall_gate->vfs_read_internal(file* f, buf, size).
-    (void)fd; (void)buffer; (void)size;
-    return -1;
+int vfs_readdir(const char* path, vfs_dir_entry* entries, int max_entries) {
+    if (!entries || max_entries <= 0) return -1;
+    if (num_mount_points == 0) return -1;
+
+    superblock* sb = mount_points[0];
+    if (!sb || !sb->root_vnode) return -1;
+
+    vnode* dir = sb->root_vnode;
+
+    if (path && path[0] != '\0' && !(path[0] == '/' && path[1] == '\0')) {
+        if (vfs_resolve_path(path, &dir) != 0) return -1;
+    }
+
+    if (!dir->ops || !dir->ops->readdir) return -1;
+    return dir->ops->readdir(dir, entries, max_entries);
 }
 
-int vfs_write(int fd, const uint8_t* buffer, uint32_t size) {
-    (void)fd; (void)buffer; (void)size;
-    return -1;
+int vfs_stat(const char* path, vfs_stat_t* out) {
+    if (!path || !out) return -1;
+    if (num_mount_points == 0) return -1;
+
+    superblock* sb = mount_points[0];
+    if (!sb || !sb->root_vnode) return -1;
+
+    vnode* root = sb->root_vnode;
+    int i = 0;
+    if (path[0] == '/') i++;
+
+    if (!root->ops || !root->ops->stat) return -1;
+    return root->ops->stat(root, path + i, out);
 }
 
-int vfs_close(int fd) {
-    (void)fd;
-    return -1;
+int vfs_unlink(const char* path) {
+    if (!path) return -1;
+    if (num_mount_points == 0) return -1;
+
+    superblock* sb = mount_points[0];
+    if (!sb || !sb->root_vnode) return -1;
+
+    vnode* root = sb->root_vnode;
+    int i = 0;
+    if (path[0] == '/') i++;
+
+    if (!root->ops || !root->ops->unlink) return -1;
+    return root->ops->unlink(root, path + i);
+}
+
+int vfs_write_file(const char* path, const uint8_t* data, uint32_t size) {
+    if (!path) return -1;
+    if (num_mount_points == 0) return -1;
+
+    superblock* sb = mount_points[0];
+    if (!sb || !sb->root_vnode) return -1;
+
+    vnode* root = sb->root_vnode;
+    int i = 0;
+    if (path[0] == '/') i++;
+
+    vnode* vn = nullptr;
+    if (root->ops && root->ops->lookup) {
+        root->ops->lookup(root, path + i, &vn);
+    }
+
+    if (!vn) {
+        if (root->ops && root->ops->create) {
+            if (root->ops->create(root, path + i, 0, &vn) != 0) return -1;
+        } else {
+            return -1;
+        }
+    }
+
+    if (!vn || !vn->ops || !vn->ops->write) {
+        if (vn) vnode_release(vn);
+        return -1;
+    }
+
+    int result = vn->ops->write(vn, 0, data, size);
+    vnode_release(vn);
+    return result;
 }
 
 } // namespace re36
