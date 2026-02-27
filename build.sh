@@ -145,6 +145,22 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_forktest.o user_libc.a -o FORKTST.ELF
 mcopy -i data.img FORKTST.ELF ::/FORKTST.ELF
 
+echo "=== Building ISO Image ==="
+mkdir -p iso_root
+cp disk.img iso_root/
+cp data.img iso_root/
+
+if command -v mkisofs &> /dev/null; then
+    mkisofs -R -J -b disk.img -c boot.catalog -o vlsmc.iso iso_root/
+elif command -v genisoimage &> /dev/null; then
+    genisoimage -R -J -b disk.img -c boot.catalog -o vlsmc.iso iso_root/
+else
+    echo "Warning: mkisofs/genisoimage not found. Falling back to build_iso.py"
+    python3 build_iso.py disk.img vlsmc.iso
+fi
+
+rm -rf iso_root
+
 echo ""
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"
