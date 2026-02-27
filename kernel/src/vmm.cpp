@@ -3,6 +3,7 @@
 #include "kernel/spinlock.h"
 #include "kernel/thread.h"
 #include "kernel/task_scheduler.h"
+#include "kernel/cow.h"
 #include "kernel/vfs.h"
 #include "libc.h"
 
@@ -204,57 +205,7 @@ void VMM::switch_address_space(uint32_t* page_dir_phys) {
 }
 
 uint32_t* VMM::clone_directory() {
-    InterruptGuard guard;
-
-    uint32_t* new_dir = (uint32_t*)PhysicalMemoryManager::alloc_frame();
-    if (!new_dir) return nullptr;
-
-    for (int i = 0; i < PD_ENTRIES; i++) {
-        new_dir[i] = 0;
-    }
-
-    uint32_t* cur_pd = (uint32_t*)PAGE_DIR_VADDR;
-
-    for (int i = 0; i < PD_ENTRIES; i++) {
-        if (i == RECURSIVE_PD_INDEX) continue;
-        if (!(cur_pd[i] & PAGE_PRESENT)) continue;
-
-        if (!(cur_pd[i] & PAGE_USER)) {
-            new_dir[i] = cur_pd[i];
-            continue;
-        }
-
-        uint32_t* new_pt = (uint32_t*)PhysicalMemoryManager::alloc_frame();
-        if (!new_pt) continue;
-
-        for (int j = 0; j < PT_ENTRIES; j++) {
-            uint32_t* src_pte = get_pte_ptr((i << 22) | (j << 12));
-
-            if (!(*src_pte & PAGE_PRESENT)) {
-                new_pt[j] = 0;
-                continue;
-            }
-
-            uint32_t phys = *src_pte & 0xFFFFF000;
-
-            new_pt[j] = phys | PAGE_PRESENT | PAGE_USER | PAGE_COW;
-            new_pt[j] &= ~PAGE_WRITABLE;
-
-            *src_pte = phys | PAGE_PRESENT | PAGE_USER | PAGE_COW;
-            *src_pte &= ~PAGE_WRITABLE;
-
-            PhysicalMemoryManager::inc_ref(phys);
-
-            uint32_t virt_addr = (i << 22) | (j << 12);
-            invlpg(virt_addr);
-        }
-
-        new_dir[i] = (uint32_t)new_pt | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-    }
-
-    new_dir[RECURSIVE_PD_INDEX] = (uint32_t)new_dir | PAGE_PRESENT | PAGE_WRITABLE;
-
-    return new_dir;
+    return cow_clone_directory();
 }
 
 bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
@@ -266,42 +217,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
     bool is_user    = (error_code & 0x4) != 0;
 
     if (is_present && is_write) {
-        uint32_t* pde = get_pde_ptr(pd_index);
-        if (*pde & PAGE_PRESENT) {
-            uint32_t* pte = get_pte_ptr(fault_addr);
-            uint32_t pte_val = *pte;
-
-            if (pte_val & PAGE_COW) {
-                uint32_t old_phys = pte_val & 0xFFFFF000;
-
-                if (PhysicalMemoryManager::get_refcount(old_phys) == 1) {
-                    *pte = old_phys | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-                    *pte &= ~PAGE_COW;
-                    invlpg(fault_addr & 0xFFFFF000);
-                    return true;
-                }
-
-                void* new_frame = PhysicalMemoryManager::alloc_frame();
-                if (!new_frame) {
-                    printf("\n!!! PAGE FAULT: Out of memory for CoW copy at 0x%x !!!\n", fault_addr);
-                    while(1) asm volatile("cli; hlt");
-                }
-
-                uint8_t* src = (uint8_t*)(old_phys);
-                uint8_t* dst = (uint8_t*)new_frame;
-                for (int i = 0; i < (int)PAGE_SIZE; i++) {
-                    dst[i] = src[i];
-                }
-
-                PhysicalMemoryManager::dec_ref(old_phys);
-
-                *pte = (uint32_t)new_frame | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-                *pte &= ~PAGE_COW;
-
-                invlpg(fault_addr & 0xFFFFF000);
-                return true;
-            }
-        }
+        if (cow_handle_fault(fault_addr, error_code)) return true;
     } else if (!is_present && is_user) {
         if (current_tid >= 0 && current_tid < MAX_THREADS) {
             Thread& cur = threads[current_tid];

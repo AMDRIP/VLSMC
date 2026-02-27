@@ -27,6 +27,7 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/timer.cpp -o timer.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/task_scheduler.cpp -o task_scheduler.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/event_channel.cpp -o event_channel.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/vmm.cpp -o vmm.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/cow.cpp -o cow.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/tss.cpp -o tss.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/syscall_gate.cpp -o syscall_gate.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/usermode.cpp -o usermode.o
@@ -52,7 +53,7 @@ echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o cow.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o \
     shell.o shell_history.o shell_autocomplete.o shell_redirect.o vga.o selftest.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
