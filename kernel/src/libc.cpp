@@ -109,6 +109,24 @@ void set_color(uint8_t fg, uint8_t bg) {
     bga_bg = vga_to_hex(bg);
 }
 
+static void update_vga_cursor(int x, int y) {
+    uint16_t pos = y * 80 + x;
+    re36::outb(0x3D4, 0x0F);
+    re36::outb(0x3D5, (uint8_t)(pos & 0xFF));
+    re36::outb(0x3D4, 0x0E);
+    re36::outb(0x3D5, (uint8_t)((pos >> 8) & 0xFF));
+}
+
+static void draw_bga_cursor(int x, int y, bool draw) {
+    uint32_t color = draw ? bga_fg : bga_bg;
+    int px_x = x * 8;
+    int px_y = y * 8;
+    for (int i = 0; i < 8; i++) {
+        re36::BgaDriver::put_pixel(px_x + i, px_y + 7, color);
+        re36::BgaDriver::put_pixel(px_x + i, px_y + 6, color);
+    }
+}
+
 #define COM1_PORT 0x3F8
 static bool serial_ready = false;
 
@@ -149,10 +167,12 @@ void putchar(char c) {
     }
 
     if (c == '\n') {
+        if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
         cursor_x = 0;
         cursor_y++;
     } else if (c == '\b') {
         if (cursor_x > 0) {
+            if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
             cursor_x--;
             if (is_bga) {
                 re36::BgaDriver::draw_char(cursor_x * 8, cursor_y * 8, ' ', bga_fg, bga_bg);
@@ -162,6 +182,7 @@ void putchar(char c) {
                 vga_buffer[cursor_y * 80 + cursor_x] = (uint16_t(' ') | (term_color << 8)); 
             }
         } else if (cursor_y > 0) {
+            if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
             cursor_y--;
             cursor_x = max_x - 1;
             if (is_bga) {
@@ -174,6 +195,7 @@ void putchar(char c) {
         }
     } else {
         if (is_bga) {
+            draw_bga_cursor(cursor_x, cursor_y, false);
             re36::BgaDriver::draw_char(cursor_x * 8, cursor_y * 8, c, bga_fg, bga_bg);
         } else if (is_gfx) {
             re36::VGA::draw_char(cursor_x * 8, cursor_y * 8, c, term_fg, term_bg);
@@ -194,9 +216,8 @@ void putchar(char c) {
             cursor_y = max_y - 1;
         } else if (is_gfx) {
             re36::VGA::clear(term_bg);
-            cursor_y = 0; // Simple wrap-around in pure VGA graphics mode
+            cursor_y = 0; 
         } else {
-            // Text mode scrolling
             for (int y = 1; y < max_y; y++) {
                 for (int x = 0; x < max_x; x++) {
                     vga_buffer[(y - 1) * 80 + x] = vga_buffer[y * 80 + x];
@@ -207,6 +228,12 @@ void putchar(char c) {
             }
             cursor_y = max_y - 1;
         }
+    }
+    
+    if (is_bga) {
+        draw_bga_cursor(cursor_x, cursor_y, true);
+    } else if (!is_gfx) {
+        update_vga_cursor(cursor_x, cursor_y);
     }
 }
 

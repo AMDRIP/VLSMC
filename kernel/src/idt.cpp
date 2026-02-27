@@ -8,6 +8,8 @@
 #include "kernel/vmm.h"
 #include "kernel/syscall_gate.h"
 #include "kernel/mouse.h"
+#include "kernel/bga.h"
+#include "kernel/vga.h"
 #include "libc.h"
 
 namespace re36 {
@@ -214,29 +216,58 @@ extern "C" void isr_handler(re36::Registers* regs) {
         return;
     }
 
-    volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+    bool is_bga = re36::BgaDriver::is_initialized();
+    bool is_gfx = re36::VGA::is_graphics();
 
-    for (int i = 0; i < 80 * 25; i++) {
-        vga_buffer[i] = (uint16_t(' ') | (0x4F << 8)); 
+    uint32_t cr0, cr2, cr3, cr4;
+    asm volatile("mov %%cr0, %0" : "=r"(cr0));
+    asm volatile("mov %%cr2, %0" : "=r"(cr2));
+    asm volatile("mov %%cr3, %0" : "=r"(cr3));
+    asm volatile("mov %%cr4, %0" : "=r"(cr4));
+
+    if (is_bga) {
+        re36::BgaDriver::clear_screen(0xAA0000); 
+    } else if (is_gfx) {
+        re36::VGA::clear(4); 
+    } else {
+        volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+        for (int i = 0; i < 80 * 25; i++) {
+            vga_buffer[i] = (uint16_t(' ') | (0x4F << 8)); 
+        }
     }
 
     auto print_str = [&](int x, int y, const char* str) {
-        int idx = y * 80 + x;
-        for (int i = 0; str[i] != '\0' && i < 80; i++) { 
-            if (idx >= 80 * 25) break; 
-            vga_buffer[idx++] = (uint16_t(str[i]) | (0x4F << 8));
+        if (is_bga) {
+            int current_x = x * 8;
+            int current_y = y * 8;
+            while (*str) {
+                re36::BgaDriver::draw_char(current_x, current_y, *str, 0xFFFFFF, 0xAA0000);
+                current_x += 8;
+                str++;
+            }
+        } else if (is_gfx) {
+            re36::VGA::draw_string(x * 8, y * 8, str, 15, 4);
+        } else {
+            volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
+            int idx = y * 80 + x;
+            for (int i = 0; str[i] != '\0' && i < 80; i++) { 
+                if (idx >= 80 * 25) break; 
+                vga_buffer[idx++] = (uint16_t(str[i]) | (0x4F << 8));
+            }
         }
     };
 
     const char hex_chars[] = "0123456789ABCDEF";
     auto print_hex = [&](int x, int y, uint32_t val) {
-        int idx = y * 80 + x;
-        vga_buffer[idx++] = (uint16_t('0') | (0x4F << 8));
-        vga_buffer[idx++] = (uint16_t('x') | (0x4F << 8));
+        char buf[11];
+        buf[0] = '0';
+        buf[1] = 'x';
         for (int i = 0; i < 8; i++) {
             uint8_t nibble = (val >> (28 - i * 4)) & 0x0F;
-            vga_buffer[idx++] = (uint16_t(hex_chars[nibble]) | (0x4F << 8));
+            buf[2 + i] = hex_chars[nibble];
         }
+        buf[10] = '\0';
+        print_str(x, y, buf);
     };
 
     print_str(0, 0, "================================================================================");
@@ -263,12 +294,17 @@ extern "C" void isr_handler(re36::Registers* regs) {
     print_str(42, 8, "EBP:"); print_hex(47, 8, regs->ebp);
     print_str(62, 8, "ESP:"); print_hex(67, 8, regs->esp);
 
-    print_str(2, 10,  "EIP:"); print_hex(7, 10, regs->eip);
-    print_str(22, 10, "CS: "); print_hex(27, 10, regs->cs);
-    print_str(42, 10, "DS: "); print_hex(47, 10, regs->ds);
-    print_str(62, 10, "EFL:"); print_hex(67, 10, regs->eflags);
+    print_str(2, 10,  "EIP: "); print_hex(7, 10, regs->eip);
+    print_str(22, 10, "CS:  "); print_hex(27, 10, regs->cs);
+    print_str(42, 10, "DS:  "); print_hex(47, 10, regs->ds);
+    print_str(62, 10, "EFL: "); print_hex(67, 10, regs->eflags);
+    
+    print_str(2, 12, "CR0: "); print_hex(7, 12, cr0);
+    print_str(22, 12, "CR2: "); print_hex(27, 12, cr2);
+    print_str(42, 12, "CR3: "); print_hex(47, 12, cr3);
+    print_str(62, 12, "CR4: "); print_hex(67, 12, cr4);
 
-    print_str(0, 13, "SYSTEM HALTED.");
+    print_str(0, 15, "SYSTEM HALTED.");
 
     while (true) {
         asm volatile("cli; hlt");
