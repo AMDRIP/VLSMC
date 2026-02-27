@@ -74,6 +74,7 @@ extern int thread_count;
 void thread_init();
 int thread_create(const char* name, ThreadEntry entry, uint8_t priority);
 void thread_terminate(int tid);
+void thread_cleanup(int tid);
 void thread_yield();
 
 extern "C" void switch_task(uint32_t* old_esp, uint32_t new_esp);

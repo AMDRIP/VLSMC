@@ -14,7 +14,6 @@ namespace re36 {
 IdtEntry idt[IDT_ENTRIES];
 IdtPtr idt_ptr;
 
-// Внешние обработчики (ISRs) из Assembly
 extern "C" {
     void isr0();
     void isr1();
@@ -48,8 +47,7 @@ extern "C" {
     void isr29();
     void isr30();
     void isr31();
-    
-    // IRQs (Аппаратные)
+
     void irq0();
     void irq1();
     void irq2();
@@ -67,7 +65,6 @@ extern "C" {
     void irq14();
     void irq15();
 
-    // Функция загрузки IDT (написана на Assembly)
     void load_idt(uint32_t idt_ptr);
 }
 
@@ -83,7 +80,6 @@ void init_idt() {
     idt_ptr.base = (uint32_t)&idt;
     idt_ptr.limit = IDT_ENTRIES * sizeof(IdtEntry) - 1;
 
-    // Исключения CPU (0-31)
     set_idt_gate(0, (uint32_t)isr0, 0x08, 0x8E);
     set_idt_gate(1, (uint32_t)isr1, 0x08, 0x8E);
     set_idt_gate(2, (uint32_t)isr2, 0x08, 0x8E);
@@ -117,7 +113,6 @@ void init_idt() {
     set_idt_gate(30, (uint32_t)isr30, 0x08, 0x8E);
     set_idt_gate(31, (uint32_t)isr31, 0x08, 0x8E);
 
-    // Аппаратные прерывания PIC (32-47)
     set_idt_gate(32, (uint32_t)irq0, 0x08, 0x8E);
     set_idt_gate(33, (uint32_t)irq1, 0x08, 0x8E);
     set_idt_gate(34, (uint32_t)irq2, 0x08, 0x8E);
@@ -138,15 +133,13 @@ void init_idt() {
     load_idt((uint32_t)&idt_ptr);
 }
 
-} // namespace re36
+} 
 
-// Глобальный обработчик прерываний, вызываемый из Assembly.
-// Должен быть снаружи namespace re36, но использовать его типы.
 extern "C" void isr_handler(re36::Registers* regs) {
     if (regs->int_no >= 32 && regs->int_no <= 47) {
 
         if (regs->int_no == 32) {
-            // IRQ0 - Таймер PIT
+
             re36::Timer::tick();
             re36::pic_send_eoi(0);
             re36::TaskScheduler::schedule();
@@ -158,7 +151,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
         }
 
         re36::pic_send_eoi(regs->int_no - 32);
-        
+
         return;
     }
 
@@ -167,7 +160,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
         asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
 
         if (re36::VMM::handle_page_fault(fault_addr, regs->err_code)) {
-            return; // Успешно обработано Demand Paging / CoW / Heap
+            return; 
         }
 
         if ((regs->cs & 3) == 3) {
@@ -181,7 +174,6 @@ extern "C" void isr_handler(re36::Registers* regs) {
             return;
         }
 
-        // В противном случае проваливаемся вниз для KERNEL PANIC
     }
 
     if (regs->int_no == 128) {
@@ -196,9 +188,6 @@ extern "C" void isr_handler(re36::Registers* regs) {
         return;
     }
 
-    // Если это исключение CPU (номер 0-31)
-    
-    // Массив названий стандартных исключений x86
     const char* exception_messages[] = {
         "Division By Zero", "Debug", "Non Maskable Interrupt", "Breakpoint",
         "Into Detected Overflow", "Out of Bounds", "Invalid Opcode", "No Coprocessor",
@@ -210,8 +199,6 @@ extern "C" void isr_handler(re36::Registers* regs) {
         "Hypervisor Injection", "VMM Communication", "Security Exception", "Reserved"
     };
 
-    // Защита (ESR Security): Если исключение произошло в пользовательском коде (Ring 3),
-    // мы не должны крашить всю ОС. Просто убиваем упавший поток.
     if ((regs->cs & 3) == 3) {
         printf("\n[ESR] User Thread %d crashed!\n", re36::TaskScheduler::get_current_tid());
         const char* msg = (regs->int_no < 32) ? exception_messages[regs->int_no] : "Unknown";
@@ -222,21 +209,18 @@ extern "C" void isr_handler(re36::Registers* regs) {
 
     volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
 
-    // Очистим экран красным цветом (Критическая ошибка ядра CPL=0)
     for (int i = 0; i < 80 * 25; i++) {
-        vga_buffer[i] = (uint16_t(' ') | (0x4F << 8)); // 4 = Красный фон, F = Белый текст
+        vga_buffer[i] = (uint16_t(' ') | (0x4F << 8)); 
     }
-    
-    // Вспомогательная лямбда для печати строки
+
     auto print_str = [&](int x, int y, const char* str) {
         int idx = y * 80 + x;
-        for (int i = 0; str[i] != '\0' && i < 80; i++) { // Защита от бесконечного цикла
+        for (int i = 0; str[i] != '\0' && i < 80; i++) { 
             if (idx >= 80 * 25) break; 
             vga_buffer[idx++] = (uint16_t(str[i]) | (0x4F << 8));
         }
     };
 
-    // Вспомогательная лямбда для печати 32-битного HEX
     const char hex_chars[] = "0123456789ABCDEF";
     auto print_hex = [&](int x, int y, uint32_t val) {
         int idx = y * 80 + x;
@@ -252,7 +236,6 @@ extern "C" void isr_handler(re36::Registers* regs) {
     print_str(0, 1, "                            KERNEL PANIC: EXCEPTION                             ");
     print_str(0, 2, "================================================================================");
 
-    // Выводим название исключения
     if (regs->int_no < 32) {
         print_str(2, 4, "Exception: ");
         print_str(13, 4, exception_messages[regs->int_no]);
@@ -263,7 +246,6 @@ extern "C" void isr_handler(re36::Registers* regs) {
     print_str(2, 5, "Error Code:");
     print_hex(14, 5, regs->err_code);
 
-    // Выводим дамп регистров
     print_str(2, 7,  "EAX:"); print_hex(7, 7, regs->eax);
     print_str(22, 7, "EBX:"); print_hex(27, 7, regs->ebx);
     print_str(42, 7, "ECX:"); print_hex(47, 7, regs->ecx);
@@ -281,7 +263,6 @@ extern "C" void isr_handler(re36::Registers* regs) {
 
     print_str(0, 13, "SYSTEM HALTED.");
 
-    // Бесконечный цикл остановки процессора
     while (true) {
         asm volatile("cli; hlt");
     }

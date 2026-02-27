@@ -20,6 +20,7 @@
 #include "kernel/rtc.h"
 #include "kernel/shell.h"
 #include "kernel/selftest.h"
+#include "kernel/pci.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;

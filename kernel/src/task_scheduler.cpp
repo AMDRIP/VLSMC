@@ -24,6 +24,10 @@ int TaskScheduler::pick_next_thread() {
     uint32_t now = Timer::get_ticks();
 
     for (int i = 0; i < MAX_THREADS; i++) {
+        if (threads[i].state == ThreadState::Terminated && i != current_tid) {
+            thread_cleanup(i);
+        }
+        
         if (threads[i].state == ThreadState::Sleeping) {
             if (now >= threads[i].sleep_until) {
                 threads[i].state = ThreadState::Ready;

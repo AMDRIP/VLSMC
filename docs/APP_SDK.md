@@ -1,225 +1,141 @@
-# RAND Elecorner 36 — App SDK (VLSMC API)
+# RAND Elecorner 36 — C++ Software Development Kit (Ring 3 API)
 
-> Документация для разработчиков приложений
-> Build 0001
+> Документация для разработчиков прикладного ПО и внешних драйверов
+> Build 0001 (Bare-Metal OS)
 
----
 ---
 
 ## Обзор
 
-Приложения для RAND Elecorner 36 пишутся на **TypeScript**, компилируются в JavaScript и исполняются внутри встроенного JS-движка (QJSEngine).
+Приложения для RAND Elecorner 36 пишутся на **C++17** (или **C**) и работают в пользовательском пространстве (User Space, Ring 3).
 
-Каждое приложение получает доступ к глобальному объекту `VLSMC`, через который взаимодействует с ОС.
+Для взаимодействия с аппаратным обеспечением, файловой системой и другими процессами программа использует системные вызовы. Вместо прямого вызова ассемблерного прерывания (`int 0x80`), прикладные разработчики используют оболочку — системную библиотеку `libc` (поставляется в `kernel/include/libc.h` и `user/libc.cpp`).
 
 ---
 
 ## Быстрый старт
 
-```typescript
-// main.ts — Пример приложения «Hello World»
-const window = VLSMC.ui.createWindow({
-  title: "Привет, мир!",
-  width: 400,
-  height: 300
-});
+### 1. Подключение SDK
 
-window.setContent(`
-  <text x="20" y="40" size="18">Добро пожаловать в RAND Elecorner 36!</text>
-  <button id="btn" x="20" y="80" width="150" height="40">Нажми меня</button>
-`);
-
-window.on("click", "btn", () => {
-  VLSMC.ui.alert("Кнопка нажата!");
-});
+В каждом C/C++ файле вашего приложения необходимо подключить главный заголовочный файл SDK:
+```cpp
+#include <libc.h>
 ```
 
-```bash
-# Компиляция и упаковка
-tsc main.ts --target ES2020 --outDir dist/
-vlsmc-pack --name "Hello World" --main dist/main.js --out hello.vlsmc-pkg
-```
+Этот файл предоставляет обертки для:
+- Консольного ввода/вывода (Console I/O)
+- Управления процессами (Process Control)
+- Управления памятью в куче (Heap Allocation) *(В разработке)*
+- Межпроцессного взаимодействия (IPC) и Event Channels
+- Работы с шиной (PCI Bus)
 
----
+### 2. Пример: Простейшая программа
 
-## API Reference
+```cpp
+// hello.cpp
+#include <libc.h>
 
-### `VLSMC.ui` — Пользовательский интерфейс
-
-#### `createWindow(options): Window`
-
-Создаёт новое окно приложения.
-
-```typescript
-interface WindowOptions {
-  title: string;
-  width: number;
-  height: number;
-  resizable?: boolean;   // default: true
-  minWidth?: number;
-  minHeight?: number;
-}
-
-interface Window {
-  setContent(markup: string): void;
-  setTitle(title: string): void;
-  close(): void;
-  minimize(): void;
-  on(event: string, targetId: string, callback: Function): void;
-  onClose(callback: Function): void;
-}
-```
-
-#### `alert(message: string): void`
-Показывает модальное диалоговое окно.
-
-#### `confirm(message: string): boolean`
-Показывает диалог подтверждения.
-
-#### `prompt(message: string, defaultValue?: string): string | null`
-Показывает диалог ввода.
-
-#### `notify(message: string, type?: "info" | "warning" | "error"): void`
-Показывает уведомление (toast).
-
----
-
-### `VLSMC.fs` — Файловая система
-
-Работает только в рамках разрешений, указанных в `manifest.json`.
-
-```typescript
-interface FileSystem {
-  readFile(path: string): string;
-  writeFile(path: string, content: string): void;
-  exists(path: string): boolean;
-  remove(path: string): void;
-  rename(oldPath: string, newPath: string): void;
-  mkdir(path: string): void;
-  readdir(path: string): string[];
-  stat(path: string): FileStat;
-}
-
-interface FileStat {
-  name: string;
-  size: number;
-  isDirectory: boolean;
-  permissions: string;      // "rwxr-xr--"
-  owner: string;
-  createdAt: number;        // timestamp
-  modifiedAt: number;
-}
-```
-
-**Ограничения:** приложение может работать только с:
-- `/home/<user>/` — домашний каталог (если есть `filesystem.read` / `filesystem.write`)
-- `/apps/<appId>/data/` — собственная директория данных (всегда доступна)
-
----
-
-### `VLSMC.process` — Процессы
-
-```typescript
-interface ProcessAPI {
-  info(): ProcessInfo;
-  exit(code?: number): void;
-  sleep(ticks: number): Promise<void>;
-  spawn(command: string): number;  // возвращает PID
-  list(): ProcessInfo[];
-}
-
-interface ProcessInfo {
-  pid: number;
-  name: string;
-  state: "new" | "ready" | "running" | "waiting" | "terminated";
-  priority: number;
-  memoryUsed: number;
-  cpuTime: number;
-  owner: string;
+int main(int argc, char** argv) {
+    printf("Добро пожаловать в RAND Elecorner 36!\n");
+    printf("Система выполняет эту программу в Ring 3.\n");
+    return 0; 
 }
 ```
 
 ---
 
-### `VLSMC.ipc` — Межпроцессное взаимодействие
+## API Системной Библиотеки (`libc`)
 
-```typescript
-interface IPCAPI {
-  sendMessage(targetPid: number, data: any): void;
-  onMessage(callback: (fromPid: number, data: any) => void): void;
+Все описанные функции транслируются в системные вызовы операционной системы (`read() -> Syscall 3`, `write() -> Syscall 4`, `exit() -> Syscall 1` и т.д.).
 
-  createPipe(): { read: () => string; write: (data: string) => void };
+### `Консоль и Вывод (I/O)`
 
-  acquireSemaphore(name: string): Promise<void>;
-  releaseSemaphore(name: string): void;
-}
+```cpp
+// Вывод форматированной строки на экран (через ядерный VGA драйвер).
+// Поддерживает %d, %x, %s, %c
+int printf(const char* format, ...);
+
+// Чтение одного символа с клавиатуры (Блокирующий вызов).
+// Если в буфере пусто, процесс засыпает (переходит в состояние Waiting/Blocked) 
+// до тех пор, пока пользователь не нажмет клавишу.
+char getchar();
+```
+
+### `Управление процессами (Processes)`
+
+```cpp
+// Завершить текущий процесс с заданным кодом возврата (отдать CPU ядру).
+void exit(int status);
+
+// Добровольно отдать остаток текущего кванта времени CPU планировщику 
+// и переключиться на следующую задачу в очереди (Сдвинуть Round-Robin).
+void yield();
+```
+
+### `Шина PCI (Внешние Драйверы)`
+
+Начиная с Build 0001, ОС поддерживает концепт внешних драйверов, работающих в Ring 3. Эти приложения могут отправлять системные вызовы `pci_read`, чтобы прочитать конфигурационное пространство конкретного устройства (например, сетевой карты). Ядро получает запрос, само делает потенциально опасный `outl` / `inl` (доступ к I/O портам) и безопасно возвращает 32-битное значение процессу.
+
+```cpp
+// Прочитать 32-битное слово (Dword) из конфигурационного пространства PCI устройства.
+// Возвращает считанное значение.
+uint32_t pci_read(uint8_t bus, uint8_t device, uint8_t func, uint8_t r);
+```
+
+### `Межпроцессное взаимодействие (IPC и Event Channels)`
+
+В текущей модели ОС приложения обмениваются данными посредством блокирующих IPC каналов (Event Channels).
+
+Один процесс ("Сервер" или "Драйвер") открывает канал и ждет событий. Когда приходит сообщение от "Клиента", Сервер просыпается, считывает данные и может продолжить работу.
+
+```cpp
+struct EventMessage {
+    uint32_t event_type;
+    uint32_t data1;
+    uint32_t data2;
+};
+
+// Зарегистрировать/подключиться к каналу по короткому строковому имени (до 15 символов)
+// Возвращает Channel ID (целое число), который в дальнейшем используется для send/recv.
+int event_channel_open(const char* name);
+
+// Отправить сообщение (структуру EventMessage) в канал с заданным ID.
+// Если в канале уже накопилось максимальное количество необработанных сообщений, 
+// отправитель может блокироваться (заснуть) до появления свободного места.
+int event_channel_send(int channel_id, EventMessage* msg);
+
+// Получить сообщение из канала (Блокирующий вызов).
+// Если канал пуст, процесс переводится в состояние WAITING, 
+// и не тратит CPU-циклы в цикле-пустышке, пока сообщение не придет.
+int event_channel_receive(int channel_id, EventMessage* msg);
 ```
 
 ---
 
-### `VLSMC.system` — Системная информация
+## Архитектура: Передача Syscall из Ring 3 в Ring 0
 
-```typescript
-interface SystemAPI {
-  hostname(): string;            // "rand-elecorner-36"
-  version(): string;             // "Build 0001"
-  uptime(): number;              // тики с момента загрузки
-  currentUser(): string;
-  cpuUsage(): number;            // 0.0 — 1.0
-  memoryUsage(): MemoryUsage;
-  time(): number;                // текущий системный тик
-}
+Функции в `libc.cpp` реализуют обертки над ассемблерными вставками. 
+RAND Elecorner 36 использует классическое для старых x86 Linux программ программное прерывание `int 0x80`.
 
-interface MemoryUsage {
-  total: number;
-  used: number;
-  free: number;
-  percentage: number;
-}
-```
+1. Библиотечная функция загружает **Номер системного вызова** в регистр `EAX` (например, для вызова `write` `EAX = 4`).
+2. Аргументы вызова (строки, числа) загружаются в регистры `EBX`, `ECX`, `EDX`, `ESI`, `EDI`.
+3. Выполняется инструкция `int 0x80`.
+4. Процессор переключается из Ring 3 в Ring 0, подгружает системный стек (Stack 0) из TSS и прыгает в обработчик `syscall_gate`.
+5. Ядро забирает аргументы из регистров, проверяет валидность указателей (что программа из Ring 3 не пытается читать/писать память ядра) и передает управление в `Syscalls::handle()`.
+6. После выполнения `IRETD` процессор возвращается в код `libc` (Ring 3), и результат вызова находится в регистре `EAX`.
 
----
-
-### `VLSMC.log` — Журналирование
-
-```typescript
-interface LogAPI {
-  info(message: string): void;
-  warn(message: string): void;
-  error(message: string): void;
-  debug(message: string): void;
+*Пример (Исходный код внутри libc):*
+```cpp
+void exit(int status) {
+    int syscall_num = 1; // Syscall Exit
+    __asm__ volatile (
+        "mov %0, %%eax\n"
+        "mov %1, %%ebx\n"
+        "int $0x80\n"
+        : // no outputs
+        : "g"(syscall_num), "g"(status)
+        : "eax", "ebx"
+    );
+    while (1); // Мы не должны вернуться сюда
 }
 ```
-
----
-
-## Разрешения (Permissions)
-
-Приложение объявляет необходимые разрешения в `manifest.json`. Пользователь подтверждает их при установке.
-
-| Разрешение | Доступ |
-|-----------|--------|
-| `ui.window` | Создание окон (требуется почти всегда) |
-| `ui.notify` | Показ уведомлений |
-| `filesystem.read` | Чтение файлов в `/home/<user>/` |
-| `filesystem.write` | Запись файлов в `/home/<user>/` |
-| `process.spawn` | Создание новых процессов |
-| `process.list` | Просмотр списка всех процессов |
-| `ipc.send` | Отправка сообщений другим процессам |
-| `ipc.receive` | Получение сообщений от других процессов |
-| `system.info` | Доступ к системной информации |
-
-> Доступ к `/apps/<appId>/data/` и `VLSMC.log` не требует разрешений.
-
----
-
-## Ограничения песочницы
-
-| Ограничение | Значение |
-|------------|---------|
-| Максимальная память приложения | 16 МБ (настраиваемо) |
-| Максимальное время выполнения (на тик) | 10 мс |
-| Доступ к хост-ФС | ❌ Запрещён |
-| Сетевые запросы | ❌ Запрещены (v1) |
-| Доступ к `eval()` / `Function()` | ❌ Запрещён |
-| Рекурсия | Ограничена глубиной 256 |

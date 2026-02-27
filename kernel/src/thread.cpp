@@ -103,20 +103,15 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     return tid;
 }
 
-void thread_terminate(int tid) {
+void thread_cleanup(int tid) {
     if (tid < 0 || tid >= MAX_THREADS) return;
     InterruptGuard guard;
     
-    if (threads[tid].page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_) {
-        // Если убиваем текущий процесс (самого себя), сначала прыгаем в ядро
-        if (tid == current_tid) {
-            VMM::switch_address_space((uint32_t*)VMM::kernel_directory_phys_);
-        }
+    if (threads[tid].page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_ && threads[tid].page_directory_phys != nullptr) {
         VMM::destroy_address_space(threads[tid].page_directory_phys);
         threads[tid].page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
     }
     
-    // Очистка динамических VMA
     VMA* curr = threads[tid].vma_list;
     while (curr) {
         VMA* next = curr->next;
@@ -125,7 +120,18 @@ void thread_terminate(int tid) {
     }
     threads[tid].vma_list = nullptr;
     
+    threads[tid].state = ThreadState::Unused;
+    thread_count--;
+}
+
+void thread_terminate(int tid) {
+    if (tid < 0 || tid >= MAX_THREADS) return;
+    InterruptGuard guard;
     threads[tid].state = ThreadState::Terminated;
+    if (tid == current_tid) {
+        thread_yield();
+        while (1) asm volatile("hlt");
+    }
 }
 
 void thread_yield() {
