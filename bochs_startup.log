@@ -272,4 +272,5 @@ ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
 Next at t=0
 (0) [0x0000fffffff0] f000:fff0 (unk. ctxt): (invalid)                 ; ffff
 [?2004h<bochs:1> [K<bochs:1> ^C[?2004l00000000000i[      ] Ctrl-C detected in signal handler.
-[?2004h
+[?2004h[?2004l
+[?2004l

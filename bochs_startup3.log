@@ -269,4 +269,5 @@ ALSA lib pcm.c:2721:(snd_pcm_open_noupdate) Unknown PCM default
 00000000000i[      ] set SIGINT handler to bx_debug_ctrlc_handler
 Next at t=0
 (0) [0x0000fffffff0] f000:fff0 (unk. ctxt): (invalid)                 ; ffff
-[?2004h<bochs:1> 
+[?2004h<bochs:1> [?2004l
+[?2004l
