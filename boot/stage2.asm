@@ -201,8 +201,14 @@ stage2_entry:
     and al, 0xFE
     out 0x92, al
 .a20_on:
-
-    jmp 0x1000:0x0000
+    cli
+    lgdt [gdt_descriptor]
+    
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+    
+    jmp 0x08:start32
 
 .bad_magic:
     mov si, msg_mg
@@ -357,3 +363,42 @@ msg_kb      db " KB", 13, 10, 0
 msg_sec     db "[Stage2] Loaded ", 0
 msg_sectors db " sectors", 13, 10, 0
 msg_crlf    db 13, 10, 0
+
+align 8
+gdt_start:
+    dq 0
+
+    ; 0x08 Code
+    dw 0xFFFF
+    dw 0x0000
+    db 0x00
+    db 10011010b
+    db 11001111b
+    db 0x00
+
+    ; 0x10 Data
+    dw 0xFFFF
+    dw 0x0000
+    db 0x00
+    db 10010010b
+    db 11001111b
+    db 0x00
+gdt_end:
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1
+    dd gdt_start
+
+[BITS 32]
+start32:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    ; DIAGNOSTIC: Print 'C' in protected mode inside bootloader
+    mov dword [0xB8002], 0x0E430E43
+
+    jmp 0x08:0x10000

@@ -13,7 +13,7 @@ nasm -f elf32 kernel/src/interrupts.asm -o interrupts.o
 nasm -f elf32 kernel/src/switch_task.asm -o switch_task.o
 
 echo "[3/5] Compiling C++ kernel sources..."
-CXXFLAGS="-m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra"
+CXXFLAGS="-m32 -ffreestanding -fno-exceptions -fno-rtti -Ikernel/include -fpermissive -Wall -Wextra -mno-sse -mno-sse2 -mno-mmx"
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/kernel_main.cpp -o kernel_main.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/idt.cpp -o idt.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/pic.cpp -o pic.o

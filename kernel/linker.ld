@@ -31,6 +31,7 @@ SECTIONS
         _bss_start = .;
         *(COMMON)
         *(.bss)
+        . = ALIGN(4);
         _bss_end = .;
     }
 
