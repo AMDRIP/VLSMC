@@ -150,12 +150,12 @@ void AHCIDriver::port_rebase(HBA_PORT* port, int port_no) {
     // Each CT takes around 256 bytes for a few PRDT entries. 
     // 32 CTs * 256 bytes = 8192 bytes = 2 frames.
     HBA_CMD_HEADER* cmdheader = (HBA_CMD_HEADER*)port->clb;
-    
+    uint32_t ct_phys = 0;
+
     for (int i = 0; i < 32; i++) {
-        cmdheader[i].prdtl = 8; // Max 8 PRDT entries (8 * 16 = 128 bytes, total 128+128 = 256 bytes per CT)
-        
-        uint32_t ct_phys = 0;
-        if (i % 16 == 0) { // Alloc 1 frame per 16 CTs
+        cmdheader[i].prdtl = 8;
+
+        if (i % 16 == 0) {
             void* f = PhysicalMemoryManager::alloc_frame();
             if (!f) return;
             ct_phys = (uint32_t)f;

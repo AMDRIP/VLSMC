@@ -197,7 +197,8 @@ static void exec_command(const char* cmd) {
     } else if (str_eq(cmd, "meminfo") || str_eq(cmd, "mems")) {
         printf("Free RAM: %u KB\n", PhysicalMemoryManager::get_free_memory() / 1024);
         printf("Used RAM: %u KB\n", PhysicalMemoryManager::get_used_memory() / 1024);
-        printf("Paging: Enabled (CR3 = 0x%x)\n", (uint32_t)VMM::get_current_directory());
+        uint32_t cr3_val; asm volatile("mov %%cr3, %0" : "=r"(cr3_val));
+        printf("Paging: Enabled (CR3 = 0x%x)\n", cr3_val);
     } else if (str_eq(cmd, "mode text")) {
         VGA::init_text_mode();
         set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
