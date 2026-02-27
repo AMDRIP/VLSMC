@@ -5,6 +5,9 @@
 #include "kernel/task_scheduler.h"
 #include "kernel/vmm.h"
 #include "kernel/syscall_gate.h"
+#include "kernel/vmm.h"
+#include "kernel/syscall_gate.h"
+#include "kernel/mouse.h"
 #include "libc.h"
 
 namespace re36 {
@@ -148,6 +151,10 @@ extern "C" void isr_handler(re36::Registers* regs) {
 
         if (regs->int_no == 33) {
             re36::KeyboardDriver::handle_interrupt();
+        }
+
+        if (regs->int_no == 44) {
+            re36::MouseDriver::handle_interrupt();
         }
 
         re36::pic_send_eoi(regs->int_no - 32);
