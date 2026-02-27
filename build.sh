@@ -83,7 +83,8 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/string.cpp -o user_libc_string.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/malloc.cpp -o user_libc_malloc.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdio.cpp -o user_libc_stdio.o
-x86_64-linux-gnu-ar rcs user_libc.a user_libc_syscall.o user_libc_errno.o user_libc_string.o user_libc_malloc.o user_libc_stdio.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdlib.cpp -o user_libc_stdlib.o
+x86_64-linux-gnu-ar rcs user_libc.a user_libc_syscall.o user_libc_errno.o user_libc_string.o user_libc_malloc.o user_libc_stdio.o user_libc_stdlib.o
 
 echo "=== Building User Programs ==="
 nasm -f elf32 user/crt0.asm -o user_crt0.o
@@ -126,6 +127,10 @@ mcopy -i data.img STRTEST.ELF ::/STRTEST.ELF
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/stdio_test.cpp -o user_stdio_test.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stdio_test.o user_libc.a -o STDIOTST.ELF
 mcopy -i data.img STDIOTST.ELF ::/STDIOTST.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/stdlib_test.cpp -o user_stdlib_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stdlib_test.o user_libc.a -o STDLIBT.ELF
+mcopy -i data.img STDLIBT.ELF ::/STDLIBT.ELF
 
 echo ""
 echo "DONE! To run:"
