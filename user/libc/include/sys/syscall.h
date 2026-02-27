@@ -16,6 +16,11 @@
 #define SYS_MAP_MMIO 26
 #define SYS_FIND_THREAD 27
 #define SYS_SBRK 28
+#define SYS_FOPEN 29
+#define SYS_FREAD 30
+#define SYS_FWRITE 31
+#define SYS_FCLOSE 32
+#define SYS_FSIZE 33
 
 #ifdef __cplusplus
 extern "C" {

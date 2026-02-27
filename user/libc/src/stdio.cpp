@@ -1,6 +1,7 @@
 #include "stdio.h"
 #include "sys/syscall.h"
 #include "errno.h"
+#include "malloc.h"
 
 static char stdout_buf[1024];
 static size_t stdout_pos = 0;
@@ -105,6 +106,43 @@ static void print_ptr(void* ptr) {
     }
 }
 
+static void print_float(double val, int precision) {
+    if (precision <= 0) precision = 6;
+
+    if (val < 0.0) {
+        putchar('-');
+        val = -val;
+    }
+
+    unsigned int int_part = (unsigned int)val;
+    double frac = val - (double)int_part;
+
+    if (int_part == 0) {
+        putchar('0');
+    } else {
+        char buf[12];
+        int i = 11;
+        buf[i] = '\0';
+        while (int_part > 0) {
+            i--;
+            buf[i] = '0' + (int)(int_part % 10);
+            int_part /= 10;
+        }
+        while (buf[i]) {
+            putchar(buf[i++]);
+        }
+    }
+
+    putchar('.');
+
+    for (int i = 0; i < precision; i++) {
+        frac *= 10.0;
+        int digit = (int)frac;
+        putchar('0' + digit);
+        frac -= digit;
+    }
+}
+
 int printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
@@ -159,6 +197,11 @@ int printf(const char* format, ...) {
                 case '%': {
                     putchar('%');
                     count++;
+                    break;
+                }
+                case 'f': {
+                    double val = va_arg(args, double);
+                    print_float(val, 6);
                     break;
                 }
                 default: {
@@ -218,4 +261,64 @@ char* gets_s(char* buffer, size_t size) {
 
     buffer[i] = '\0';
     return buffer;
+}
+
+FILE* fopen(const char* filename, const char* mode) {
+    if (!filename || !mode) return nullptr;
+
+    int mode_flag = 0;
+    if (mode[0] == 'r') mode_flag = FMODE_READ;
+    else if (mode[0] == 'w') mode_flag = FMODE_WRITE;
+    else return nullptr;
+
+    long fd = syscall(SYS_FOPEN, (long)filename, (long)mode_flag);
+    if (fd == -1) return nullptr;
+
+    FILE* f = (FILE*)malloc(sizeof(FILE));
+    if (!f) return nullptr;
+
+    f->fd = (int)fd;
+    f->mode = mode_flag;
+    f->eof = 0;
+    f->error = 0;
+    return f;
+}
+
+int fclose(FILE* stream) {
+    if (!stream) return -1;
+    long ret = syscall(SYS_FCLOSE, (long)stream->fd);
+    free(stream);
+    return (int)ret;
+}
+
+size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) {
+    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    size_t total = size * nmemb;
+    long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)ptr, (long)total);
+    if (bytes <= 0) {
+        stream->eof = 1;
+        return 0;
+    }
+    return (size_t)bytes / size;
+}
+
+size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream) {
+    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    size_t total = size * nmemb;
+    long bytes = syscall(SYS_FWRITE, (long)stream->fd, (long)ptr, (long)total);
+    if (bytes <= 0) {
+        stream->error = 1;
+        return 0;
+    }
+    return (size_t)bytes / size;
+}
+
+int feof(FILE* stream) {
+    if (!stream) return 1;
+    return stream->eof;
+}
+
+int ferror(FILE* stream) {
+    if (!stream) return 1;
+    return stream->error;
 }

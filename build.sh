@@ -137,6 +137,9 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_mathtest.o user_libc.a -o MATHTEST.ELF
 mcopy -i data.img MATHTEST.ELF ::/MATHTEST.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/filetest.cpp -o user_filetest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_filetest.o user_libc.a -o FILETST.ELF
+mcopy -i data.img FILETST.ELF ::/FILETST.ELF
 echo ""
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"

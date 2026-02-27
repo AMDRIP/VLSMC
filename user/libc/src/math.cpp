@@ -49,22 +49,22 @@ extern "C" float cosf(float x) {
 }
 
 extern "C" double pow(double base, double exp) {
-    double res;
     if (base == 0.0) return 0.0;
     if (exp == 0.0) return 1.0;
-    
+
+    double res;
     asm volatile (
         "fyl2x;"
         "fld %%st(0);"
         "frndint;"
-        "fsub %%st(1), %%st(0);"
         "fxch %%st(1);"
+        "fsub %%st(1), %%st(0);"
         "f2xm1;"
         "fld1;"
         "faddp;"
         "fscale;"
         "fstp %%st(1);"
-        : "=t" (res) 
+        : "=t" (res)
         : "0" (base), "u" (exp)
     );
     return res;
