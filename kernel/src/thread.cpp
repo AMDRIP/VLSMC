@@ -32,8 +32,10 @@ void thread_init() {
         threads[i].quantum_remaining = 5;
         threads[i].total_ticks = 0;
         threads[i].name[0] = '\0';
+        threads[i].name[0] = '\0';
         threads[i].page_directory_phys = (uint32_t*)0; // Инициализируется ниже
         threads[i].vma_list = nullptr;
+        for (int f = 0; f < MAX_OPEN_FILES; f++) threads[i].fd_table[f] = nullptr;
     }
 
     threads[0].state = ThreadState::Running;
@@ -87,6 +89,7 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.vma_list = nullptr;
     t.parent_tid = -1;
     t.exit_code = 0;
+    for (int f = 0; f < MAX_OPEN_FILES; f++) t.fd_table[f] = nullptr;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
 
@@ -121,6 +124,25 @@ void thread_cleanup(int tid) {
         curr = next;
     }
     threads[tid].vma_list = nullptr;
+    
+    // Cleanup open files if the thread terminates abruptly / cleanup is called
+    for (int f = 0; f < MAX_OPEN_FILES; f++) {
+        if (threads[tid].fd_table[f]) {
+            if (__atomic_sub_fetch(&threads[tid].fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+                if (threads[tid].fd_table[f]->vn) {
+                    if (__atomic_sub_fetch(&threads[tid].fd_table[f]->vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+                        if (threads[tid].fd_table[f]->vn->ops && threads[tid].fd_table[f]->vn->ops->close) {
+                            threads[tid].fd_table[f]->vn->ops->close(threads[tid].fd_table[f]->vn);
+                        }
+                        if (threads[tid].fd_table[f]->vn->fs_data) kfree(threads[tid].fd_table[f]->vn->fs_data);
+                        kfree(threads[tid].fd_table[f]->vn);
+                    }
+                }
+                kfree(threads[tid].fd_table[f]);
+            }
+            threads[tid].fd_table[f] = nullptr;
+        }
+    }
     
     threads[tid].state = ThreadState::Unused;
     thread_count--;

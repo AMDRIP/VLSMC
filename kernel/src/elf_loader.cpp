@@ -1,6 +1,7 @@
 #include "kernel/elf_loader.h"
 #include "kernel/elf.h"
 #include "kernel/fat16.h"
+#include "kernel/vfs.h"
 #include "kernel/vmm.h"
 #include "kernel/pmm.h"
 #include "kernel/tss.h"
@@ -35,10 +36,20 @@ static void elf_thread_entry() {
         return;
     }
 
-    // Читаем только первую страницу (заголовки ELF)
-    int bytes = Fat16::read_file_offset((const char*)threads[current_tid].name, 0, header_buf, 4096);
-    if (bytes < sizeof(Elf32_Ehdr)) {
-        printf("[ELF] File too small or not found: %s (bytes=%d)\n", threads[current_tid].name, bytes);
+    vnode* vn = nullptr;
+    if (vfs_resolve_path((const char*)threads[current_tid].name, &vn) != 0 || !vn) {
+        printf("[ELF] File not found: %s\n", threads[current_tid].name);
+        kfree(header_buf);
+        return;
+    }
+
+    int bytes = -1;
+    if (vn->ops && vn->ops->read) {
+        bytes = vn->ops->read(vn, 0, header_buf, 4096);
+    }
+
+    if (bytes < (int)sizeof(Elf32_Ehdr)) {
+        printf("[ELF] File too small: %s (bytes=%d)\n", threads[current_tid].name, bytes);
         kfree(header_buf);
         return;
     }

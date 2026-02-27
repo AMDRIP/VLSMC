@@ -47,6 +47,24 @@ static uint32_t sys_exit(SyscallRegs* regs) {
         VMA* v = cur.vma_list;
         while (v) { VMA* n = v->next; kfree(v); v = n; }
         cur.vma_list = nullptr;
+        
+        for (int f = 0; f < MAX_OPEN_FILES; f++) {
+            if (cur.fd_table[f]) {
+                if (__atomic_sub_fetch(&cur.fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+                    if (cur.fd_table[f]->vn) {
+                        if (__atomic_sub_fetch(&cur.fd_table[f]->vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+                            if (cur.fd_table[f]->vn->ops && cur.fd_table[f]->vn->ops->close) {
+                                cur.fd_table[f]->vn->ops->close(cur.fd_table[f]->vn);
+                            }
+                            if (cur.fd_table[f]->vn->fs_data) kfree(cur.fd_table[f]->vn->fs_data);
+                            kfree(cur.fd_table[f]->vn);
+                        }
+                    }
+                    kfree(cur.fd_table[f]);
+                }
+                cur.fd_table[f] = nullptr;
+            }
+        }
 
         {
             InterruptGuard guard;
@@ -360,73 +378,50 @@ static uint32_t sys_read_sector(SyscallRegs* regs) {
     return ATA::read_sectors(lba, 1, buffer) ? 1 : 0;
 }
 
-#define MAX_OPEN_FILES 16
-#define FMODE_READ 1
-#define FMODE_WRITE 2
-
-struct KernelFileDesc {
-    bool in_use;
-    char name[12];
-    uint32_t offset;
-    uint32_t size;
-    int mode;
-    uint8_t* write_buf;
-    uint32_t write_len;
-    uint32_t write_cap;
-};
-
-static KernelFileDesc open_files[MAX_OPEN_FILES];
-
-static int find_free_fd() {
+static int find_free_fd(Thread& cur) {
     for (int i = 0; i < MAX_OPEN_FILES; i++) {
-        if (!open_files[i].in_use) return i;
+        if (!cur.fd_table[i]) return i;
     }
     return -1;
 }
 
+// Simplified flag conversion for MVP
+static int map_flags(int api_mode) {
+    if (api_mode == 1) return O_RDONLY;      // FMODE_READ
+    if (api_mode == 2) return O_WRONLY | O_CREAT | O_TRUNC; // FMODE_WRITE
+    return O_RDONLY;
+}
+
 static uint32_t sys_fopen(SyscallRegs* regs) {
-    const char* name = (const char*)regs->ebx;
+    const char* path = (const char*)regs->ebx;
     int mode = (int)regs->ecx;
-    if (!name) return (uint32_t)-1;
+    if (!path) return (uint32_t)-1;
 
-    int fd = find_free_fd();
-    if (fd < 0) return (uint32_t)-1;
+    Thread& cur = threads[current_tid];
+    int fd_idx = find_free_fd(cur);
+    if (fd_idx < 0) return (uint32_t)-1;
 
-    KernelFileDesc& f = open_files[fd];
+    int vfs_flags = map_flags(mode);
+    int vn_ptr = vfs_open(path, vfs_flags, 0); // VFS returns vnode* cast to int as a hack
+    if (vn_ptr == -1) return (uint32_t)-1;
+    
+    vnode* vn = (vnode*)vn_ptr;
 
-    for (int i = 0; i < 11; i++) f.name[i] = ' ';
-    f.name[11] = '\0';
-    for (int i = 0; i < 11; i++) {
-        if (!name[i]) break;
-        f.name[i] = name[i];
+    file* f = (file*)kmalloc(sizeof(file));
+    if (!f) {
+        if (vn->ops && vn->ops->close) vn->ops->close(vn);
+        return (uint32_t)-1;
     }
 
-    if (mode == FMODE_READ) {
-        uint8_t tmp_buf[1];
-        int result = Fat16::read_file_offset(name, 0, tmp_buf, 0);
-        (void)result;
+    f->vn = vn;
+    f->offset = 0;
+    f->flags = (uint32_t)vfs_flags;
+    f->refcount = 1;
+    
+    cur.fd_table[fd_idx] = f;
 
-        uint32_t sector_out;
-        int index_out;
-        int found = Fat16::find_dir_entry(name, &sector_out, &index_out);
-        if (found < 0) return (uint32_t)-1;
-
-        uint8_t dir_buf[512];
-        ATA::read_sectors(sector_out, 1, dir_buf);
-        FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
-        f.size = entries[index_out].file_size;
-    } else {
-        f.size = 0;
-    }
-
-    f.in_use = true;
-    f.offset = 0;
-    f.mode = mode;
-    f.write_buf = nullptr;
-    f.write_len = 0;
-    f.write_cap = 0;
-
-    return (uint32_t)(fd + 3);
+    // +3 offset since 0,1,2 are reserved
+    return (uint32_t)(fd_idx + 3);
 }
 
 static uint32_t sys_fread(SyscallRegs* regs) {
@@ -434,26 +429,25 @@ static uint32_t sys_fread(SyscallRegs* regs) {
     uint8_t* buffer = (uint8_t*)regs->ecx;
     uint32_t size = regs->edx;
 
-    if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].in_use) return 0;
-    KernelFileDesc& f = open_files[fd];
-    if (f.mode != FMODE_READ) return 0;
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    
+    Thread& cur = threads[current_tid];
+    file* f = cur.fd_table[fd];
+    if (!f || !f->vn) return 0;
 
-    if (f.offset >= f.size) return 0;
-    uint32_t remaining = f.size - f.offset;
-    if (size > remaining) size = remaining;
+    if ((f->flags & O_WRONLY) && !(f->flags & O_RDWR)) return 0;
 
-    char orig_name[13];
-    int ni = 0;
-    for (int i = 0; i < 8 && f.name[i] != ' '; i++) orig_name[ni++] = f.name[i];
-    if (f.name[8] != ' ') {
-        orig_name[ni++] = '.';
-        for (int i = 8; i < 11 && f.name[i] != ' '; i++) orig_name[ni++] = f.name[i];
+    int read_bytes = -1;
+    if (f->vn->ops && f->vn->ops->read) {
+        read_bytes = f->vn->ops->read(f->vn, f->offset, buffer, size);
     }
-    orig_name[ni] = '\0';
 
-    int bytes = Fat16::read_file_offset(orig_name, f.offset, buffer, size);
-    if (bytes > 0) f.offset += bytes;
-    return (uint32_t)(bytes > 0 ? bytes : 0);
+    if (read_bytes > 0) {
+        f->offset += read_bytes;
+        return (uint32_t)read_bytes;
+    }
+    
+    return 0;
 }
 
 static uint32_t sys_fwrite(SyscallRegs* regs) {
@@ -461,54 +455,57 @@ static uint32_t sys_fwrite(SyscallRegs* regs) {
     const uint8_t* data = (const uint8_t*)regs->ecx;
     uint32_t size = regs->edx;
 
-    if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].in_use) return 0;
-    KernelFileDesc& f = open_files[fd];
-    if (f.mode != FMODE_WRITE) return 0;
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    
+    Thread& cur = threads[current_tid];
+    file* f = cur.fd_table[fd];
+    if (!f || !f->vn) return 0;
 
-    if (!f.write_buf) {
-        f.write_cap = (size > 4096) ? size * 2 : 4096;
-        f.write_buf = (uint8_t*)PhysicalMemoryManager::alloc_frame();
-        if (!f.write_buf) return 0;
-        f.write_len = 0;
+    int written = -1;
+    if (f->vn->ops && f->vn->ops->write) {
+        written = f->vn->ops->write(f->vn, f->offset, data, size);
+    }
+    
+    if (written > 0) {
+        f->offset += written;
+        return (uint32_t)written;
     }
 
-    for (uint32_t i = 0; i < size; i++) {
-        f.write_buf[f.write_len++] = data[i];
-    }
-
-    return size;
+    return 0;
 }
 
 static uint32_t sys_fclose(SyscallRegs* regs) {
     int fd = (int)regs->ebx - 3;
-    if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].in_use) return (uint32_t)-1;
-    KernelFileDesc& f = open_files[fd];
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
+    
+    Thread& cur = threads[current_tid];
+    file* f = cur.fd_table[fd];
+    if (!f) return (uint32_t)-1;
 
-    if (f.mode == FMODE_WRITE && f.write_buf && f.write_len > 0) {
-        char orig_name[13];
-        int ni = 0;
-        for (int i = 0; i < 8 && f.name[i] != ' '; i++) orig_name[ni++] = f.name[i];
-        if (f.name[8] != ' ') {
-            orig_name[ni++] = '.';
-            for (int i = 8; i < 11 && f.name[i] != ' '; i++) orig_name[ni++] = f.name[i];
+    if (__atomic_sub_fetch(&f->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        if (f->vn) {
+            if (__atomic_sub_fetch(&f->vn->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+                if (f->vn->ops && f->vn->ops->close) f->vn->ops->close(f->vn);
+                if (f->vn->fs_data) kfree(f->vn->fs_data);
+                kfree(f->vn);
+            }
         }
-        orig_name[ni] = '\0';
-        Fat16::write_file(orig_name, f.write_buf, f.write_len);
+        kfree(f);
     }
 
-    if (f.write_buf) {
-        PhysicalMemoryManager::free_frame(f.write_buf);
-        f.write_buf = nullptr;
-    }
-
-    f.in_use = false;
+    cur.fd_table[fd] = nullptr;
     return 0;
 }
 
 static uint32_t sys_fsize(SyscallRegs* regs) {
     int fd = (int)regs->ebx - 3;
-    if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].in_use) return (uint32_t)-1;
-    return open_files[fd].size;
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
+    
+    Thread& cur = threads[current_tid];
+    file* f = cur.fd_table[fd];
+    if (!f || !f->vn) return (uint32_t)-1;
+
+    return f->vn->size;
 }
 static void fork_child_entry() {
     TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));
@@ -603,6 +600,16 @@ static uint32_t sys_fork(SyscallRegs* regs) {
         dst_ptr = &copy->next;
         src_vma = src_vma->next;
     }
+    
+    // Inherit file descriptors
+    for (int f = 0; f < MAX_OPEN_FILES; f++) {
+        if (parent.fd_table[f]) {
+            child.fd_table[f] = parent.fd_table[f];
+            __atomic_add_fetch(&child.fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST);
+        } else {
+            child.fd_table[f] = nullptr;
+        }
+    }
 
     uint32_t* new_dir = VMM::clone_directory();
     if (!new_dir) return (uint32_t)-1;
@@ -638,7 +645,17 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     uint8_t* header_buf = (uint8_t*)kmalloc(4096);
     if (!header_buf) return (uint32_t)-1;
 
-    int bytes = Fat16::read_file_offset(filename, 0, header_buf, 4096);
+    vnode* vn = nullptr;
+    if (vfs_resolve_path(filename, &vn) != 0 || !vn) {
+        kfree(header_buf);
+        return (uint32_t)-1;
+    }
+
+    int bytes = -1;
+    if (vn->ops && vn->ops->read) {
+        bytes = vn->ops->read(vn, 0, header_buf, 4096);
+    }
+
     if (bytes < (int)sizeof(Elf32_Ehdr)) {
         kfree(header_buf);
         return (uint32_t)-1;

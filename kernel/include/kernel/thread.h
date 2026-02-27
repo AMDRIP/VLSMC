@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "kernel/vfs.h"
 
 namespace re36 {
 
@@ -22,6 +23,8 @@ struct ForkChildState {
 
 #define IPC_MAX_MSG_SIZE 512
 #define IPC_MSG_QUEUE_SIZE 4
+
+#define MAX_OPEN_FILES 16
 
 struct IpcMessage {
     int sender_tid;
@@ -81,6 +84,8 @@ struct Thread {
 
     int parent_tid;
     int exit_code;
+
+    file* fd_table[MAX_OPEN_FILES]; // VFS file descriptors for this thread
 
     ForkChildState fork_state;
 };

@@ -2,6 +2,7 @@
 #include "kernel/disk.h"
 #include "kernel/rtc.h"
 #include "kernel/pmm.h"
+#include "kernel/kmalloc.h"
 #include "libc.h"
 
 namespace re36 {
@@ -534,5 +535,125 @@ void Fat16::stat_file(const char* name) {
     }
     printf("  Clusters: %d (%d bytes)\n\n", chain_len, chain_len * bpb_.sectors_per_cluster * 512);
 }
+
+int Fat16::fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size) {
+    if (!mounted_) return -1;
+    if (vn->type != VnodeType::File) return -1;
+
+    FAT16_DirEntry entry;
+    uint32_t sector;
+    int index;
+    
+    // Simplification: In a full VFS, vn->fs_data would store the starting cluster.
+    // Here we use lookup by name (a hack for this MVP transition)
+    // We assume vn->fs_data stores the name temporarily, or we just rely on fat_root lookup
+    
+    // Since we don't have proper path resolution passing name to vnode,
+    // we use read_file_offset directly for now, which takes a name. 
+    // THIS IS A TEMPORARY VFS HACK.
+    const char* filename = (const char*)vn->fs_data;
+    if (!filename) return -1;
+    
+    return read_file_offset(filename, offset, buffer, size);
+}
+
+int Fat16::fat16_write(vnode* vn, uint32_t offset, const uint8_t* buffer, uint32_t size) {
+    (void)vn; (void)offset; (void)buffer; (void)size;
+    // Not fully implemented for VFS in this MVP, requires extending FAT16 write_file to support offsets
+    return -1;
+}
+
+int Fat16::fat16_open(vnode* vn) {
+    // Only file opening supported in this minimal VFS translation
+    if (!vn || vn->type != VnodeType::File) return -1;
+    return 0; // Success
+}
+
+int Fat16::fat16_close(vnode* vn) {
+    (void)vn;
+    return 0;
+}
+
+int Fat16::fat16_lookup(vnode* dir, const char* name, vnode** out) {
+    (void)dir;
+    if (!mounted_) return -1;
+    
+    uint32_t sector;
+    int index;
+    if (find_dir_entry(name, &sector, &index) != 0) return -1;
+
+    // Read the entry to get details
+    Disk::read_sectors(sector, 1, dma_buffer_);
+    FAT16_DirEntry* entry = &((FAT16_DirEntry*)dma_buffer_)[index];
+
+    vnode* vn = (vnode*)kmalloc(sizeof(vnode));
+    if (!vn) return -1;
+
+    vn->type = (entry->attributes & FAT_ATTR_DIRECTORY) ? VnodeType::Directory : VnodeType::File;
+    vn->size = entry->file_size;
+    vn->inode_num = entry->first_cluster;
+    vn->refcount = 1;
+    vn->sb = nullptr; // filled by mount
+    vn->ops = &fat16_vnode_ops;
+    vn->mount_target = nullptr;
+    
+    // Store name dynamically for read hack
+    int nlen = 0;
+    while (name[nlen]) nlen++;
+    char* name_copy = (char*)kmalloc(nlen + 1);
+    for (int i = 0; i < nlen; i++) name_copy[i] = name[i];
+    name_copy[nlen] = '\0';
+    vn->fs_data = name_copy;
+
+    *out = vn;
+    return 0;
+}
+
+int Fat16::fat16_create(vnode* dir, const char* name, int mode, vnode** out) {
+    (void)dir; (void)mode;
+    
+    // Very simplified create wrapper over FAT16 write_file
+    uint8_t dummy = 0;
+    if (!write_file(name, &dummy, 0)) return -1;
+    
+    return fat16_lookup(dir, name, out);
+}
+
+int Fat16::fat16_mount(block_device* bdev, superblock* sb) {
+    (void)bdev;
+    if (!init()) return -1; // Fallback to our hardcoded ATA/Disk init for now
+
+    vnode* root = (vnode*)kmalloc(sizeof(vnode));
+    if (!root) return -1;
+
+    root->type = VnodeType::Directory;
+    root->size = 0;
+    root->inode_num = 0; // Root has no specific cluster in FAT16
+    root->refcount = 1;
+    root->sb = sb;
+    root->ops = &fat16_vnode_ops;
+    root->mount_target = nullptr;
+    root->fs_data = nullptr;
+
+    sb->root_vnode = root;
+    return 0;
+}
+
+vnode_operations Fat16::fat16_vnode_ops = {
+    Fat16::fat16_open,
+    Fat16::fat16_close,
+    Fat16::fat16_read,
+    Fat16::fat16_write,
+    Fat16::fat16_lookup,
+    Fat16::fat16_create,
+    nullptr, // mkdir
+    nullptr  // unlink
+};
+
+vfs_filesystem_driver fat16_driver = {
+    "fat16",
+    Fat16::fat16_mount,
+    nullptr // unmount
+};
 
 } // namespace re36

@@ -32,6 +32,7 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/syscall_gate.cpp -o syscall_gate.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/usermode.cpp -o usermode.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/ata.cpp -o ata.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/fat16.cpp -o fat16.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/vfs.cpp -o vfs.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/elf_loader.cpp -o elf_loader.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/rtc.cpp -o rtc.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/shell.cpp -o shell.o
@@ -51,7 +52,7 @@ echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o \
     shell.o shell_history.o shell_autocomplete.o shell_redirect.o vga.o selftest.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
@@ -148,6 +149,10 @@ mcopy -i data.img FORKTST.ELF ::/FORKTST.ELF
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/fileio.cpp -o user_fileio.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fileio.o user_libc.a -o FILEIO.ELF
 mcopy -i data.img FILEIO.ELF ::/FILEIO.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/anim.cpp -o user_anim.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_anim.o -o ANIM.ELF
+mcopy -i data.img ANIM.ELF ::/ANIM.ELF
 
 echo "=== Building ISO Image ==="
 mkdir -p iso_root

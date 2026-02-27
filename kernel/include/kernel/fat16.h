@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "kernel/vfs.h"
 
 namespace re36 {
 
@@ -50,19 +51,26 @@ public:
     
     static void list_root();
     
+    // VFS Driver Interface
+    static int fat16_mount(block_device* bdev, superblock* sb);
+    
+    // VFS Vnode Operations
+    static int fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size);
+    static int fat16_write(vnode* vn, uint32_t offset, const uint8_t* buffer, uint32_t size);
+    static int fat16_open(vnode* vn);
+    static int fat16_close(vnode* vn);
+    static int fat16_lookup(vnode* dir, const char* name, vnode** out);
+    static int fat16_create(vnode* dir, const char* name, int mode, vnode** out);
+
+    // Old API (kept for internal use/transition)
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
-    
     static int read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, uint32_t size);
-    
     static bool write_file(const char* name, const uint8_t* data, uint32_t size);
-    
     static bool delete_file(const char* name);
-    
     static void stat_file(const char* name);
-    
     static bool is_mounted();
-    
     static uint32_t root_dir_lba() { return root_dir_lba_; }
+
 
     static int find_dir_entry(const char* name, uint32_t* sector_out, int* index_out);
 
@@ -86,6 +94,12 @@ private:
     static void free_chain(uint16_t start_cluster);
     static void flush_fat();
     static void format_83_name(const char* name, char* out);
+    
+    // VFS static operations and structures
+    static vnode_operations fat16_vnode_ops;
 };
+
+// Global VFS driver instance for FAT16
+extern vfs_filesystem_driver fat16_driver;
 
 } // namespace re36
