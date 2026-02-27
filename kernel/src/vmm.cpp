@@ -161,10 +161,12 @@ uint32_t* VMM::create_address_space() {
         new_dir[i] = 0;
     }
 
-    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
     uint32_t* cur_pd = (uint32_t*)PAGE_DIR_VADDR;
-    for (uint32_t i = 0; i < kernel_pd_count; i++) {
-        new_dir[i] = cur_pd[i];
+    for (uint32_t i = 0; i < PD_ENTRIES; i++) {
+        if (i == RECURSIVE_PD_INDEX) continue;
+        if ((cur_pd[i] & PAGE_PRESENT) && !(cur_pd[i] & PAGE_USER)) {
+            new_dir[i] = cur_pd[i];
+        }
     }
 
     new_dir[RECURSIVE_PD_INDEX] = (uint32_t)new_dir | PAGE_PRESENT | PAGE_WRITABLE;
@@ -178,10 +180,10 @@ void VMM::destroy_address_space(uint32_t* page_dir_phys) {
 
     InterruptGuard guard;
 
-    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
-    for (int i = kernel_pd_count; i < PD_ENTRIES; i++) {
+    for (int i = 0; i < PD_ENTRIES; i++) {
         if (i == RECURSIVE_PD_INDEX) continue;
         if (!(page_dir_phys[i] & PAGE_PRESENT)) continue;
+        if (!(page_dir_phys[i] & PAGE_USER)) continue;
 
         uint32_t* pt = (uint32_t*)(page_dir_phys[i] & 0xFFFFF000);
         for (int j = 0; j < PT_ENTRIES; j++) {
@@ -215,14 +217,14 @@ uint32_t* VMM::clone_directory() {
 
     uint32_t* cur_pd = (uint32_t*)PAGE_DIR_VADDR;
 
-    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
-    for (uint32_t i = 0; i < kernel_pd_count; i++) {
-        new_dir[i] = cur_pd[i];
-    }
-
-    for (int i = kernel_pd_count; i < PD_ENTRIES; i++) {
+    for (int i = 0; i < PD_ENTRIES; i++) {
         if (i == RECURSIVE_PD_INDEX) continue;
         if (!(cur_pd[i] & PAGE_PRESENT)) continue;
+
+        if (!(cur_pd[i] & PAGE_USER)) {
+            new_dir[i] = cur_pd[i];
+            continue;
+        }
 
         uint32_t* new_pt = (uint32_t*)PhysicalMemoryManager::alloc_frame();
         if (!new_pt) continue;
