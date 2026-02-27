@@ -193,6 +193,15 @@ stage2_entry:
     mov si, msg_ok
     call print
 
+    ; Включаем A20 Line (Fast A20) перед переходом в защищенный режим
+    in al, 0x92
+    test al, 2
+    jnz .a20_on
+    or al, 2
+    and al, 0xFE
+    out 0x92, al
+.a20_on:
+
     jmp 0x1000:0x0000
 
 .bad_magic:
