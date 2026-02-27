@@ -275,42 +275,136 @@ FILE* fopen(const char* filename, const char* mode) {
     if (fd == -1) return nullptr;
 
     FILE* f = (FILE*)malloc(sizeof(FILE));
-    if (!f) return nullptr;
+    if (!f) {
+        syscall(SYS_FCLOSE, fd);
+        return nullptr;
+    }
+
+    f->buffer = (char*)malloc(BUFSIZ);
+    if (!f->buffer) {
+        syscall(SYS_FCLOSE, fd);
+        free(f);
+        return nullptr;
+    }
 
     f->fd = (int)fd;
     f->mode = mode_flag;
     f->eof = 0;
     f->error = 0;
+    f->buffer_size = BUFSIZ;
+    f->buffer_pos = 0;
+    f->bytes_in_buf = 0;
     return f;
 }
 
+int fflush(FILE* stream) {
+    if (!stream) return EOF;
+    if (stream->mode == FMODE_WRITE && stream->buffer_pos > 0) {
+        long bytes = syscall(SYS_FWRITE, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_pos);
+        if (bytes <= 0) {
+            stream->error = 1;
+            return EOF;
+        }
+    }
+    stream->buffer_pos = 0;
+    stream->bytes_in_buf = 0;
+    return 0;
+}
+
 int fclose(FILE* stream) {
-    if (!stream) return -1;
-    long ret = syscall(SYS_FCLOSE, (long)stream->fd);
+    if (!stream) return EOF;
+    int ret = fflush(stream);
+    long closed = syscall(SYS_FCLOSE, (long)stream->fd);
+    if (stream->buffer) free(stream->buffer);
     free(stream);
-    return (int)ret;
+    return (ret == 0 && closed == 0) ? 0 : EOF;
+}
+
+int fgetc(FILE* stream) {
+    if (!stream || stream->eof || stream->error || stream->mode != FMODE_READ) return EOF;
+
+    if (stream->buffer_pos >= stream->bytes_in_buf) {
+        long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_size);
+        if (bytes <= 0) {
+            stream->eof = 1;
+            return EOF;
+        }
+        stream->bytes_in_buf = (size_t)bytes;
+        stream->buffer_pos = 0;
+    }
+
+    return (unsigned char)stream->buffer[stream->buffer_pos++];
+}
+
+int fputc(int c, FILE* stream) {
+    if (!stream || stream->error || stream->mode != FMODE_WRITE) return EOF;
+
+    if (stream->buffer_pos >= stream->buffer_size) {
+        if (fflush(stream) != 0) return EOF;
+    }
+
+    stream->buffer[stream->buffer_pos++] = (char)c;
+    return (unsigned char)c;
 }
 
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    if (!ptr || !stream || size == 0 || nmemb == 0 || stream->mode != FMODE_READ) return 0;
+    
     size_t total = size * nmemb;
-    long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)ptr, (long)total);
-    if (bytes <= 0) {
-        stream->eof = 1;
-        return 0;
+    size_t bytes_read = 0;
+    char* dest = (char*)ptr;
+
+    while (bytes_read < total) {
+        size_t available = stream->bytes_in_buf - stream->buffer_pos;
+        if (available > 0) {
+            size_t to_copy = total - bytes_read;
+            if (to_copy > available) to_copy = available;
+            
+            for (size_t i = 0; i < to_copy; i++) {
+                dest[bytes_read + i] = stream->buffer[stream->buffer_pos + i];
+            }
+            
+            bytes_read += to_copy;
+            stream->buffer_pos += to_copy;
+        } else {
+            long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_size);
+            if (bytes <= 0) {
+                stream->eof = 1;
+                break;
+            }
+            stream->bytes_in_buf = (size_t)bytes;
+            stream->buffer_pos = 0;
+        }
     }
-    return (size_t)bytes / size;
+
+    return bytes_read / size;
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    if (!ptr || !stream || size == 0 || nmemb == 0 || stream->mode != FMODE_WRITE) return 0;
+    
     size_t total = size * nmemb;
-    long bytes = syscall(SYS_FWRITE, (long)stream->fd, (long)ptr, (long)total);
-    if (bytes <= 0) {
-        stream->error = 1;
-        return 0;
+    size_t bytes_written = 0;
+    const char* src = (const char*)ptr;
+
+    while (bytes_written < total) {
+        size_t space = stream->buffer_size - stream->buffer_pos;
+        if (space > 0) {
+            size_t to_copy = total - bytes_written;
+            if (to_copy > space) to_copy = space;
+            
+            for (size_t i = 0; i < to_copy; i++) {
+                stream->buffer[stream->buffer_pos + i] = src[bytes_written + i];
+            }
+            
+            bytes_written += to_copy;
+            stream->buffer_pos += to_copy;
+        } else {
+            if (fflush(stream) != 0) break;
+        }
     }
-    return (size_t)bytes / size;
+
+    return bytes_written / size;
 }
 
 int feof(FILE* stream) {

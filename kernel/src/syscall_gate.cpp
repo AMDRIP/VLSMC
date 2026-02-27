@@ -396,15 +396,9 @@ static uint32_t sys_fopen(SyscallRegs* regs) {
 
     for (int i = 0; i < 11; i++) f.name[i] = ' ';
     f.name[11] = '\0';
-    int ni = 0;
-    int ei = 0;
-    bool in_ext = false;
-    for (int i = 0; name[i] && i < 12; i++) {
-        if (name[i] == '.') { in_ext = true; continue; }
-        char c = name[i];
-        if (c >= 'a' && c <= 'z') c -= 32;
-        if (!in_ext && ni < 8) f.name[ni++] = c;
-        else if (in_ext && ei < 3) f.name[8 + ei++] = c;
+    for (int i = 0; i < 11; i++) {
+        if (!name[i]) break;
+        f.name[i] = name[i];
     }
 
     if (mode == FMODE_READ) {

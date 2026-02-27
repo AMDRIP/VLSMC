@@ -16,11 +16,17 @@ int printf(const char* format, ...);
 int getchar(void);
 char* gets_s(char* buffer, size_t size);
 
+#define BUFSIZ 4096
+
 typedef struct {
     int fd;
     int mode;
     int eof;
     int error;
+    char* buffer;
+    size_t buffer_size;
+    size_t buffer_pos;
+    size_t bytes_in_buf;
 } FILE;
 
 #define SEEK_SET 0
@@ -32,8 +38,11 @@ typedef struct {
 
 FILE* fopen(const char* filename, const char* mode);
 int fclose(FILE* stream);
+int fflush(FILE* stream);
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream);
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream);
+int fgetc(FILE* stream);
+int fputc(int c, FILE* stream);
 int feof(FILE* stream);
 int ferror(FILE* stream);
 

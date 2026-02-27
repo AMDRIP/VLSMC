@@ -145,6 +145,10 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_forktest.o user_libc.a -o FORKTST.ELF
 mcopy -i data.img FORKTST.ELF ::/FORKTST.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/fileio.cpp -o user_fileio.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fileio.o user_libc.a -o FILEIO.ELF
+mcopy -i data.img FILEIO.ELF ::/FILEIO.ELF
+
 echo "=== Building ISO Image ==="
 mkdir -p iso_root
 cp disk.img iso_root/
