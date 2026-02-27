@@ -21,7 +21,7 @@ void print_hex(unsigned int val) {
 
 void check(bool condition, const char* msg) {
     if (!condition) {
-        print("[СБОЙ] ");
+        print("[FAIL] ");
         print(msg);
         print("\n");
         syscall(SYS_EXIT, 1, 0);
@@ -29,64 +29,64 @@ void check(bool condition, const char* msg) {
 }
 
 int main() {
-    print("=== ТЕСТИРОВАНИЕ ПАМЯТИ ===\n");
+    print("=== MEMORY TESTING ===\n");
 
     char buf1[32];
     char buf2[32];
 
-    print("1. TECT MEMSET...\n");
+    print("1. MEMSET TEST...\n");
     memset(buf1, 0xAA, 32);
     for (int i = 0; i < 32; i++) {
-        check((unsigned char)buf1[i] == 0xAA, "MEMSET НЕ УСТАНОВИЛ ЗНАЧЕНИЕ");
+        check((unsigned char)buf1[i] == 0xAA, "MEMSET FAILED TO SET VALUE");
     }
     memset(buf1, 0x00, 32);
-    check(buf1[0] == 0 && buf1[31] == 0, "MEMSET НЕ ОЧИСТИЛ БУФЕР");
-    print("   [УСПЕХ]\n");
+    check(buf1[0] == 0 && buf1[31] == 0, "MEMSET FAILED TO CLEAR BUFFER");
+    print("   [SUCCESS]\n");
 
-    print("2. TECT MEMCPY...\n");
+    print("2. MEMCPY TEST...\n");
     for (int i = 0; i < 32; i++) buf1[i] = i;
     memset(buf2, 0, 32);
     memcpy(buf2, buf1, 32);
     for (int i = 0; i < 32; i++) {
-        check(buf2[i] == i, "MEMCPY СКОПИРОВАЛ НЕВЕРНО");
+        check(buf2[i] == i, "MEMCPY COPIED INCORRECTLY");
     }
-    print("   [УСПЕХ]\n");
+    print("   [SUCCESS]\n");
 
-    print("3. TECT MEMCMP...\n");
-    check(memcmp(buf1, buf2, 32) == 0, "MEMCMP НЕВЕРНО СРАВНИЛ ИДЕНТИЧНЫЕ БУФЕРЫ");
+    print("3. MEMCMP TEST...\n");
+    check(memcmp(buf1, buf2, 32) == 0, "MEMCMP FAILED TO COMPARE IDENTICAL BUFFERS");
     buf2[15] = 99;
-    check(memcmp(buf1, buf2, 32) != 0, "MEMCMP НЕ НАШЕЛ РАЗЛИЧИЕ В СЕРЕДИНЕ");
+    check(memcmp(buf1, buf2, 32) != 0, "MEMCMP FAILED TO FIND DIFFERENCE IN MIDDLE");
     buf2[15] = buf1[15];
     buf2[31] = 99;
-    check(memcmp(buf1, buf2, 32) != 0, "MEMCMP НЕ НАШЕЛ РАЗЛИЧИЕ В КОНЦЕ");
-    print("   [УСПЕХ]\n");
+    check(memcmp(buf1, buf2, 32) != 0, "MEMCMP FAILED TO FIND DIFFERENCE AT END");
+    print("   [SUCCESS]\n");
 
-    print("4. TECT MEMMOVE (НЕПЕРЕСЕКАЮЩИЕСЯ)...\n");
+    print("4. MEMMOVE TEST (NON-OVERLAPPING)...\n");
     char move_buf[64];
     for (int i = 0; i < 32; i++) move_buf[i] = i;
     for (int i = 32; i < 64; i++) move_buf[i] = 0;
     memmove(move_buf + 32, move_buf, 32);
     for (int i = 0; i < 32; i++) {
-        check(move_buf[i + 32] == i, "MEMMOVE ОШИБКА ОБЫЧНОГО КОПИРОВАНИЯ");
+        check(move_buf[i + 32] == i, "MEMMOVE NORMAL COPY ERROR");
     }
-    print("   [УСПЕХ]\n");
+    print("   [SUCCESS]\n");
 
-    print("5. TECT MEMMOVE (ВПЕРЕД - ПЕРЕСЕЧЕНИЕ)...\n");
+    print("5. MEMMOVE TEST (FORWARD - OVERLAPPING)...\n");
     for (int i = 0; i < 64; i++) move_buf[i] = i;
     memmove(move_buf + 10, move_buf, 32);
     for (int i = 0; i < 32; i++) {
-        check(move_buf[i + 10] == i, "MEMMOVE ОШИБКА ПЕРЕСЕЧЕНИЯ ВПЕРЕД DEST>SRC");
+        check(move_buf[i + 10] == i, "MEMMOVE FORWARD OVERLAP ERROR DEST>SRC");
     }
-    print("   [УСПЕХ]\n");
+    print("   [SUCCESS]\n");
 
-    print("6. TECT MEMMOVE (НАЗАД - ПЕРЕСЕЧЕНИЕ)...\n");
+    print("6. MEMMOVE TEST (BACKWARD - OVERLAPPING)...\n");
     for (int i = 0; i < 64; i++) move_buf[i] = i;
     memmove(move_buf, move_buf + 10, 32);
     for (int i = 0; i < 32; i++) {
-        check(move_buf[i] == i + 10, "MEMMOVE ОШИБКА ПЕРЕСЕЧЕНИЯ НАЗАД DEST<SRC");
+        check(move_buf[i] == i + 10, "MEMMOVE BACKWARD OVERLAP ERROR DEST<SRC");
     }
-    print("   [УСПЕХ]\n");
+    print("   [SUCCESS]\n");
 
-    print("=== ВСЕ ТЕСТЫ ПРОЙДЕНЫ ===\n");
+    print("=== ALL TESTS PASSED ===\n");
     return 0;
 }

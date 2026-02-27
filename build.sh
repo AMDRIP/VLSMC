@@ -109,6 +109,10 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_syscall_test.o user_libc.a -o SYSCALLT.ELF
 mcopy -i data.img SYSCALLT.ELF ::/SYSCALLT.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/memtest.cpp -o user_memtest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_memtest.o user_libc.a -o MEMTEST.ELF
+mcopy -i data.img MEMTEST.ELF ::/MEMTEST.ELF
+
 echo ""
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"
