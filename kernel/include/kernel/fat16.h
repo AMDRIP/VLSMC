@@ -75,6 +75,7 @@ private:
     
     static uint8_t sector_cache_[FAT16_SECTOR_BUF_SIZE];
     static uint32_t cached_sector_;
+    static uint8_t* dma_buffer_;
     
     static bool read_cached_sector(uint32_t lba);
     static uint32_t cluster_to_lba(uint16_t cluster);
