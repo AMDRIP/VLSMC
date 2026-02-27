@@ -5,6 +5,18 @@
 
 namespace re36 {
 
+struct ForkChildState {
+    uint32_t eip;
+    uint32_t useresp;
+    uint32_t eflags;
+    uint32_t ebx;
+    uint32_t ecx;
+    uint32_t edx;
+    uint32_t esi;
+    uint32_t edi;
+    uint32_t ebp;
+};
+
 #define MAX_THREADS 32
 #define THREAD_STACK_SIZE 4096
 
@@ -69,6 +81,8 @@ struct Thread {
 
     int parent_tid;
     int exit_code;
+
+    ForkChildState fork_state;
 };
 
 extern Thread threads[MAX_THREADS];

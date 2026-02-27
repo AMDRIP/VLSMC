@@ -516,37 +516,33 @@ static uint32_t sys_fsize(SyscallRegs* regs) {
     if (fd < 0 || fd >= MAX_OPEN_FILES || !open_files[fd].in_use) return (uint32_t)-1;
     return open_files[fd].size;
 }
-struct ForkChildInfo {
-    uint32_t user_eip;
-    uint32_t user_esp;
-    uint32_t user_eflags;
-};
-
-static ForkChildInfo fork_child_info;
-
 static void fork_child_entry() {
-    uint32_t eip = fork_child_info.user_eip;
-    uint32_t esp = fork_child_info.user_esp;
-    uint32_t eflags = fork_child_info.user_eflags | 0x200;
-
     TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));
+
+    ForkChildState* r = &threads[current_tid].fork_state;
 
     asm volatile(
         "cli\n\t"
-        "mov $0x23, %%ax\n\t"
-        "mov %%ax, %%ds\n\t"
-        "mov %%ax, %%es\n\t"
-        "mov %%ax, %%fs\n\t"
-        "mov %%ax, %%gs\n\t"
+        "mov $0x23, %%cx\n\t"
+        "mov %%cx, %%ds\n\t"
+        "mov %%cx, %%es\n\t"
+        "mov %%cx, %%fs\n\t"
+        "mov %%cx, %%gs\n\t"
         "push $0x23\n\t"
-        "push %%ecx\n\t"
-        "push %%ebx\n\t"
+        "push 4(%%eax)\n\t"
+        "push 8(%%eax)\n\t"
         "push $0x1B\n\t"
-        "push %%edx\n\t"
+        "push 0(%%eax)\n\t"
+        "mov 12(%%eax), %%ebx\n\t"
+        "mov 20(%%eax), %%edx\n\t"
+        "mov 24(%%eax), %%esi\n\t"
+        "mov 28(%%eax), %%edi\n\t"
+        "mov 32(%%eax), %%ebp\n\t"
+        "mov 16(%%eax), %%ecx\n\t"
         "xor %%eax, %%eax\n\t"
         "iret\n\t"
-        :: "c"(esp), "d"(eip), "b"(eflags)
-        : "eax", "memory"
+        :: "a"(r)
+        : "memory"
     );
 }
 
@@ -555,10 +551,6 @@ static uint32_t sys_fork(SyscallRegs* regs) {
     InterruptGuard guard;
 
     if (!g_current_isr_regs) return (uint32_t)-1;
-
-    fork_child_info.user_eip = g_current_isr_regs->eip;
-    fork_child_info.user_esp = g_current_isr_regs->useresp;
-    fork_child_info.user_eflags = g_current_isr_regs->eflags;
 
     int child_tid = -1;
     for (int i = 1; i < MAX_THREADS; i++) {
@@ -573,6 +565,16 @@ static uint32_t sys_fork(SyscallRegs* regs) {
     Thread& child = threads[child_tid];
 
     for (int j = 0; j < 32; j++) child.name[j] = parent.name[j];
+
+    child.fork_state.eip = g_current_isr_regs->eip;
+    child.fork_state.useresp = g_current_isr_regs->useresp;
+    child.fork_state.eflags = g_current_isr_regs->eflags | 0x200;
+    child.fork_state.ebx = g_current_isr_regs->ebx;
+    child.fork_state.ecx = g_current_isr_regs->ecx;
+    child.fork_state.edx = g_current_isr_regs->edx;
+    child.fork_state.esi = g_current_isr_regs->esi;
+    child.fork_state.edi = g_current_isr_regs->edi;
+    child.fork_state.ebp = g_current_isr_regs->ebp;
 
     child.tid = child_tid;
     child.state = ThreadState::Ready;
