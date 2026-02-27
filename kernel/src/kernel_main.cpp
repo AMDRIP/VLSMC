@@ -21,7 +21,13 @@
 #include "kernel/shell.h"
 #include "kernel/selftest.h"
 #include "kernel/pci.h"
+#include "kernel/ahci.h"
+#include "kernel/disk.h"
 #include "kernel/memory_validator.h"
+#include "kernel/mouse.h"
+#include "kernel/bga.h"
+#include "kernel/ata.h"
+#include "kernel/fat16.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -60,6 +66,7 @@ extern "C" void kernel_main() {
     dbg[4] = 0x4F35; // '5' — Keyboard
 
     re36::KeyboardDriver::init();
+    re36::MouseDriver::init();
     dbg[5] = 0x4F36; // '6' — VMM
 
     re36::VMM::init();
@@ -83,9 +90,7 @@ extern "C" void kernel_main() {
     re36::syscall_gate_init();
     dbg[11] = 0x4F43; // 'C' — ATA/FS
 
-    if (re36::ATA::init()) {
-        re36::Fat16::init();
-    }
+    // Disk initialization happens later now
 
     re36::RTC::init(false);
     dbg[12] = 0x4F44; // 'D' — STI
@@ -105,26 +110,39 @@ extern "C" void kernel_main() {
     printf("-> PMM Initialized (32 MB RAM)\n");
     printf("-> Heap Initialized\n");
     printf("-> Keyboard Driver (Ring 0) Loaded via IRQ1\n");
+    printf("-> PS/2 Mouse Driver (Ring 0) Loaded via IRQ12\n");
     printf("-> PIT Timer Initialized (100 Hz)\n");
     printf("-> Task Scheduler Initialized (Priority RR)\n");
     printf("-> Event Channel System Ready\n");
-    printf("-> VMM Paging Enabled (Kernel Supervisor-only)\n");
-    printf("-> TSS Loaded (Ring 3 Ready)\n");
-    printf("-> Syscall Gate (int 0x80) Registered\n");
-    if (re36::ATA::is_present()) {
-        printf("-> ATA Primary Master Detected\n");
+    printf("-> ATA Disk Controller Ready\n");
+    
+    re36::ATA::init();
+    re36::PCI::scan_bus();
+    re36::AHCIDriver::init();
+    
+    // Initialize Video Mode (1024x768x32)
+    re36::BgaDriver::init(1024, 768, 32);
+
+    // Mount the disk via unified Disk interface
+    if (re36::Disk::is_present() && re36::Fat16::init()) {
+        printf("-> FAT16 Initialized (data.img mounted)\n");
+    } else {
+        printf("-> FAT16 Mount Failed!\n");
+    }
+
+    printf("======================================\n");
+    if (re36::Disk::is_present()) {
+        printf("-> Primary Disk Detected (%s)\n", re36::AHCIDriver::is_present() ? "AHCI" : "ATA IDE");
         if (re36::Fat16::is_mounted())
             printf("-> FAT16 Filesystem Mounted\n");
     } else {
         set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        printf("-> ATA: No IDE disk detected\n");
+        printf("-> No disk detected (ATA nor AHCI)\n");
         set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     }
     printf("-> Interrupts Enabled (STI)\n\n");
     
     set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-
-    re36::PCI::scan_bus();
 
     re36::thread_create("idle", idle_thread, 255);
     re36::thread_create("shell", shell_thread, 1);

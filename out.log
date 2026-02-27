@@ -1,0 +1,44 @@
+=== VLSMC Bare-Metal Build Script ===
+[1/5] Assembling bootloader (Stage 1 + Stage 2)...
+[2/5] Assembling kernel entry and interrupts...
+[3/5] Compiling C++ kernel sources...
+kernel/src/fat16.cpp: In static member function ‘static bool re36::Fat16::init()’:
+kernel/src/fat16.cpp:79:16: warning: unused variable ‘bpb’ [-Wunused-variable]
+   79 |     FAT16_BPB* bpb = (FAT16_BPB*)boot_sector;
+      |                ^~~
+kernel/src/fat16.cpp: In static member function ‘static int re36::Fat16::read_file(const char*, uint8_t*, uint32_t)’:
+kernel/src/fat16.cpp:206:14: warning: unused variable ‘cluster_size’ [-Wunused-variable]
+  206 |     uint32_t cluster_size = bpb_.sectors_per_cluster * 512;
+      |              ^~~~~~~~~~~~
+kernel/src/fat16.cpp: In static member function ‘static bool re36::Fat16::write_file(const char*, const uint8_t*, uint32_t)’:
+kernel/src/fat16.cpp:409:14: warning: unused variable ‘cluster_size’ [-Wunused-variable]
+  409 |     uint32_t cluster_size = bpb_.sectors_per_cluster * 512;
+      |              ^~~~~~~~~~~~
+kernel/src/elf_loader.cpp: In function ‘void re36::elf_thread_entry()’:
+kernel/src/elf_loader.cpp:40:15: warning: comparison of integer expressions of different signedness: ‘int’ and ‘unsigned int’ [-Wsign-compare]
+   40 |     if (bytes < sizeof(Elf32_Ehdr)) {
+      |         ~~~~~~^~~~~~~~~~~~~~~~~~~~
+kernel/src/shell.cpp: In function ‘void re36::exec_command(const char*)’:
+kernel/src/shell.cpp:133:34: error: ‘static bool re36::MemoryValidator::test_pmm()’ is private within this context
+  133 |         MemoryValidator::test_pmm();
+      |         ~~~~~~~~~~~~~~~~~~~~~~~~~^~
+In file included from kernel/src/shell.cpp:20:
+kernel/include/kernel/memory_validator.h:15:17: note: declared private here
+   15 |     static bool test_pmm();
+      |                 ^~~~~~~~
+kernel/src/shell.cpp:135:34: error: ‘static bool re36::MemoryValidator::test_vmm()’ is private within this context
+  135 |         MemoryValidator::test_vmm();
+      |         ~~~~~~~~~~~~~~~~~~~~~~~~~^~
+kernel/include/kernel/memory_validator.h:16:17: note: declared private here
+   16 |     static bool test_vmm();
+      |                 ^~~~~~~~
+kernel/src/shell.cpp:153:14: error: ‘BgaDriver’ has not been declared
+  153 |         if (!BgaDriver::is_initialized()) {
+      |              ^~~~~~~~~
+kernel/src/shell.cpp:155:13: error: ‘BgaDriver’ has not been declared
+  155 |             BgaDriver::init(1024, 768, 32);
+      |             ^~~~~~~~~
+kernel/src/shell.cpp: At global scope:
+kernel/src/shell.cpp:27:12: warning: ‘re36::cursor_x’ defined but not used [-Wunused-variable]
+   27 | static int cursor_x = 0;
+      |            ^~~~~~~~

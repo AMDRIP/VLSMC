@@ -8,7 +8,6 @@
 
 namespace re36 {
 
-uint32_t* VMM::current_directory_ = nullptr;
 uint32_t VMM::current_directory_phys_ = 0;
 uint32_t VMM::kernel_directory_phys_ = 0;
 
@@ -29,7 +28,7 @@ static inline uint32_t read_cr3() {
 static inline void enable_paging() {
     uint32_t cr0;
     asm volatile("mov %%cr0, %0" : "=r"(cr0));
-    cr0 |= 0x80000000; // Бит PG (Paging Enable)
+    cr0 |= 0x80000000;
     asm volatile("mov %0, %%cr0" :: "r"(cr0) : "memory");
 }
 
@@ -39,13 +38,22 @@ static inline uint32_t read_cr2() {
     return val;
 }
 
+static inline uint32_t* get_pde_ptr(uint32_t pd_index) {
+    return &((uint32_t*)PAGE_DIR_VADDR)[pd_index];
+}
+
+static inline uint32_t* get_pte_ptr(uint32_t virt) {
+    uint32_t index = virt >> 12;
+    return &((uint32_t*)PAGE_TABLES_VADDR)[index];
+}
+
 void VMM::init() {
     uint32_t* page_dir = (uint32_t*)PhysicalMemoryManager::alloc_frame();
     if (!page_dir) {
         printf("FATAL: VMM cannot allocate Page Directory!\n");
         while(1) asm volatile("hlt");
     }
-    
+
     for (int i = 0; i < PD_ENTRIES; i++) {
         page_dir[i] = 0;
     }
@@ -70,7 +78,8 @@ void VMM::init() {
         pt[pt_index] = addr | PAGE_PRESENT | PAGE_WRITABLE;
     }
 
-    current_directory_ = page_dir;
+    page_dir[RECURSIVE_PD_INDEX] = (uint32_t)page_dir | PAGE_PRESENT | PAGE_WRITABLE;
+
     current_directory_phys_ = (uint32_t)page_dir;
     kernel_directory_phys_ = current_directory_phys_;
 
@@ -80,51 +89,58 @@ void VMM::init() {
 
 void VMM::map_page(uint32_t virt, uint32_t phys, uint32_t flags) {
     InterruptGuard guard;
-    
-    uint32_t pd_index = virt >> 22;
-    uint32_t pt_index = (virt >> 12) & 0x3FF;
 
-    if (!(current_directory_[pd_index] & PAGE_PRESENT)) {
+    uint32_t pd_index = virt >> 22;
+    uint32_t* pde = get_pde_ptr(pd_index);
+
+    if (!(*pde & PAGE_PRESENT)) {
         uint32_t* new_table = (uint32_t*)PhysicalMemoryManager::alloc_frame();
         if (!new_table) return;
-        for (int i = 0; i < PT_ENTRIES; i++) {
-            new_table[i] = 0;
-        }
+
         uint32_t pd_flags = PAGE_PRESENT | PAGE_WRITABLE;
         if (flags & PAGE_USER) pd_flags |= PAGE_USER;
-        current_directory_[pd_index] = (uint32_t)new_table | pd_flags;
+        *pde = (uint32_t)new_table | pd_flags;
+
+        invlpg((uint32_t)get_pte_ptr(pd_index << 22));
+
+        uint32_t* pt_base = get_pte_ptr(pd_index << 22);
+        for (int i = 0; i < PT_ENTRIES; i++) {
+            pt_base[i] = 0;
+        }
+    } else if ((flags & PAGE_USER) && !(*pde & PAGE_USER)) {
+        *pde |= PAGE_USER;
     }
 
-    uint32_t* pt = (uint32_t*)(current_directory_[pd_index] & 0xFFFFF000);
-    pt[pt_index] = (phys & 0xFFFFF000) | (flags & 0xFFF) | PAGE_PRESENT;
+    uint32_t* pte = get_pte_ptr(virt);
+    *pte = (phys & 0xFFFFF000) | (flags & 0xFFF) | PAGE_PRESENT;
 
     invlpg(virt);
 }
 
 void VMM::unmap_page(uint32_t virt) {
     InterruptGuard guard;
-    
+
     uint32_t pd_index = virt >> 22;
-    uint32_t pt_index = (virt >> 12) & 0x3FF;
+    uint32_t* pde = get_pde_ptr(pd_index);
 
-    if (!(current_directory_[pd_index] & PAGE_PRESENT)) return;
+    if (!(*pde & PAGE_PRESENT)) return;
 
-    uint32_t* pt = (uint32_t*)(current_directory_[pd_index] & 0xFFFFF000);
-    pt[pt_index] = 0;
+    uint32_t* pte = get_pte_ptr(virt);
+    *pte = 0;
 
     invlpg(virt);
 }
 
 uint32_t VMM::get_physical(uint32_t virt) {
     uint32_t pd_index = virt >> 22;
-    uint32_t pt_index = (virt >> 12) & 0x3FF;
+    uint32_t* pde = get_pde_ptr(pd_index);
 
-    if (!(current_directory_[pd_index] & PAGE_PRESENT)) return 0;
+    if (!(*pde & PAGE_PRESENT)) return 0;
 
-    uint32_t* pt = (uint32_t*)(current_directory_[pd_index] & 0xFFFFF000);
-    if (!(pt[pt_index] & PAGE_PRESENT)) return 0;
+    uint32_t* pte = get_pte_ptr(virt);
+    if (!(*pte & PAGE_PRESENT)) return 0;
 
-    return (pt[pt_index] & 0xFFFFF000) | (virt & 0xFFF);
+    return (*pte & 0xFFFFF000) | (virt & 0xFFF);
 }
 
 void VMM::invalidate_page(uint32_t virt) {
@@ -137,7 +153,7 @@ void VMM::flush_tlb() {
 
 uint32_t* VMM::create_address_space() {
     InterruptGuard guard;
-    
+
     uint32_t* new_dir = (uint32_t*)PhysicalMemoryManager::alloc_frame();
     if (!new_dir) return nullptr;
 
@@ -145,49 +161,53 @@ uint32_t* VMM::create_address_space() {
         new_dir[i] = 0;
     }
 
-    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
-    for (uint32_t i = 0; i < kernel_pd_count; i++) {
-        new_dir[i] = current_directory_[i];
+    uint32_t* cur_pd = (uint32_t*)PAGE_DIR_VADDR;
+    for (uint32_t i = 0; i < PD_ENTRIES; i++) {
+        if (i == RECURSIVE_PD_INDEX) continue;
+        if ((cur_pd[i] & PAGE_PRESENT) && !(cur_pd[i] & PAGE_USER)) {
+            new_dir[i] = cur_pd[i];
+        }
     }
+
+    new_dir[RECURSIVE_PD_INDEX] = (uint32_t)new_dir | PAGE_PRESENT | PAGE_WRITABLE;
 
     return new_dir;
 }
 
 void VMM::destroy_address_space(uint32_t* page_dir_phys) {
     if (!page_dir_phys) return;
-    if (page_dir_phys == (uint32_t*)kernel_directory_phys_) return; // Нельзя удалять ядро
+    if (page_dir_phys == (uint32_t*)kernel_directory_phys_) return;
 
     InterruptGuard guard;
 
-    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
-    for (int i = kernel_pd_count; i < PD_ENTRIES; i++) {
+    for (int i = 0; i < PD_ENTRIES; i++) {
+        if (i == RECURSIVE_PD_INDEX) continue;
         if (!(page_dir_phys[i] & PAGE_PRESENT)) continue;
+        if (!(page_dir_phys[i] & PAGE_USER)) continue;
 
         uint32_t* pt = (uint32_t*)(page_dir_phys[i] & 0xFFFFF000);
         for (int j = 0; j < PT_ENTRIES; j++) {
             if (pt[j] & PAGE_PRESENT) {
-                // Если фрейм не COW (copy-on-write), мы владеем им и можем освободить
                 if (!(pt[j] & PAGE_COW)) {
                     uint32_t phys_frame = pt[j] & 0xFFFFF000;
                     PhysicalMemoryManager::free_frame((void*)phys_frame);
                 }
             }
         }
-        PhysicalMemoryManager::free_frame((void*)pt); // Удаляем саму PT
+        PhysicalMemoryManager::free_frame((void*)pt);
     }
 
-    PhysicalMemoryManager::free_frame((void*)page_dir_phys); // Удаляем сам PD
+    PhysicalMemoryManager::free_frame((void*)page_dir_phys);
 }
 
 void VMM::switch_address_space(uint32_t* page_dir_phys) {
-    current_directory_ = page_dir_phys;
     current_directory_phys_ = (uint32_t)page_dir_phys;
     load_cr3(current_directory_phys_);
 }
 
 uint32_t* VMM::clone_directory() {
     InterruptGuard guard;
-    
+
     uint32_t* new_dir = (uint32_t*)PhysicalMemoryManager::alloc_frame();
     if (!new_dir) return nullptr;
 
@@ -195,30 +215,33 @@ uint32_t* VMM::clone_directory() {
         new_dir[i] = 0;
     }
 
-    uint32_t kernel_pd_count = KERNEL_SPACE_END >> 22;
-    for (uint32_t i = 0; i < kernel_pd_count; i++) {
-        new_dir[i] = current_directory_[i];
-    }
+    uint32_t* cur_pd = (uint32_t*)PAGE_DIR_VADDR;
 
-    for (int i = kernel_pd_count; i < PD_ENTRIES; i++) {
-        if (!(current_directory_[i] & PAGE_PRESENT)) continue;
+    for (int i = 0; i < PD_ENTRIES; i++) {
+        if (i == RECURSIVE_PD_INDEX) continue;
+        if (!(cur_pd[i] & PAGE_PRESENT)) continue;
 
-        uint32_t* src_pt = (uint32_t*)(current_directory_[i] & 0xFFFFF000);
+        if (!(cur_pd[i] & PAGE_USER)) {
+            new_dir[i] = cur_pd[i];
+            continue;
+        }
 
         uint32_t* new_pt = (uint32_t*)PhysicalMemoryManager::alloc_frame();
         if (!new_pt) continue;
 
         for (int j = 0; j < PT_ENTRIES; j++) {
-            if (!(src_pt[j] & PAGE_PRESENT)) {
+            uint32_t* src_pte = get_pte_ptr((i << 22) | (j << 12));
+
+            if (!(*src_pte & PAGE_PRESENT)) {
                 new_pt[j] = 0;
                 continue;
             }
 
-            new_pt[j] = (src_pt[j] & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
+            new_pt[j] = (*src_pte & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
             new_pt[j] &= ~PAGE_WRITABLE;
 
-            src_pt[j] = (src_pt[j] & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
-            src_pt[j] &= ~PAGE_WRITABLE;
+            *src_pte = (*src_pte & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
+            *src_pte &= ~PAGE_WRITABLE;
 
             uint32_t virt_addr = (i << 22) | (j << 12);
             invlpg(virt_addr);
@@ -226,6 +249,8 @@ uint32_t* VMM::clone_directory() {
 
         new_dir[i] = (uint32_t)new_pt | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     }
+
+    new_dir[RECURSIVE_PD_INDEX] = (uint32_t)new_dir | PAGE_PRESENT | PAGE_WRITABLE;
 
     return new_dir;
 }
@@ -239,12 +264,13 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
     bool is_user    = (error_code & 0x4) != 0;
 
     if (is_present && is_write) {
-        if (current_directory_[pd_index] & PAGE_PRESENT) {
-            uint32_t* pt = (uint32_t*)(current_directory_[pd_index] & 0xFFFFF000);
-            uint32_t pte = pt[pt_index];
+        uint32_t* pde = get_pde_ptr(pd_index);
+        if (*pde & PAGE_PRESENT) {
+            uint32_t* pte = get_pte_ptr(fault_addr);
+            uint32_t pte_val = *pte;
 
-            if (pte & PAGE_COW) {
-                uint32_t old_phys = pte & 0xFFFFF000;
+            if (pte_val & PAGE_COW) {
+                uint32_t old_phys = pte_val & 0xFFFFF000;
 
                 void* new_frame = PhysicalMemoryManager::alloc_frame();
                 if (!new_frame) {
@@ -258,38 +284,36 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                     dst[i] = src[i];
                 }
 
-                pt[pt_index] = (uint32_t)new_frame | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-                pt[pt_index] &= ~PAGE_COW;
+                *pte = (uint32_t)new_frame | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
+                *pte &= ~PAGE_COW;
 
                 invlpg(fault_addr & 0xFFFFF000);
                 return true;
             }
         }
     } else if (!is_present && is_user) {
-        // Ленивое выделение памяти (Lazy Allocation) для кучи
         if (current_tid >= 0 && current_tid < MAX_THREADS) {
             Thread& cur = threads[current_tid];
-            
+
             while (__atomic_test_and_set(&cur.heap_lock, __ATOMIC_ACQUIRE)) {
                 asm volatile("pause");
             }
             uint32_t start = cur.heap_start;
             uint32_t end   = cur.heap_end;
             __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
-            
+
             if (fault_addr >= start && fault_addr < end) {
                 void* new_frame = PhysicalMemoryManager::alloc_frame();
                 if (!new_frame) {
                     printf("\n!!! PAGE FAULT: Out of memory for heap at 0x%x !!!\n", fault_addr);
                     while(1) asm volatile("cli; hlt");
                 }
-                
+
                 uint32_t page_addr = fault_addr & 0xFFFFF000;
                 VMM::map_page(page_addr, (uint32_t)new_frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
-                return true; // Страница выделена, возвращаемся к выполнению юзер-кода
+                return true;
             }
 
-            // Demand Paging для ELF (проверка VMA)
             VMA* curr_vma = cur.vma_list;
             while (curr_vma) {
                 if (fault_addr >= curr_vma->start && fault_addr < curr_vma->end) {
@@ -303,20 +327,17 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                     uint8_t* frame_ptr = (uint8_t*)new_frame;
                     for (int b = 0; b < 4096; b++) frame_ptr[b] = 0;
 
-                    // Если страница пересекается с данными из файла ELF
                     uint32_t file_data_end = curr_vma->start + curr_vma->file_size;
 
                     if (page_addr < file_data_end) {
                         uint32_t offset_in_vma = page_addr - curr_vma->start;
                         uint32_t file_offset = curr_vma->file_offset + offset_in_vma;
-                        
+
                         uint32_t read_size = 4096;
                         if (page_addr + 4096 > file_data_end) {
                             read_size = file_data_end - page_addr;
                         }
 
-                        // Временно маппим фрейм в ядро, чтобы загрузить данные (или пишем по физ. адресу, т.к. identity map)
-                        // identity mapping 1:1, значит new_frame - валидный указатель!
                         if (read_size > 0) {
                             Fat16::read_file_offset(cur.name, file_offset, frame_ptr, read_size);
                         }
@@ -334,7 +355,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
 }
 
 uint32_t* VMM::get_current_directory() {
-    return current_directory_;
+    return (uint32_t*)PAGE_DIR_VADDR;
 }
 
 } // namespace re36

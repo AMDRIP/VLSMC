@@ -42,12 +42,16 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/vga.cpp -o vga.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/selftest.cpp -o selftest.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/pci.cpp -o pci.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/memory_validator.cpp -o memory_validator.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/mouse.cpp -o mouse.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/bga.cpp -o bga.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/ahci.cpp -o ahci.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/disk.cpp -o disk.o
 
 echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o tss.o syscall_gate.o usermode.o ata.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o \
     shell.o shell_history.o shell_autocomplete.o shell_redirect.o vga.o selftest.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
@@ -73,28 +77,69 @@ echo "Hello from FAT16 filesystem!" | mcopy -i data.img - ::/HELLO.TXT
 echo "This is a test file for the RE36 OS." | mcopy -i data.img - ::/TEST.TXT
 echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
 
+echo "=== Building Libc ==="
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/syscall.cpp -o user_libc_syscall.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/errno.cpp -o user_libc_errno.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/string.cpp -o user_libc_string.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/malloc.cpp -o user_libc_malloc.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdio.cpp -o user_libc_stdio.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdlib.cpp -o user_libc_stdlib.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/math.cpp -o user_libc_math.o
+x86_64-linux-gnu-ar rcs user_libc.a user_libc_syscall.o user_libc_errno.o user_libc_string.o user_libc_malloc.o user_libc_stdio.o user_libc_stdlib.o user_libc_math.o
+
 echo "=== Building User Programs ==="
 nasm -f elf32 user/crt0.asm -o user_crt0.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/hello.cpp -o user_hello.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/hello.cpp -o user_hello.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_hello.o -o HELLO.ELF
 mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/vesa_test.cpp -o user_vesa_test.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/vesa_test.cpp -o user_vesa_test.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_vesa_test.o -o VESATEST.ELF
 mcopy -i data.img VESATEST.ELF ::/VESATEST.ELF
 
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/fs_driver.cpp -o user_fs_driver.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/fs_driver.cpp -o user_fs_driver.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fs_driver.o -o FSDRIVER.ELF
 mcopy -i data.img FSDRIVER.ELF ::/FSDRIVER.ELF
 
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/cat_test.cpp -o user_cat_test.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/cat_test.cpp -o user_cat_test.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_cat_test.o -o CAT_TEST.ELF
 mcopy -i data.img CAT_TEST.ELF ::/CAT_TEST.ELF
 
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -c user/stack_bomb.cpp -o user_stack_bomb.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/stack_bomb.cpp -o user_stack_bomb.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stack_bomb.o -o STACKBM.ELF
 mcopy -i data.img STACKBM.ELF ::/STACKBM.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/syscall_test.cpp -o user_syscall_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_syscall_test.o user_libc.a -o SYSCALLT.ELF
+mcopy -i data.img SYSCALLT.ELF ::/SYSCALLT.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/memtest.cpp -o user_memtest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_memtest.o user_libc.a -o MEMTEST.ELF
+mcopy -i data.img MEMTEST.ELF ::/MEMTEST.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/malloctest.cpp -o user_malloctest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_malloctest.o user_libc.a -o MALLOCT.ELF
+mcopy -i data.img MALLOCT.ELF ::/MALLOCT.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/strtest.cpp -o user_strtest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_strtest.o user_libc.a -o STRTEST.ELF
+mcopy -i data.img STRTEST.ELF ::/STRTEST.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/stdio_test.cpp -o user_stdio_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stdio_test.o user_libc.a -o STDIOTST.ELF
+mcopy -i data.img STDIOTST.ELF ::/STDIOTST.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/stdlib_test.cpp -o user_stdlib_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stdlib_test.o user_libc.a -o STDLIBT.ELF
+mcopy -i data.img STDLIBT.ELF ::/STDLIBT.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -fno-builtin -Iuser/libc/include -c user/mathtest.cpp -o user_mathtest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_mathtest.o user_libc.a -o MATHTEST.ELF
+mcopy -i data.img MATHTEST.ELF ::/MATHTEST.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/filetest.cpp -o user_filetest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_filetest.o user_libc.a -o FILETST.ELF
+mcopy -i data.img FILETST.ELF ::/FILETST.ELF
 echo ""
 echo "DONE! To run:"
 echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"

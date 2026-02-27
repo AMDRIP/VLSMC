@@ -1,0 +1,15 @@
+kernel/src/fat16.cpp: In static member function ‘static bool re36::Fat16::init()’:
+kernel/src/fat16.cpp:74:47: error: ‘PhysicalMemoryManager’ has not been declared
+   74 |     if (!dma_buffer_) dma_buffer_ = (uint8_t*)PhysicalMemoryManager::alloc_frame();
+      |                                               ^~~~~~~~~~~~~~~~~~~~~
+kernel/src/fat16.cpp:82:16: warning: unused variable ‘bpb’ [-Wunused-variable]
+   82 |     FAT16_BPB* bpb = (FAT16_BPB*)dma_buffer_;
+      |                ^~~
+kernel/src/fat16.cpp: In static member function ‘static int re36::Fat16::read_file(const char*, uint8_t*, uint32_t)’:
+kernel/src/fat16.cpp:206:14: warning: unused variable ‘cluster_size’ [-Wunused-variable]
+  206 |     uint32_t cluster_size = bpb_.sectors_per_cluster * 512;
+      |              ^~~~~~~~~~~~
+kernel/src/fat16.cpp: In static member function ‘static bool re36::Fat16::write_file(const char*, const uint8_t*, uint32_t)’:
+kernel/src/fat16.cpp:403:14: warning: unused variable ‘cluster_size’ [-Wunused-variable]
+  403 |     uint32_t cluster_size = bpb_.sectors_per_cluster * 512;
+      |              ^~~~~~~~~~~~

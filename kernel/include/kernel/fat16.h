@@ -64,6 +64,8 @@ public:
     
     static uint32_t root_dir_lba() { return root_dir_lba_; }
 
+    static int find_dir_entry(const char* name, uint32_t* sector_out, int* index_out);
+
 private:
     static FAT16_BPB bpb_;
     static uint16_t fat_table_[FAT16_MAX_FAT_ENTRIES];
@@ -75,6 +77,7 @@ private:
     
     static uint8_t sector_cache_[FAT16_SECTOR_BUF_SIZE];
     static uint32_t cached_sector_;
+    static uint8_t* dma_buffer_;
     
     static bool read_cached_sector(uint32_t lba);
     static uint32_t cluster_to_lba(uint16_t cluster);
@@ -83,7 +86,6 @@ private:
     static void free_chain(uint16_t start_cluster);
     static void flush_fat();
     static void format_83_name(const char* name, char* out);
-    static int find_dir_entry(const char* name, uint32_t* sector_out, int* index_out);
 };
 
 } // namespace re36
