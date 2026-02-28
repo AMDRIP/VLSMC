@@ -627,6 +627,9 @@ static uint32_t sys_fork(SyscallRegs* regs) {
 
 static uint32_t sys_exec(SyscallRegs* regs) {
     const char* filename = (const char*)regs->ebx;
+    char* const* argv = (char* const*)regs->ecx;
+    char* const* envp = (char* const*)regs->edx;
+
     if (!filename) return (uint32_t)-1;
 
     Thread& cur = threads[current_tid];
@@ -663,8 +666,68 @@ static uint32_t sys_exec(SyscallRegs* regs) {
         return (uint32_t)-1;
     }
 
+    // Подсчет аргументов и копирование строк во временный буфер ядра
+    int argc = 0;
+    int envc = 0;
+    uint32_t total_string_size = 0;
+
+    if (argv) {
+        while (argv[argc]) {
+            const char* arg = argv[argc];
+            int len = 0;
+            while (arg[len]) len++;
+            total_string_size += len + 1;
+            argc++;
+        }
+    }
+
+    if (envp) {
+        while (envp[envc]) {
+            const char* env = envp[envc];
+            int len = 0;
+            while (env[len]) len++;
+            total_string_size += len + 1;
+            envc++;
+        }
+    }
+
+    // Выделяем буфер в ядре под строки (не включая массивы указателей)
+    uint8_t* string_buf = nullptr;
+    if (total_string_size > 0) {
+        string_buf = (uint8_t*)kmalloc(total_string_size);
+        if (!string_buf) {
+            kfree(header_buf);
+            return (uint32_t)-1;
+        }
+
+        uint32_t offset = 0;
+        if (argv) {
+            for (int i = 0; i < argc; i++) {
+                const char* arg = argv[i];
+                int len = 0;
+                while (arg[len]) {
+                    string_buf[offset++] = arg[len];
+                    len++;
+                }
+                string_buf[offset++] = '\0';
+            }
+        }
+        if (envp) {
+            for (int i = 0; i < envc; i++) {
+                const char* env = envp[i];
+                int len = 0;
+                while (env[len]) {
+                    string_buf[offset++] = env[len];
+                    len++;
+                }
+                string_buf[offset++] = '\0';
+            }
+        }
+    }
+
+    // Закрываем файлы только с флагом O_CLOEXEC
     for (int f = 0; f < MAX_OPEN_FILES; f++) {
-        if (cur.fd_table[f]) {
+        if (cur.fd_table[f] && (cur.fd_table[f]->flags & O_CLOEXEC)) {
             file_release(cur.fd_table[f]);
             cur.fd_table[f] = nullptr;
         }
@@ -684,6 +747,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
 
     uint32_t* new_dir = VMM::create_address_space();
     if (!new_dir) {
+        if (string_buf) kfree(string_buf);
         kfree(header_buf);
         return (uint32_t)-1;
     }
@@ -726,7 +790,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
 
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
         void* frame = PhysicalMemoryManager::alloc_frame();
-        if (!frame) return (uint32_t)-1;
+        if (!frame) return (uint32_t)-1; // TODO: handle rollback correctly
         uint32_t vaddr = USER_STACK_TOP - (USER_STACK_PAGES - p) * 4096;
         VMM::map_page(vaddr, (uint32_t)frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
         uint8_t* pp = (uint8_t*)vaddr;
@@ -734,6 +798,63 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     }
 
     uint32_t user_esp = USER_STACK_TOP;
+
+    // Раскладка стека The System V i386 ABI
+    // [Строки ARG и ENV]
+    // [NULL]
+    // [ENV Pointers]
+    // [NULL]
+    // [ARG Pointers]
+    // [argc] <-- ESP
+
+    if (total_string_size > 0) {
+        user_esp -= total_string_size;
+        user_esp &= ~3; // Выравнивание по 4 байта
+
+        uint8_t* stack_strings = (uint8_t*)user_esp;
+        for (uint32_t k = 0; k < total_string_size; k++) {
+            stack_strings[k] = string_buf[k];
+        }
+
+        kfree(string_buf);
+        
+        // Массив envp (pointers + NULL terminator)
+        user_esp -= (envc + 1) * sizeof(char*);
+        char** user_envp = (char**)user_esp;
+        
+        // Массив argv (pointers + NULL terminator)
+        user_esp -= (argc + 1) * sizeof(char*);
+        char** user_argv = (char**)user_esp;
+        
+        uint32_t str_offset = (uint32_t)stack_strings;
+
+        for (int i = 0; i < argc; i++) {
+            user_argv[i] = (char*)str_offset;
+            while (*(char*)str_offset) str_offset++;
+            str_offset++; // Skip \0
+        }
+        user_argv[argc] = nullptr;
+
+        for (int i = 0; i < envc; i++) {
+            user_envp[i] = (char*)str_offset;
+            while (*(char*)str_offset) str_offset++;
+            str_offset++; // Skip \0
+        }
+        user_envp[envc] = nullptr;
+    } else {
+        // Нет строк (argc=0, envc=0)
+        user_esp -= sizeof(char*);
+        char** user_envp = (char**)user_esp;
+        user_envp[0] = nullptr;
+        
+        user_esp -= sizeof(char*);
+        char** user_argv = (char**)user_esp;
+        user_argv[0] = nullptr;
+    }
+
+    // Push argc
+    user_esp -= sizeof(int);
+    *(int*)user_esp = argc;
     TSS::set_kernel_stack((uint32_t)(cur.stack_base + THREAD_STACK_SIZE));
 
     uint32_t eflags;

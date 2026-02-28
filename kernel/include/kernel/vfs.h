@@ -43,6 +43,7 @@ struct vfs_stat_t {
 #define O_EXCL      0x0080
 #define O_TRUNC     0x0200
 #define O_APPEND    0x0400
+#define O_CLOEXEC   0x0800
 
 // Vnode operations table (implemented by specific FS driver like FAT16)
 struct vnode_operations {
