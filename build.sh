@@ -103,19 +103,19 @@ x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user
 mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/vesa_test.cpp -o user_vesa_test.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_vesa_test.o -o VESATEST.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_vesa_test.o user_libc.a -o VESATEST.ELF
 mcopy -i data.img VESATEST.ELF ::/VESATEST.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/fs_driver.cpp -o user_fs_driver.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fs_driver.o -o FSDRIVER.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fs_driver.o user_libc.a -o FSDRIVER.ELF
 mcopy -i data.img FSDRIVER.ELF ::/FSDRIVER.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/cat_test.cpp -o user_cat_test.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_cat_test.o -o CAT_TEST.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_cat_test.o user_libc.a -o CAT_TEST.ELF
 mcopy -i data.img CAT_TEST.ELF ::/CAT_TEST.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/stack_bomb.cpp -o user_stack_bomb.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stack_bomb.o -o STACKBM.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stack_bomb.o user_libc.a -o STACKBM.ELF
 mcopy -i data.img STACKBM.ELF ::/STACKBM.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/syscall_test.cpp -o user_syscall_test.o
@@ -159,7 +159,7 @@ x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fileio.o user_l
 mcopy -i data.img FILEIO.ELF ::/FILEIO.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/anim.cpp -o user_anim.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_anim.o -o ANIM.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_anim.o user_libc.a -o ANIM.ELF
 mcopy -i data.img ANIM.ELF ::/ANIM.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/ps2_driver.cpp -o user_ps2_driver.o
