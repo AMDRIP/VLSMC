@@ -271,13 +271,18 @@ static bool load_shared_object(const char* soname) {
     sys_print("\n");
 
     char path[64];
-    path[0] = '/';
+    const char* prefix = "/lib/";
     int i = 0;
-    while (soname[i] && i < 62) {
-        path[1 + i] = soname[i];
+    while (prefix[i]) {
+        path[i] = prefix[i];
         i++;
     }
-    path[1 + i] = '\0';
+    int j = 0;
+    while (soname[j] && (i + j) < 62) {
+        path[i + j] = soname[j];
+        j++;
+    }
+    path[i + j] = '\0';
 
     int fd = sys_fopen(path, 0);
     if (fd < 0) {
@@ -457,7 +462,7 @@ static void process_relocations(LoadedObject& obj) {
 
 typedef void (*EntryFunc)(void);
 
-extern "C" void _ld_main(uint32_t* stack_ptr) {
+extern "C" uint32_t _ld_main(uint32_t* stack_ptr) {
     uint32_t argc = stack_ptr[0];
     uint32_t* argv = &stack_ptr[1];
     uint32_t* envp = &argv[argc + 1];
@@ -489,7 +494,7 @@ extern "C" void _ld_main(uint32_t* stack_ptr) {
     if (at_phdr == 0 || at_entry == 0) {
         sys_print("[ld.so] ERROR: Missing auxv\n");
         sys_exit(127);
-        return;
+        return 0;
     }
 
     Elf32_Phdr* app_phdrs = (Elf32_Phdr*)at_phdr;
@@ -536,13 +541,15 @@ extern "C" void _ld_main(uint32_t* stack_ptr) {
     sys_print("\n");
 
     sys_print("[ld.so] Processing relocations...\n");
-    process_relocations(g_objects[0]);
+    for (int i = 0; i < g_num_objects; i++) {
+        if (g_objects[i].used) {
+            process_relocations(g_objects[i]);
+        }
+    }
 
     sys_print("[ld.so] Jumping to app entry at ");
     print_hex(at_entry);
     sys_print("\n");
 
-    EntryFunc entry = (EntryFunc)at_entry;
-    entry();
-    sys_exit(0);
+    return at_entry;
 }

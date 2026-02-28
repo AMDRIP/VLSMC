@@ -9,6 +9,10 @@
 extern "C" {
 #endif
 
+// Forward declaration if mutex.h hasn't been fully included at root level.
+// Since sys/mutex.h is internal, we use a typedef for FILE's lock.
+typedef volatile int _mutex_t;
+
 int putchar(int c);
 int puts(const char* s);
 int printf(const char* format, ...);
@@ -27,6 +31,7 @@ typedef struct {
     size_t buffer_size;
     size_t buffer_pos;
     size_t bytes_in_buf;
+    _mutex_t lock;
 } FILE;
 
 #define SEEK_SET 0
@@ -45,6 +50,8 @@ int fgetc(FILE* stream);
 int fputc(int c, FILE* stream);
 int feof(FILE* stream);
 int ferror(FILE* stream);
+void flockfile(FILE* stream);
+void funlockfile(FILE* stream);
 
 #ifdef __cplusplus
 }

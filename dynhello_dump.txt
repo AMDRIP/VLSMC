@@ -1,0 +1,147 @@
+
+DYNHELLO.ELF:     file format elf32-i386
+
+
+Disassembly of section .text:
+
+40000000 <_start>:
+40000000:	e8 09 00 00 00       	call   4000000e <main>
+40000005:	b8 00 00 00 00       	mov    $0x0,%eax
+4000000a:	cd 80                	int    $0x80
+
+4000000c <_start.hang>:
+4000000c:	eb fe                	jmp    4000000c <_start.hang>
+
+4000000e <main>:
+4000000e:	8d 4c 24 04          	lea    0x4(%esp),%ecx
+40000012:	83 e4 f0             	and    $0xfffffff0,%esp
+40000015:	ff 71 fc             	push   -0x4(%ecx)
+40000018:	55                   	push   %ebp
+40000019:	89 e5                	mov    %esp,%ebp
+4000001b:	51                   	push   %ecx
+4000001c:	83 ec 14             	sub    $0x14,%esp
+4000001f:	83 ec 0c             	sub    $0xc,%esp
+40000022:	68 00 10 00 40       	push   $0x40001000
+40000027:	e8 64 01 00 00       	call   40000190 <printf@plt>
+4000002c:	83 c4 10             	add    $0x10,%esp
+4000002f:	83 ec 0c             	sub    $0xc,%esp
+40000032:	68 28 10 00 40       	push   $0x40001028
+40000037:	e8 54 01 00 00       	call   40000190 <printf@plt>
+4000003c:	83 c4 10             	add    $0x10,%esp
+4000003f:	83 ec 0c             	sub    $0xc,%esp
+40000042:	68 58 10 00 40       	push   $0x40001058
+40000047:	e8 44 01 00 00       	call   40000190 <printf@plt>
+4000004c:	83 c4 10             	add    $0x10,%esp
+4000004f:	83 ec 0c             	sub    $0xc,%esp
+40000052:	68 00 10 00 40       	push   $0x40001000
+40000057:	e8 34 01 00 00       	call   40000190 <printf@plt>
+4000005c:	83 c4 10             	add    $0x10,%esp
+4000005f:	83 ec 0c             	sub    $0xc,%esp
+40000062:	68 81 10 00 40       	push   $0x40001081
+40000067:	e8 24 01 00 00       	call   40000190 <printf@plt>
+4000006c:	83 c4 10             	add    $0x10,%esp
+4000006f:	83 ec 0c             	sub    $0xc,%esp
+40000072:	6a 14                	push   $0x14
+40000074:	e8 27 01 00 00       	call   400001a0 <malloc@plt>
+40000079:	83 c4 10             	add    $0x10,%esp
+4000007c:	89 45 ec             	mov    %eax,-0x14(%ebp)
+4000007f:	83 7d ec 00          	cmpl   $0x0,-0x14(%ebp)
+40000083:	0f 84 ac 00 00 00    	je     40000135 <main+0x127>
+40000089:	83 ec 08             	sub    $0x8,%esp
+4000008c:	ff 75 ec             	push   -0x14(%ebp)
+4000008f:	68 95 10 00 40       	push   $0x40001095
+40000094:	e8 f7 00 00 00       	call   40000190 <printf@plt>
+40000099:	83 c4 10             	add    $0x10,%esp
+4000009c:	c7 45 f4 00 00 00 00 	movl   $0x0,-0xc(%ebp)
+400000a3:	eb 22                	jmp    400000c7 <main+0xb9>
+400000a5:	8b 45 f4             	mov    -0xc(%ebp),%eax
+400000a8:	8d 14 85 00 00 00 00 	lea    0x0(,%eax,4),%edx
+400000af:	8b 45 ec             	mov    -0x14(%ebp),%eax
+400000b2:	8d 0c 02             	lea    (%edx,%eax,1),%ecx
+400000b5:	8b 55 f4             	mov    -0xc(%ebp),%edx
+400000b8:	89 d0                	mov    %edx,%eax
+400000ba:	c1 e0 02             	shl    $0x2,%eax
+400000bd:	01 d0                	add    %edx,%eax
+400000bf:	01 c0                	add    %eax,%eax
+400000c1:	89 01                	mov    %eax,(%ecx)
+400000c3:	83 45 f4 01          	addl   $0x1,-0xc(%ebp)
+400000c7:	83 7d f4 04          	cmpl   $0x4,-0xc(%ebp)
+400000cb:	7e d8                	jle    400000a5 <main+0x97>
+400000cd:	c7 45 f0 00 00 00 00 	movl   $0x0,-0x10(%ebp)
+400000d4:	eb 29                	jmp    400000ff <main+0xf1>
+400000d6:	8b 45 f0             	mov    -0x10(%ebp),%eax
+400000d9:	8d 14 85 00 00 00 00 	lea    0x0(,%eax,4),%edx
+400000e0:	8b 45 ec             	mov    -0x14(%ebp),%eax
+400000e3:	01 d0                	add    %edx,%eax
+400000e5:	8b 00                	mov    (%eax),%eax
+400000e7:	83 ec 04             	sub    $0x4,%esp
+400000ea:	50                   	push   %eax
+400000eb:	ff 75 f0             	push   -0x10(%ebp)
+400000ee:	68 aa 10 00 40       	push   $0x400010aa
+400000f3:	e8 98 00 00 00       	call   40000190 <printf@plt>
+400000f8:	83 c4 10             	add    $0x10,%esp
+400000fb:	83 45 f0 01          	addl   $0x1,-0x10(%ebp)
+400000ff:	83 7d f0 04          	cmpl   $0x4,-0x10(%ebp)
+40000103:	7e d1                	jle    400000d6 <main+0xc8>
+40000105:	83 ec 0c             	sub    $0xc,%esp
+40000108:	68 ba 10 00 40       	push   $0x400010ba
+4000010d:	e8 7e 00 00 00       	call   40000190 <printf@plt>
+40000112:	83 c4 10             	add    $0x10,%esp
+40000115:	83 ec 0c             	sub    $0xc,%esp
+40000118:	ff 75 ec             	push   -0x14(%ebp)
+4000011b:	e8 a0 00 00 00       	call   400001c0 <free@plt>
+40000120:	83 c4 10             	add    $0x10,%esp
+40000123:	83 ec 0c             	sub    $0xc,%esp
+40000126:	68 cc 10 00 40       	push   $0x400010cc
+4000012b:	e8 60 00 00 00       	call   40000190 <printf@plt>
+40000130:	83 c4 10             	add    $0x10,%esp
+40000133:	eb 10                	jmp    40000145 <main+0x137>
+40000135:	83 ec 0c             	sub    $0xc,%esp
+40000138:	68 de 10 00 40       	push   $0x400010de
+4000013d:	e8 4e 00 00 00       	call   40000190 <printf@plt>
+40000142:	83 c4 10             	add    $0x10,%esp
+40000145:	83 ec 0c             	sub    $0xc,%esp
+40000148:	68 ee 10 00 40       	push   $0x400010ee
+4000014d:	e8 3e 00 00 00       	call   40000190 <printf@plt>
+40000152:	83 c4 10             	add    $0x10,%esp
+40000155:	83 ec 0c             	sub    $0xc,%esp
+40000158:	6a 2a                	push   $0x2a
+4000015a:	e8 51 00 00 00       	call   400001b0 <exit@plt>
+4000015f:	83 c4 10             	add    $0x10,%esp
+40000162:	83 ec 0c             	sub    $0xc,%esp
+40000165:	68 04 11 00 40       	push   $0x40001104
+4000016a:	e8 21 00 00 00       	call   40000190 <printf@plt>
+4000016f:	83 c4 10             	add    $0x10,%esp
+40000172:	b8 00 00 00 00       	mov    $0x0,%eax
+40000177:	8b 4d fc             	mov    -0x4(%ebp),%ecx
+4000017a:	c9                   	leave
+4000017b:	8d 61 fc             	lea    -0x4(%ecx),%esp
+4000017e:	c3                   	ret
+
+Disassembly of section .plt:
+
+40000180 <printf@plt-0x10>:
+40000180:	ff 35 d8 12 00 40    	push   0x400012d8
+40000186:	ff 25 dc 12 00 40    	jmp    *0x400012dc
+4000018c:	00 00                	add    %al,(%eax)
+	...
+
+40000190 <printf@plt>:
+40000190:	ff 25 e0 12 00 40    	jmp    *0x400012e0
+40000196:	68 00 00 00 00       	push   $0x0
+4000019b:	e9 e0 ff ff ff       	jmp    40000180 <main+0x172>
+
+400001a0 <malloc@plt>:
+400001a0:	ff 25 e4 12 00 40    	jmp    *0x400012e4
+400001a6:	68 08 00 00 00       	push   $0x8
+400001ab:	e9 d0 ff ff ff       	jmp    40000180 <main+0x172>
+
+400001b0 <exit@plt>:
+400001b0:	ff 25 e8 12 00 40    	jmp    *0x400012e8
+400001b6:	68 10 00 00 00       	push   $0x10
+400001bb:	e9 c0 ff ff ff       	jmp    40000180 <main+0x172>
+
+400001c0 <free@plt>:
+400001c0:	ff 25 ec 12 00 40    	jmp    *0x400012ec
+400001c6:	68 18 00 00 00       	push   $0x18
+400001cb:	e9 b0 ff ff ff       	jmp    40000180 <main+0x172>

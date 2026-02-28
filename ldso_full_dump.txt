@@ -1,0 +1,1387 @@
+
+LD.SO:     file format elf32-i386
+
+
+Disassembly of section .text:
+
+000000c0 <_start>:
+      c0:	54                   	push   %esp
+      c1:	e8 c8 0c 00 00       	call   d8e <_ld_main>
+      c6:	83 c4 04             	add    $0x4,%esp
+      c9:	85 c0                	test   %eax,%eax
+      cb:	74 02                	je     cf <_start.hang>
+      cd:	ff e0                	jmp    *%eax
+
+000000cf <_start.hang>:
+      cf:	b8 00 00 00 00       	mov    $0x0,%eax
+      d4:	bb 7f 00 00 00       	mov    $0x7f,%ebx
+      d9:	cd 80                	int    $0x80
+      db:	eb f2                	jmp    cf <_start.hang>
+      dd:	90                   	nop
+
+000000de <_ZL9sys_printPKc>:
+      de:	55                   	push   %ebp
+      df:	89 e5                	mov    %esp,%ebp
+      e1:	53                   	push   %ebx
+      e2:	83 ec 10             	sub    $0x10,%esp
+      e5:	e8 e1 0f 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+      ea:	05 8a 1f 00 00       	add    $0x1f8a,%eax
+      ef:	c7 45 f8 00 00 00 00 	movl   $0x0,-0x8(%ebp)
+      f6:	eb 04                	jmp    fc <_ZL9sys_printPKc+0x1e>
+      f8:	83 45 f8 01          	addl   $0x1,-0x8(%ebp)
+      fc:	8b 55 08             	mov    0x8(%ebp),%edx
+      ff:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     102:	01 d0                	add    %edx,%eax
+     104:	0f b6 00             	movzbl (%eax),%eax
+     107:	84 c0                	test   %al,%al
+     109:	75 ed                	jne    f8 <_ZL9sys_printPKc+0x1a>
+     10b:	8b 55 08             	mov    0x8(%ebp),%edx
+     10e:	b8 01 00 00 00       	mov    $0x1,%eax
+     113:	8b 4d f8             	mov    -0x8(%ebp),%ecx
+     116:	89 d3                	mov    %edx,%ebx
+     118:	cd 80                	int    $0x80
+     11a:	90                   	nop
+     11b:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     11e:	c9                   	leave
+     11f:	c3                   	ret
+
+00000120 <_ZL8sys_exiti>:
+     120:	55                   	push   %ebp
+     121:	89 e5                	mov    %esp,%ebp
+     123:	53                   	push   %ebx
+     124:	e8 a2 0f 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     129:	05 4b 1f 00 00       	add    $0x1f4b,%eax
+     12e:	8b 55 08             	mov    0x8(%ebp),%edx
+     131:	b8 00 00 00 00       	mov    $0x0,%eax
+     136:	89 d3                	mov    %edx,%ebx
+     138:	cd 80                	int    $0x80
+     13a:	90                   	nop
+     13b:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     13e:	c9                   	leave
+     13f:	c3                   	ret
+
+00000140 <_ZL9sys_fopenPKci>:
+     140:	55                   	push   %ebp
+     141:	89 e5                	mov    %esp,%ebp
+     143:	53                   	push   %ebx
+     144:	83 ec 10             	sub    $0x10,%esp
+     147:	e8 7f 0f 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     14c:	05 28 1f 00 00       	add    $0x1f28,%eax
+     151:	8b 55 08             	mov    0x8(%ebp),%edx
+     154:	8b 4d 0c             	mov    0xc(%ebp),%ecx
+     157:	b8 1d 00 00 00       	mov    $0x1d,%eax
+     15c:	89 d3                	mov    %edx,%ebx
+     15e:	cd 80                	int    $0x80
+     160:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     163:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     166:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     169:	c9                   	leave
+     16a:	c3                   	ret
+
+0000016b <_ZL9sys_freadiPvj>:
+     16b:	55                   	push   %ebp
+     16c:	89 e5                	mov    %esp,%ebp
+     16e:	53                   	push   %ebx
+     16f:	83 ec 10             	sub    $0x10,%esp
+     172:	e8 54 0f 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     177:	05 fd 1e 00 00       	add    $0x1efd,%eax
+     17c:	8b 5d 08             	mov    0x8(%ebp),%ebx
+     17f:	8b 4d 0c             	mov    0xc(%ebp),%ecx
+     182:	b8 1e 00 00 00       	mov    $0x1e,%eax
+     187:	8b 55 10             	mov    0x10(%ebp),%edx
+     18a:	cd 80                	int    $0x80
+     18c:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     18f:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     192:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     195:	c9                   	leave
+     196:	c3                   	ret
+
+00000197 <_ZL10sys_fclosei>:
+     197:	55                   	push   %ebp
+     198:	89 e5                	mov    %esp,%ebp
+     19a:	53                   	push   %ebx
+     19b:	e8 2b 0f 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     1a0:	05 d4 1e 00 00       	add    $0x1ed4,%eax
+     1a5:	8b 55 08             	mov    0x8(%ebp),%edx
+     1a8:	b8 20 00 00 00       	mov    $0x20,%eax
+     1ad:	89 d3                	mov    %edx,%ebx
+     1af:	cd 80                	int    $0x80
+     1b1:	90                   	nop
+     1b2:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     1b5:	c9                   	leave
+     1b6:	c3                   	ret
+
+000001b7 <_ZL8sys_mmapjjjji>:
+     1b7:	55                   	push   %ebp
+     1b8:	89 e5                	mov    %esp,%ebp
+     1ba:	57                   	push   %edi
+     1bb:	56                   	push   %esi
+     1bc:	53                   	push   %ebx
+     1bd:	83 ec 10             	sub    $0x10,%esp
+     1c0:	e8 06 0f 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     1c5:	05 af 1e 00 00       	add    $0x1eaf,%eax
+     1ca:	8b 7d 18             	mov    0x18(%ebp),%edi
+     1cd:	b8 0c 00 00 00       	mov    $0xc,%eax
+     1d2:	8b 5d 08             	mov    0x8(%ebp),%ebx
+     1d5:	8b 4d 0c             	mov    0xc(%ebp),%ecx
+     1d8:	8b 55 10             	mov    0x10(%ebp),%edx
+     1db:	8b 75 14             	mov    0x14(%ebp),%esi
+     1de:	cd 80                	int    $0x80
+     1e0:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     1e3:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     1e6:	83 c4 10             	add    $0x10,%esp
+     1e9:	5b                   	pop    %ebx
+     1ea:	5e                   	pop    %esi
+     1eb:	5f                   	pop    %edi
+     1ec:	5d                   	pop    %ebp
+     1ed:	c3                   	ret
+
+000001ee <_ZL6str_eqPKcS0_>:
+     1ee:	55                   	push   %ebp
+     1ef:	89 e5                	mov    %esp,%ebp
+     1f1:	e8 d5 0e 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     1f6:	05 7e 1e 00 00       	add    $0x1e7e,%eax
+     1fb:	eb 1f                	jmp    21c <_ZL6str_eqPKcS0_+0x2e>
+     1fd:	8b 45 08             	mov    0x8(%ebp),%eax
+     200:	0f b6 10             	movzbl (%eax),%edx
+     203:	8b 45 0c             	mov    0xc(%ebp),%eax
+     206:	0f b6 00             	movzbl (%eax),%eax
+     209:	38 c2                	cmp    %al,%dl
+     20b:	74 07                	je     214 <_ZL6str_eqPKcS0_+0x26>
+     20d:	b8 00 00 00 00       	mov    $0x0,%eax
+     212:	eb 2d                	jmp    241 <_ZL6str_eqPKcS0_+0x53>
+     214:	83 45 08 01          	addl   $0x1,0x8(%ebp)
+     218:	83 45 0c 01          	addl   $0x1,0xc(%ebp)
+     21c:	8b 45 08             	mov    0x8(%ebp),%eax
+     21f:	0f b6 00             	movzbl (%eax),%eax
+     222:	84 c0                	test   %al,%al
+     224:	74 0a                	je     230 <_ZL6str_eqPKcS0_+0x42>
+     226:	8b 45 0c             	mov    0xc(%ebp),%eax
+     229:	0f b6 00             	movzbl (%eax),%eax
+     22c:	84 c0                	test   %al,%al
+     22e:	75 cd                	jne    1fd <_ZL6str_eqPKcS0_+0xf>
+     230:	8b 45 08             	mov    0x8(%ebp),%eax
+     233:	0f b6 10             	movzbl (%eax),%edx
+     236:	8b 45 0c             	mov    0xc(%ebp),%eax
+     239:	0f b6 00             	movzbl (%eax),%eax
+     23c:	38 c2                	cmp    %al,%dl
+     23e:	0f 94 c0             	sete   %al
+     241:	5d                   	pop    %ebp
+     242:	c3                   	ret
+
+00000243 <_ZL9print_hexj>:
+     243:	55                   	push   %ebp
+     244:	89 e5                	mov    %esp,%ebp
+     246:	83 ec 20             	sub    $0x20,%esp
+     249:	e8 7d 0e 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     24e:	05 26 1e 00 00       	add    $0x1e26,%eax
+     253:	c6 45 ed 30          	movb   $0x30,-0x13(%ebp)
+     257:	c6 45 ee 78          	movb   $0x78,-0x12(%ebp)
+     25b:	8d 80 60 f0 ff ff    	lea    -0xfa0(%eax),%eax
+     261:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     264:	c7 45 fc 07 00 00 00 	movl   $0x7,-0x4(%ebp)
+     26b:	eb 2c                	jmp    299 <_ZL9print_hexj+0x56>
+     26d:	8b 45 fc             	mov    -0x4(%ebp),%eax
+     270:	c1 e0 02             	shl    $0x2,%eax
+     273:	8b 55 08             	mov    0x8(%ebp),%edx
+     276:	89 c1                	mov    %eax,%ecx
+     278:	d3 ea                	shr    %cl,%edx
+     27a:	89 d0                	mov    %edx,%eax
+     27c:	83 e0 0f             	and    $0xf,%eax
+     27f:	89 c2                	mov    %eax,%edx
+     281:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     284:	01 c2                	add    %eax,%edx
+     286:	b8 09 00 00 00       	mov    $0x9,%eax
+     28b:	2b 45 fc             	sub    -0x4(%ebp),%eax
+     28e:	0f b6 12             	movzbl (%edx),%edx
+     291:	88 54 05 ed          	mov    %dl,-0x13(%ebp,%eax,1)
+     295:	83 6d fc 01          	subl   $0x1,-0x4(%ebp)
+     299:	83 7d fc 00          	cmpl   $0x0,-0x4(%ebp)
+     29d:	79 ce                	jns    26d <_ZL9print_hexj+0x2a>
+     29f:	c6 45 f7 00          	movb   $0x0,-0x9(%ebp)
+     2a3:	8d 45 ed             	lea    -0x13(%ebp),%eax
+     2a6:	50                   	push   %eax
+     2a7:	e8 32 fe ff ff       	call   de <_ZL9sys_printPKc>
+     2ac:	83 c4 04             	add    $0x4,%esp
+     2af:	90                   	nop
+     2b0:	c9                   	leave
+     2b1:	c3                   	ret
+
+000002b2 <_ZL15register_objectPKcjP9Elf32_Dyn>:
+     2b2:	55                   	push   %ebp
+     2b3:	89 e5                	mov    %esp,%ebp
+     2b5:	83 ec 10             	sub    $0x10,%esp
+     2b8:	e8 0e 0e 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     2bd:	05 b7 1d 00 00       	add    $0x1db7,%eax
+     2c2:	8b 90 8c 10 00 00    	mov    0x108c(%eax),%edx
+     2c8:	83 fa 07             	cmp    $0x7,%edx
+     2cb:	7e 0a                	jle    2d7 <_ZL15register_objectPKcjP9Elf32_Dyn+0x25>
+     2cd:	b8 ff ff ff ff       	mov    $0xffffffff,%eax
+     2d2:	e9 17 01 00 00       	jmp    3ee <_ZL15register_objectPKcjP9Elf32_Dyn+0x13c>
+     2d7:	8b 90 8c 10 00 00    	mov    0x108c(%eax),%edx
+     2dd:	8d 4a 01             	lea    0x1(%edx),%ecx
+     2e0:	89 88 8c 10 00 00    	mov    %ecx,0x108c(%eax)
+     2e6:	89 55 f4             	mov    %edx,-0xc(%ebp)
+     2e9:	8b 55 f4             	mov    -0xc(%ebp),%edx
+     2ec:	c1 e2 05             	shl    $0x5,%edx
+     2ef:	8d 80 8c 0f 00 00    	lea    0xf8c(%eax),%eax
+     2f5:	01 d0                	add    %edx,%eax
+     2f7:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     2fa:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     2fd:	c6 00 01             	movb   $0x1,(%eax)
+     300:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     303:	8b 55 08             	mov    0x8(%ebp),%edx
+     306:	89 50 04             	mov    %edx,0x4(%eax)
+     309:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     30c:	8b 55 0c             	mov    0xc(%ebp),%edx
+     30f:	89 50 08             	mov    %edx,0x8(%eax)
+     312:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     315:	8b 55 10             	mov    0x10(%ebp),%edx
+     318:	89 50 18             	mov    %edx,0x18(%eax)
+     31b:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     31e:	c7 40 0c 00 00 00 00 	movl   $0x0,0xc(%eax)
+     325:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     328:	c7 40 10 00 00 00 00 	movl   $0x0,0x10(%eax)
+     32f:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     332:	c7 40 14 00 00 00 00 	movl   $0x0,0x14(%eax)
+     339:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     33c:	c7 40 1c 00 00 00 00 	movl   $0x0,0x1c(%eax)
+     343:	83 7d 10 00          	cmpl   $0x0,0x10(%ebp)
+     347:	75 08                	jne    351 <_ZL15register_objectPKcjP9Elf32_Dyn+0x9f>
+     349:	8b 45 f4             	mov    -0xc(%ebp),%eax
+     34c:	e9 9d 00 00 00       	jmp    3ee <_ZL15register_objectPKcjP9Elf32_Dyn+0x13c>
+     351:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%ebp)
+     358:	8b 45 10             	mov    0x10(%ebp),%eax
+     35b:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     35e:	eb 70                	jmp    3d0 <_ZL15register_objectPKcjP9Elf32_Dyn+0x11e>
+     360:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     363:	8b 00                	mov    (%eax),%eax
+     365:	83 f8 0a             	cmp    $0xa,%eax
+     368:	74 45                	je     3af <_ZL15register_objectPKcjP9Elf32_Dyn+0xfd>
+     36a:	83 f8 0a             	cmp    $0xa,%eax
+     36d:	7f 5d                	jg     3cc <_ZL15register_objectPKcjP9Elf32_Dyn+0x11a>
+     36f:	83 f8 06             	cmp    $0x6,%eax
+     372:	74 11                	je     385 <_ZL15register_objectPKcjP9Elf32_Dyn+0xd3>
+     374:	83 f8 06             	cmp    $0x6,%eax
+     377:	7f 53                	jg     3cc <_ZL15register_objectPKcjP9Elf32_Dyn+0x11a>
+     379:	83 f8 04             	cmp    $0x4,%eax
+     37c:	74 3f                	je     3bd <_ZL15register_objectPKcjP9Elf32_Dyn+0x10b>
+     37e:	83 f8 05             	cmp    $0x5,%eax
+     381:	74 17                	je     39a <_ZL15register_objectPKcjP9Elf32_Dyn+0xe8>
+     383:	eb 47                	jmp    3cc <_ZL15register_objectPKcjP9Elf32_Dyn+0x11a>
+     385:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     388:	8b 50 04             	mov    0x4(%eax),%edx
+     38b:	8b 45 0c             	mov    0xc(%ebp),%eax
+     38e:	01 d0                	add    %edx,%eax
+     390:	89 c2                	mov    %eax,%edx
+     392:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     395:	89 50 0c             	mov    %edx,0xc(%eax)
+     398:	eb 32                	jmp    3cc <_ZL15register_objectPKcjP9Elf32_Dyn+0x11a>
+     39a:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     39d:	8b 50 04             	mov    0x4(%eax),%edx
+     3a0:	8b 45 0c             	mov    0xc(%ebp),%eax
+     3a3:	01 d0                	add    %edx,%eax
+     3a5:	89 c2                	mov    %eax,%edx
+     3a7:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     3aa:	89 50 10             	mov    %edx,0x10(%eax)
+     3ad:	eb 1d                	jmp    3cc <_ZL15register_objectPKcjP9Elf32_Dyn+0x11a>
+     3af:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     3b2:	8b 50 04             	mov    0x4(%eax),%edx
+     3b5:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     3b8:	89 50 14             	mov    %edx,0x14(%eax)
+     3bb:	eb 0f                	jmp    3cc <_ZL15register_objectPKcjP9Elf32_Dyn+0x11a>
+     3bd:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     3c0:	8b 50 04             	mov    0x4(%eax),%edx
+     3c3:	8b 45 0c             	mov    0xc(%ebp),%eax
+     3c6:	01 d0                	add    %edx,%eax
+     3c8:	89 45 fc             	mov    %eax,-0x4(%ebp)
+     3cb:	90                   	nop
+     3cc:	83 45 f8 08          	addl   $0x8,-0x8(%ebp)
+     3d0:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     3d3:	8b 00                	mov    (%eax),%eax
+     3d5:	85 c0                	test   %eax,%eax
+     3d7:	75 87                	jne    360 <_ZL15register_objectPKcjP9Elf32_Dyn+0xae>
+     3d9:	83 7d fc 00          	cmpl   $0x0,-0x4(%ebp)
+     3dd:	74 0c                	je     3eb <_ZL15register_objectPKcjP9Elf32_Dyn+0x139>
+     3df:	8b 45 fc             	mov    -0x4(%ebp),%eax
+     3e2:	8b 50 04             	mov    0x4(%eax),%edx
+     3e5:	8b 45 f0             	mov    -0x10(%ebp),%eax
+     3e8:	89 50 1c             	mov    %edx,0x1c(%eax)
+     3eb:	8b 45 f4             	mov    -0xc(%ebp),%eax
+     3ee:	c9                   	leave
+     3ef:	c3                   	ret
+
+000003f0 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc>:
+     3f0:	55                   	push   %ebp
+     3f1:	89 e5                	mov    %esp,%ebp
+     3f3:	83 ec 10             	sub    $0x10,%esp
+     3f6:	e8 d0 0c 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     3fb:	05 79 1c 00 00       	add    $0x1c79,%eax
+     400:	8b 45 08             	mov    0x8(%ebp),%eax
+     403:	8b 40 0c             	mov    0xc(%eax),%eax
+     406:	85 c0                	test   %eax,%eax
+     408:	74 14                	je     41e <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0x2e>
+     40a:	8b 45 08             	mov    0x8(%ebp),%eax
+     40d:	8b 40 10             	mov    0x10(%eax),%eax
+     410:	85 c0                	test   %eax,%eax
+     412:	74 0a                	je     41e <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0x2e>
+     414:	8b 45 08             	mov    0x8(%ebp),%eax
+     417:	8b 40 1c             	mov    0x1c(%eax),%eax
+     41a:	85 c0                	test   %eax,%eax
+     41c:	75 0a                	jne    428 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0x38>
+     41e:	b8 00 00 00 00       	mov    $0x0,%eax
+     423:	e9 89 00 00 00       	jmp    4b1 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xc1>
+     428:	c7 45 fc 01 00 00 00 	movl   $0x1,-0x4(%ebp)
+     42f:	eb 70                	jmp    4a1 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xb1>
+     431:	8b 45 08             	mov    0x8(%ebp),%eax
+     434:	8b 40 0c             	mov    0xc(%eax),%eax
+     437:	8b 55 fc             	mov    -0x4(%ebp),%edx
+     43a:	c1 e2 04             	shl    $0x4,%edx
+     43d:	01 d0                	add    %edx,%eax
+     43f:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     442:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     445:	0f b7 40 0e          	movzwl 0xe(%eax),%eax
+     449:	66 85 c0             	test   %ax,%ax
+     44c:	74 4b                	je     499 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xa9>
+     44e:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     451:	0f b6 40 0c          	movzbl 0xc(%eax),%eax
+     455:	c0 e8 04             	shr    $0x4,%al
+     458:	88 45 f7             	mov    %al,-0x9(%ebp)
+     45b:	80 7d f7 01          	cmpb   $0x1,-0x9(%ebp)
+     45f:	74 06                	je     467 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0x77>
+     461:	80 7d f7 02          	cmpb   $0x2,-0x9(%ebp)
+     465:	75 35                	jne    49c <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xac>
+     467:	8b 45 08             	mov    0x8(%ebp),%eax
+     46a:	8b 50 10             	mov    0x10(%eax),%edx
+     46d:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     470:	8b 00                	mov    (%eax),%eax
+     472:	01 d0                	add    %edx,%eax
+     474:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     477:	ff 75 0c             	push   0xc(%ebp)
+     47a:	ff 75 f0             	push   -0x10(%ebp)
+     47d:	e8 6c fd ff ff       	call   1ee <_ZL6str_eqPKcS0_>
+     482:	83 c4 08             	add    $0x8,%esp
+     485:	84 c0                	test   %al,%al
+     487:	74 14                	je     49d <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xad>
+     489:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     48c:	8b 50 04             	mov    0x4(%eax),%edx
+     48f:	8b 45 08             	mov    0x8(%ebp),%eax
+     492:	8b 40 08             	mov    0x8(%eax),%eax
+     495:	01 d0                	add    %edx,%eax
+     497:	eb 18                	jmp    4b1 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xc1>
+     499:	90                   	nop
+     49a:	eb 01                	jmp    49d <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0xad>
+     49c:	90                   	nop
+     49d:	83 45 fc 01          	addl   $0x1,-0x4(%ebp)
+     4a1:	8b 45 08             	mov    0x8(%ebp),%eax
+     4a4:	8b 40 1c             	mov    0x1c(%eax),%eax
+     4a7:	39 45 fc             	cmp    %eax,-0x4(%ebp)
+     4aa:	72 85                	jb     431 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc+0x41>
+     4ac:	b8 00 00 00 00       	mov    $0x0,%eax
+     4b1:	c9                   	leave
+     4b2:	c3                   	ret
+
+000004b3 <_ZL20lookup_symbol_globalPKc>:
+     4b3:	55                   	push   %ebp
+     4b4:	89 e5                	mov    %esp,%ebp
+     4b6:	53                   	push   %ebx
+     4b7:	83 ec 10             	sub    $0x10,%esp
+     4ba:	e8 10 0c 00 00       	call   10cf <__x86.get_pc_thunk.bx>
+     4bf:	81 c3 b5 1b 00 00    	add    $0x1bb5,%ebx
+     4c5:	c7 45 f8 00 00 00 00 	movl   $0x0,-0x8(%ebp)
+     4cc:	eb 47                	jmp    515 <_ZL20lookup_symbol_globalPKc+0x62>
+     4ce:	8b 55 f8             	mov    -0x8(%ebp),%edx
+     4d1:	8d 83 8c 0f 00 00    	lea    0xf8c(%ebx),%eax
+     4d7:	c1 e2 05             	shl    $0x5,%edx
+     4da:	01 d0                	add    %edx,%eax
+     4dc:	0f b6 00             	movzbl (%eax),%eax
+     4df:	83 f0 01             	xor    $0x1,%eax
+     4e2:	84 c0                	test   %al,%al
+     4e4:	75 2a                	jne    510 <_ZL20lookup_symbol_globalPKc+0x5d>
+     4e6:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     4e9:	c1 e0 05             	shl    $0x5,%eax
+     4ec:	89 c2                	mov    %eax,%edx
+     4ee:	8d 83 8c 0f 00 00    	lea    0xf8c(%ebx),%eax
+     4f4:	01 d0                	add    %edx,%eax
+     4f6:	ff 75 08             	push   0x8(%ebp)
+     4f9:	50                   	push   %eax
+     4fa:	e8 f1 fe ff ff       	call   3f0 <_ZL23lookup_symbol_in_objectR12LoadedObjectPKc>
+     4ff:	83 c4 08             	add    $0x8,%esp
+     502:	89 45 f4             	mov    %eax,-0xc(%ebp)
+     505:	83 7d f4 00          	cmpl   $0x0,-0xc(%ebp)
+     509:	74 06                	je     511 <_ZL20lookup_symbol_globalPKc+0x5e>
+     50b:	8b 45 f4             	mov    -0xc(%ebp),%eax
+     50e:	eb 15                	jmp    525 <_ZL20lookup_symbol_globalPKc+0x72>
+     510:	90                   	nop
+     511:	83 45 f8 01          	addl   $0x1,-0x8(%ebp)
+     515:	8b 83 8c 10 00 00    	mov    0x108c(%ebx),%eax
+     51b:	39 45 f8             	cmp    %eax,-0x8(%ebp)
+     51e:	7c ae                	jl     4ce <_ZL20lookup_symbol_globalPKc+0x1b>
+     520:	b8 00 00 00 00       	mov    $0x0,%eax
+     525:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     528:	c9                   	leave
+     529:	c3                   	ret
+
+0000052a <_ZL25parse_dynamic_for_dyn_ptrP10Elf32_PhdrjjjPP9Elf32_Dyn>:
+     52a:	55                   	push   %ebp
+     52b:	89 e5                	mov    %esp,%ebp
+     52d:	83 ec 10             	sub    $0x10,%esp
+     530:	e8 96 0b 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     535:	05 3f 1b 00 00       	add    $0x1b3f,%eax
+     53a:	8b 45 18             	mov    0x18(%ebp),%eax
+     53d:	c7 00 00 00 00 00    	movl   $0x0,(%eax)
+     543:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%ebp)
+     54a:	eb 33                	jmp    57f <_ZL25parse_dynamic_for_dyn_ptrP10Elf32_PhdrjjjPP9Elf32_Dyn+0x55>
+     54c:	8b 45 fc             	mov    -0x4(%ebp),%eax
+     54f:	0f af 45 10          	imul   0x10(%ebp),%eax
+     553:	89 c2                	mov    %eax,%edx
+     555:	8b 45 08             	mov    0x8(%ebp),%eax
+     558:	01 d0                	add    %edx,%eax
+     55a:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     55d:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     560:	8b 00                	mov    (%eax),%eax
+     562:	83 f8 02             	cmp    $0x2,%eax
+     565:	75 14                	jne    57b <_ZL25parse_dynamic_for_dyn_ptrP10Elf32_PhdrjjjPP9Elf32_Dyn+0x51>
+     567:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     56a:	8b 50 08             	mov    0x8(%eax),%edx
+     56d:	8b 45 14             	mov    0x14(%ebp),%eax
+     570:	01 d0                	add    %edx,%eax
+     572:	89 c2                	mov    %eax,%edx
+     574:	8b 45 18             	mov    0x18(%ebp),%eax
+     577:	89 10                	mov    %edx,(%eax)
+     579:	eb 0c                	jmp    587 <_ZL25parse_dynamic_for_dyn_ptrP10Elf32_PhdrjjjPP9Elf32_Dyn+0x5d>
+     57b:	83 45 fc 01          	addl   $0x1,-0x4(%ebp)
+     57f:	8b 45 fc             	mov    -0x4(%ebp),%eax
+     582:	3b 45 0c             	cmp    0xc(%ebp),%eax
+     585:	72 c5                	jb     54c <_ZL25parse_dynamic_for_dyn_ptrP10Elf32_PhdrjjjPP9Elf32_Dyn+0x22>
+     587:	c9                   	leave
+     588:	c3                   	ret
+
+00000589 <_ZL18load_shared_objectPKc>:
+     589:	55                   	push   %ebp
+     58a:	89 e5                	mov    %esp,%ebp
+     58c:	53                   	push   %ebx
+     58d:	81 ec b0 04 00 00    	sub    $0x4b0,%esp
+     593:	e8 37 0b 00 00       	call   10cf <__x86.get_pc_thunk.bx>
+     598:	81 c3 dc 1a 00 00    	add    $0x1adc,%ebx
+     59e:	8d 83 71 f0 ff ff    	lea    -0xf8f(%ebx),%eax
+     5a4:	50                   	push   %eax
+     5a5:	e8 34 fb ff ff       	call   de <_ZL9sys_printPKc>
+     5aa:	83 c4 04             	add    $0x4,%esp
+     5ad:	ff 75 08             	push   0x8(%ebp)
+     5b0:	e8 29 fb ff ff       	call   de <_ZL9sys_printPKc>
+     5b5:	83 c4 04             	add    $0x4,%esp
+     5b8:	8d 83 83 f0 ff ff    	lea    -0xf7d(%ebx),%eax
+     5be:	50                   	push   %eax
+     5bf:	e8 1a fb ff ff       	call   de <_ZL9sys_printPKc>
+     5c4:	83 c4 04             	add    $0x4,%esp
+     5c7:	8d 83 85 f0 ff ff    	lea    -0xf7b(%ebx),%eax
+     5cd:	89 45 bc             	mov    %eax,-0x44(%ebp)
+     5d0:	c7 45 f8 00 00 00 00 	movl   $0x0,-0x8(%ebp)
+     5d7:	eb 1c                	jmp    5f5 <_ZL18load_shared_objectPKc+0x6c>
+     5d9:	8b 55 f8             	mov    -0x8(%ebp),%edx
+     5dc:	8b 45 bc             	mov    -0x44(%ebp),%eax
+     5df:	01 d0                	add    %edx,%eax
+     5e1:	0f b6 00             	movzbl (%eax),%eax
+     5e4:	8d 8d 4c ff ff ff    	lea    -0xb4(%ebp),%ecx
+     5ea:	8b 55 f8             	mov    -0x8(%ebp),%edx
+     5ed:	01 ca                	add    %ecx,%edx
+     5ef:	88 02                	mov    %al,(%edx)
+     5f1:	83 45 f8 01          	addl   $0x1,-0x8(%ebp)
+     5f5:	8b 55 f8             	mov    -0x8(%ebp),%edx
+     5f8:	8b 45 bc             	mov    -0x44(%ebp),%eax
+     5fb:	01 d0                	add    %edx,%eax
+     5fd:	0f b6 00             	movzbl (%eax),%eax
+     600:	84 c0                	test   %al,%al
+     602:	75 d5                	jne    5d9 <_ZL18load_shared_objectPKc+0x50>
+     604:	c7 45 f4 00 00 00 00 	movl   $0x0,-0xc(%ebp)
+     60b:	eb 1e                	jmp    62b <_ZL18load_shared_objectPKc+0xa2>
+     60d:	8b 55 f4             	mov    -0xc(%ebp),%edx
+     610:	8b 45 08             	mov    0x8(%ebp),%eax
+     613:	01 d0                	add    %edx,%eax
+     615:	8b 4d f8             	mov    -0x8(%ebp),%ecx
+     618:	8b 55 f4             	mov    -0xc(%ebp),%edx
+     61b:	01 ca                	add    %ecx,%edx
+     61d:	0f b6 00             	movzbl (%eax),%eax
+     620:	88 84 15 4c ff ff ff 	mov    %al,-0xb4(%ebp,%edx,1)
+     627:	83 45 f4 01          	addl   $0x1,-0xc(%ebp)
+     62b:	8b 55 f4             	mov    -0xc(%ebp),%edx
+     62e:	8b 45 08             	mov    0x8(%ebp),%eax
+     631:	01 d0                	add    %edx,%eax
+     633:	0f b6 00             	movzbl (%eax),%eax
+     636:	84 c0                	test   %al,%al
+     638:	74 0d                	je     647 <_ZL18load_shared_objectPKc+0xbe>
+     63a:	8b 55 f8             	mov    -0x8(%ebp),%edx
+     63d:	8b 45 f4             	mov    -0xc(%ebp),%eax
+     640:	01 d0                	add    %edx,%eax
+     642:	83 f8 3d             	cmp    $0x3d,%eax
+     645:	7e c6                	jle    60d <_ZL18load_shared_objectPKc+0x84>
+     647:	8b 55 f8             	mov    -0x8(%ebp),%edx
+     64a:	8b 45 f4             	mov    -0xc(%ebp),%eax
+     64d:	01 d0                	add    %edx,%eax
+     64f:	c6 84 05 4c ff ff ff 	movb   $0x0,-0xb4(%ebp,%eax,1)
+     656:	00 
+     657:	6a 00                	push   $0x0
+     659:	8d 85 4c ff ff ff    	lea    -0xb4(%ebp),%eax
+     65f:	50                   	push   %eax
+     660:	e8 db fa ff ff       	call   140 <_ZL9sys_fopenPKci>
+     665:	83 c4 08             	add    $0x8,%esp
+     668:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     66b:	83 7d f0 00          	cmpl   $0x0,-0x10(%ebp)
+     66f:	79 37                	jns    6a8 <_ZL18load_shared_objectPKc+0x11f>
+     671:	8d 83 8b f0 ff ff    	lea    -0xf75(%ebx),%eax
+     677:	50                   	push   %eax
+     678:	e8 61 fa ff ff       	call   de <_ZL9sys_printPKc>
+     67d:	83 c4 04             	add    $0x4,%esp
+     680:	8d 85 4c ff ff ff    	lea    -0xb4(%ebp),%eax
+     686:	50                   	push   %eax
+     687:	e8 52 fa ff ff       	call   de <_ZL9sys_printPKc>
+     68c:	83 c4 04             	add    $0x4,%esp
+     68f:	8d 83 83 f0 ff ff    	lea    -0xf7d(%ebx),%eax
+     695:	50                   	push   %eax
+     696:	e8 43 fa ff ff       	call   de <_ZL9sys_printPKc>
+     69b:	83 c4 04             	add    $0x4,%esp
+     69e:	b8 00 00 00 00       	mov    $0x0,%eax
+     6a3:	e9 2b 04 00 00       	jmp    ad3 <_ZL18load_shared_objectPKc+0x54a>
+     6a8:	68 00 02 00 00       	push   $0x200
+     6ad:	8d 85 4c fd ff ff    	lea    -0x2b4(%ebp),%eax
+     6b3:	50                   	push   %eax
+     6b4:	ff 75 f0             	push   -0x10(%ebp)
+     6b7:	e8 af fa ff ff       	call   16b <_ZL9sys_freadiPvj>
+     6bc:	83 c4 0c             	add    $0xc,%esp
+     6bf:	89 45 b8             	mov    %eax,-0x48(%ebp)
+     6c2:	83 7d b8 33          	cmpl   $0x33,-0x48(%ebp)
+     6c6:	7f 15                	jg     6dd <_ZL18load_shared_objectPKc+0x154>
+     6c8:	ff 75 f0             	push   -0x10(%ebp)
+     6cb:	e8 c7 fa ff ff       	call   197 <_ZL10sys_fclosei>
+     6d0:	83 c4 04             	add    $0x4,%esp
+     6d3:	b8 00 00 00 00       	mov    $0x0,%eax
+     6d8:	e9 f6 03 00 00       	jmp    ad3 <_ZL18load_shared_objectPKc+0x54a>
+     6dd:	8d 85 4c fd ff ff    	lea    -0x2b4(%ebp),%eax
+     6e3:	89 45 b4             	mov    %eax,-0x4c(%ebp)
+     6e6:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     6e9:	0f b6 00             	movzbl (%eax),%eax
+     6ec:	3c 7f                	cmp    $0x7f,%al
+     6ee:	75 21                	jne    711 <_ZL18load_shared_objectPKc+0x188>
+     6f0:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     6f3:	0f b6 40 01          	movzbl 0x1(%eax),%eax
+     6f7:	3c 45                	cmp    $0x45,%al
+     6f9:	75 16                	jne    711 <_ZL18load_shared_objectPKc+0x188>
+     6fb:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     6fe:	0f b6 40 02          	movzbl 0x2(%eax),%eax
+     702:	3c 4c                	cmp    $0x4c,%al
+     704:	75 0b                	jne    711 <_ZL18load_shared_objectPKc+0x188>
+     706:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     709:	0f b6 40 03          	movzbl 0x3(%eax),%eax
+     70d:	3c 46                	cmp    $0x46,%al
+     70f:	74 15                	je     726 <_ZL18load_shared_objectPKc+0x19d>
+     711:	ff 75 f0             	push   -0x10(%ebp)
+     714:	e8 7e fa ff ff       	call   197 <_ZL10sys_fclosei>
+     719:	83 c4 04             	add    $0x4,%esp
+     71c:	b8 00 00 00 00       	mov    $0x0,%eax
+     721:	e9 ad 03 00 00       	jmp    ad3 <_ZL18load_shared_objectPKc+0x54a>
+     726:	8b 83 8c ff ff ff    	mov    -0x74(%ebx),%eax
+     72c:	89 45 b0             	mov    %eax,-0x50(%ebp)
+     72f:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     732:	8b 40 1c             	mov    0x1c(%eax),%eax
+     735:	8d 95 4c fd ff ff    	lea    -0x2b4(%ebp),%edx
+     73b:	01 d0                	add    %edx,%eax
+     73d:	89 45 ac             	mov    %eax,-0x54(%ebp)
+     740:	c7 45 ec 00 00 00 00 	movl   $0x0,-0x14(%ebp)
+     747:	c7 45 e8 00 00 00 00 	movl   $0x0,-0x18(%ebp)
+     74e:	eb 4b                	jmp    79b <_ZL18load_shared_objectPKc+0x212>
+     750:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     753:	c1 e0 05             	shl    $0x5,%eax
+     756:	89 c2                	mov    %eax,%edx
+     758:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     75b:	01 d0                	add    %edx,%eax
+     75d:	8b 00                	mov    (%eax),%eax
+     75f:	83 f8 01             	cmp    $0x1,%eax
+     762:	75 33                	jne    797 <_ZL18load_shared_objectPKc+0x20e>
+     764:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     767:	c1 e0 05             	shl    $0x5,%eax
+     76a:	89 c2                	mov    %eax,%edx
+     76c:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     76f:	01 d0                	add    %edx,%eax
+     771:	8b 50 08             	mov    0x8(%eax),%edx
+     774:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     777:	c1 e0 05             	shl    $0x5,%eax
+     77a:	89 c1                	mov    %eax,%ecx
+     77c:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     77f:	01 c8                	add    %ecx,%eax
+     781:	8b 40 14             	mov    0x14(%eax),%eax
+     784:	01 d0                	add    %edx,%eax
+     786:	89 45 8c             	mov    %eax,-0x74(%ebp)
+     789:	8b 45 8c             	mov    -0x74(%ebp),%eax
+     78c:	39 45 ec             	cmp    %eax,-0x14(%ebp)
+     78f:	73 06                	jae    797 <_ZL18load_shared_objectPKc+0x20e>
+     791:	8b 45 8c             	mov    -0x74(%ebp),%eax
+     794:	89 45 ec             	mov    %eax,-0x14(%ebp)
+     797:	83 45 e8 01          	addl   $0x1,-0x18(%ebp)
+     79b:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     79e:	0f b7 40 2c          	movzwl 0x2c(%eax),%eax
+     7a2:	0f b7 c0             	movzwl %ax,%eax
+     7a5:	39 45 e8             	cmp    %eax,-0x18(%ebp)
+     7a8:	7c a6                	jl     750 <_ZL18load_shared_objectPKc+0x1c7>
+     7aa:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     7ad:	05 ff 0f 00 00       	add    $0xfff,%eax
+     7b2:	25 00 f0 ff ff       	and    $0xfffff000,%eax
+     7b7:	89 45 ec             	mov    %eax,-0x14(%ebp)
+     7ba:	6a ff                	push   $0xffffffff
+     7bc:	6a 32                	push   $0x32
+     7be:	6a 03                	push   $0x3
+     7c0:	ff 75 ec             	push   -0x14(%ebp)
+     7c3:	ff 75 b0             	push   -0x50(%ebp)
+     7c6:	e8 ec f9 ff ff       	call   1b7 <_ZL8sys_mmapjjjji>
+     7cb:	83 c4 14             	add    $0x14,%esp
+     7ce:	89 45 a8             	mov    %eax,-0x58(%ebp)
+     7d1:	83 7d a8 ff          	cmpl   $0xffffffff,-0x58(%ebp)
+     7d5:	75 15                	jne    7ec <_ZL18load_shared_objectPKc+0x263>
+     7d7:	ff 75 f0             	push   -0x10(%ebp)
+     7da:	e8 b8 f9 ff ff       	call   197 <_ZL10sys_fclosei>
+     7df:	83 c4 04             	add    $0x4,%esp
+     7e2:	b8 00 00 00 00       	mov    $0x0,%eax
+     7e7:	e9 e7 02 00 00       	jmp    ad3 <_ZL18load_shared_objectPKc+0x54a>
+     7ec:	c7 45 e4 00 00 00 00 	movl   $0x0,-0x1c(%ebp)
+     7f3:	e9 17 01 00 00       	jmp    90f <_ZL18load_shared_objectPKc+0x386>
+     7f8:	8b 45 e4             	mov    -0x1c(%ebp),%eax
+     7fb:	c1 e0 05             	shl    $0x5,%eax
+     7fe:	89 c2                	mov    %eax,%edx
+     800:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     803:	01 d0                	add    %edx,%eax
+     805:	8b 00                	mov    (%eax),%eax
+     807:	83 f8 01             	cmp    $0x1,%eax
+     80a:	0f 85 f4 00 00 00    	jne    904 <_ZL18load_shared_objectPKc+0x37b>
+     810:	8b 45 e4             	mov    -0x1c(%ebp),%eax
+     813:	c1 e0 05             	shl    $0x5,%eax
+     816:	89 c2                	mov    %eax,%edx
+     818:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     81b:	01 d0                	add    %edx,%eax
+     81d:	8b 40 10             	mov    0x10(%eax),%eax
+     820:	85 c0                	test   %eax,%eax
+     822:	0f 84 df 00 00 00    	je     907 <_ZL18load_shared_objectPKc+0x37e>
+     828:	ff 75 f0             	push   -0x10(%ebp)
+     82b:	e8 67 f9 ff ff       	call   197 <_ZL10sys_fclosei>
+     830:	83 c4 04             	add    $0x4,%esp
+     833:	6a 00                	push   $0x0
+     835:	8d 85 4c ff ff ff    	lea    -0xb4(%ebp),%eax
+     83b:	50                   	push   %eax
+     83c:	e8 ff f8 ff ff       	call   140 <_ZL9sys_fopenPKci>
+     841:	83 c4 08             	add    $0x8,%esp
+     844:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     847:	83 7d f0 00          	cmpl   $0x0,-0x10(%ebp)
+     84b:	79 0a                	jns    857 <_ZL18load_shared_objectPKc+0x2ce>
+     84d:	b8 00 00 00 00       	mov    $0x0,%eax
+     852:	e9 7c 02 00 00       	jmp    ad3 <_ZL18load_shared_objectPKc+0x54a>
+     857:	8b 45 e4             	mov    -0x1c(%ebp),%eax
+     85a:	c1 e0 05             	shl    $0x5,%eax
+     85d:	89 c2                	mov    %eax,%edx
+     85f:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     862:	01 d0                	add    %edx,%eax
+     864:	8b 40 04             	mov    0x4(%eax),%eax
+     867:	89 45 e0             	mov    %eax,-0x20(%ebp)
+     86a:	eb 34                	jmp    8a0 <_ZL18load_shared_objectPKc+0x317>
+     86c:	8b 45 e0             	mov    -0x20(%ebp),%eax
+     86f:	ba 00 02 00 00       	mov    $0x200,%edx
+     874:	39 d0                	cmp    %edx,%eax
+     876:	0f 47 c2             	cmova  %edx,%eax
+     879:	89 45 98             	mov    %eax,-0x68(%ebp)
+     87c:	ff 75 98             	push   -0x68(%ebp)
+     87f:	8d 85 4c fb ff ff    	lea    -0x4b4(%ebp),%eax
+     885:	50                   	push   %eax
+     886:	ff 75 f0             	push   -0x10(%ebp)
+     889:	e8 dd f8 ff ff       	call   16b <_ZL9sys_freadiPvj>
+     88e:	83 c4 0c             	add    $0xc,%esp
+     891:	89 45 94             	mov    %eax,-0x6c(%ebp)
+     894:	83 7d 94 00          	cmpl   $0x0,-0x6c(%ebp)
+     898:	7e 0e                	jle    8a8 <_ZL18load_shared_objectPKc+0x31f>
+     89a:	8b 45 94             	mov    -0x6c(%ebp),%eax
+     89d:	29 45 e0             	sub    %eax,-0x20(%ebp)
+     8a0:	83 7d e0 00          	cmpl   $0x0,-0x20(%ebp)
+     8a4:	75 c6                	jne    86c <_ZL18load_shared_objectPKc+0x2e3>
+     8a6:	eb 01                	jmp    8a9 <_ZL18load_shared_objectPKc+0x320>
+     8a8:	90                   	nop
+     8a9:	8b 45 e4             	mov    -0x1c(%ebp),%eax
+     8ac:	c1 e0 05             	shl    $0x5,%eax
+     8af:	89 c2                	mov    %eax,%edx
+     8b1:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     8b4:	01 d0                	add    %edx,%eax
+     8b6:	8b 50 08             	mov    0x8(%eax),%edx
+     8b9:	8b 45 b0             	mov    -0x50(%ebp),%eax
+     8bc:	01 d0                	add    %edx,%eax
+     8be:	89 45 dc             	mov    %eax,-0x24(%ebp)
+     8c1:	8b 45 e4             	mov    -0x1c(%ebp),%eax
+     8c4:	c1 e0 05             	shl    $0x5,%eax
+     8c7:	89 c2                	mov    %eax,%edx
+     8c9:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     8cc:	01 d0                	add    %edx,%eax
+     8ce:	8b 40 10             	mov    0x10(%eax),%eax
+     8d1:	89 45 d8             	mov    %eax,-0x28(%ebp)
+     8d4:	eb 26                	jmp    8fc <_ZL18load_shared_objectPKc+0x373>
+     8d6:	ff 75 d8             	push   -0x28(%ebp)
+     8d9:	ff 75 dc             	push   -0x24(%ebp)
+     8dc:	ff 75 f0             	push   -0x10(%ebp)
+     8df:	e8 87 f8 ff ff       	call   16b <_ZL9sys_freadiPvj>
+     8e4:	83 c4 0c             	add    $0xc,%esp
+     8e7:	89 45 90             	mov    %eax,-0x70(%ebp)
+     8ea:	83 7d 90 00          	cmpl   $0x0,-0x70(%ebp)
+     8ee:	7e 1a                	jle    90a <_ZL18load_shared_objectPKc+0x381>
+     8f0:	8b 45 90             	mov    -0x70(%ebp),%eax
+     8f3:	01 45 dc             	add    %eax,-0x24(%ebp)
+     8f6:	8b 45 90             	mov    -0x70(%ebp),%eax
+     8f9:	29 45 d8             	sub    %eax,-0x28(%ebp)
+     8fc:	83 7d d8 00          	cmpl   $0x0,-0x28(%ebp)
+     900:	75 d4                	jne    8d6 <_ZL18load_shared_objectPKc+0x34d>
+     902:	eb 07                	jmp    90b <_ZL18load_shared_objectPKc+0x382>
+     904:	90                   	nop
+     905:	eb 04                	jmp    90b <_ZL18load_shared_objectPKc+0x382>
+     907:	90                   	nop
+     908:	eb 01                	jmp    90b <_ZL18load_shared_objectPKc+0x382>
+     90a:	90                   	nop
+     90b:	83 45 e4 01          	addl   $0x1,-0x1c(%ebp)
+     90f:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     912:	0f b7 40 2c          	movzwl 0x2c(%eax),%eax
+     916:	0f b7 c0             	movzwl %ax,%eax
+     919:	39 45 e4             	cmp    %eax,-0x1c(%ebp)
+     91c:	0f 8c d6 fe ff ff    	jl     7f8 <_ZL18load_shared_objectPKc+0x26f>
+     922:	ff 75 f0             	push   -0x10(%ebp)
+     925:	e8 6d f8 ff ff       	call   197 <_ZL10sys_fclosei>
+     92a:	83 c4 04             	add    $0x4,%esp
+     92d:	8b 55 b0             	mov    -0x50(%ebp),%edx
+     930:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     933:	01 d0                	add    %edx,%eax
+     935:	05 ff 0f 00 00       	add    $0xfff,%eax
+     93a:	25 00 f0 ff ff       	and    $0xfffff000,%eax
+     93f:	89 83 8c ff ff ff    	mov    %eax,-0x74(%ebx)
+     945:	8b 83 8c ff ff ff    	mov    -0x74(%ebx),%eax
+     94b:	05 00 10 00 00       	add    $0x1000,%eax
+     950:	89 83 8c ff ff ff    	mov    %eax,-0x74(%ebx)
+     956:	c7 45 d4 00 00 00 00 	movl   $0x0,-0x2c(%ebp)
+     95d:	c7 45 d0 00 00 00 00 	movl   $0x0,-0x30(%ebp)
+     964:	eb 32                	jmp    998 <_ZL18load_shared_objectPKc+0x40f>
+     966:	8b 45 d0             	mov    -0x30(%ebp),%eax
+     969:	c1 e0 05             	shl    $0x5,%eax
+     96c:	89 c2                	mov    %eax,%edx
+     96e:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     971:	01 d0                	add    %edx,%eax
+     973:	8b 00                	mov    (%eax),%eax
+     975:	83 f8 02             	cmp    $0x2,%eax
+     978:	75 1a                	jne    994 <_ZL18load_shared_objectPKc+0x40b>
+     97a:	8b 45 d0             	mov    -0x30(%ebp),%eax
+     97d:	c1 e0 05             	shl    $0x5,%eax
+     980:	89 c2                	mov    %eax,%edx
+     982:	8b 45 ac             	mov    -0x54(%ebp),%eax
+     985:	01 d0                	add    %edx,%eax
+     987:	8b 50 08             	mov    0x8(%eax),%edx
+     98a:	8b 45 b0             	mov    -0x50(%ebp),%eax
+     98d:	01 d0                	add    %edx,%eax
+     98f:	89 45 d4             	mov    %eax,-0x2c(%ebp)
+     992:	eb 13                	jmp    9a7 <_ZL18load_shared_objectPKc+0x41e>
+     994:	83 45 d0 01          	addl   $0x1,-0x30(%ebp)
+     998:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     99b:	0f b7 40 2c          	movzwl 0x2c(%eax),%eax
+     99f:	0f b7 c0             	movzwl %ax,%eax
+     9a2:	39 45 d0             	cmp    %eax,-0x30(%ebp)
+     9a5:	7c bf                	jl     966 <_ZL18load_shared_objectPKc+0x3dd>
+     9a7:	ff 75 d4             	push   -0x2c(%ebp)
+     9aa:	ff 75 b0             	push   -0x50(%ebp)
+     9ad:	ff 75 08             	push   0x8(%ebp)
+     9b0:	e8 fd f8 ff ff       	call   2b2 <_ZL15register_objectPKcjP9Elf32_Dyn>
+     9b5:	83 c4 0c             	add    $0xc,%esp
+     9b8:	89 45 a4             	mov    %eax,-0x5c(%ebp)
+     9bb:	83 7d a4 00          	cmpl   $0x0,-0x5c(%ebp)
+     9bf:	79 0a                	jns    9cb <_ZL18load_shared_objectPKc+0x442>
+     9c1:	b8 00 00 00 00       	mov    $0x0,%eax
+     9c6:	e9 08 01 00 00       	jmp    ad3 <_ZL18load_shared_objectPKc+0x54a>
+     9cb:	8d 83 a7 f0 ff ff    	lea    -0xf59(%ebx),%eax
+     9d1:	50                   	push   %eax
+     9d2:	e8 07 f7 ff ff       	call   de <_ZL9sys_printPKc>
+     9d7:	83 c4 04             	add    $0x4,%esp
+     9da:	ff 75 08             	push   0x8(%ebp)
+     9dd:	e8 fc f6 ff ff       	call   de <_ZL9sys_printPKc>
+     9e2:	83 c4 04             	add    $0x4,%esp
+     9e5:	8d 83 b7 f0 ff ff    	lea    -0xf49(%ebx),%eax
+     9eb:	50                   	push   %eax
+     9ec:	e8 ed f6 ff ff       	call   de <_ZL9sys_printPKc>
+     9f1:	83 c4 04             	add    $0x4,%esp
+     9f4:	ff 75 b0             	push   -0x50(%ebp)
+     9f7:	e8 47 f8 ff ff       	call   243 <_ZL9print_hexj>
+     9fc:	83 c4 04             	add    $0x4,%esp
+     9ff:	8d 83 83 f0 ff ff    	lea    -0xf7d(%ebx),%eax
+     a05:	50                   	push   %eax
+     a06:	e8 d3 f6 ff ff       	call   de <_ZL9sys_printPKc>
+     a0b:	83 c4 04             	add    $0x4,%esp
+     a0e:	83 7d d4 00          	cmpl   $0x0,-0x2c(%ebp)
+     a12:	0f 84 b6 00 00 00    	je     ace <_ZL18load_shared_objectPKc+0x545>
+     a18:	c7 45 cc 00 00 00 00 	movl   $0x0,-0x34(%ebp)
+     a1f:	c7 45 c8 00 00 00 00 	movl   $0x0,-0x38(%ebp)
+     a26:	8b 45 d4             	mov    -0x2c(%ebp),%eax
+     a29:	89 45 c4             	mov    %eax,-0x3c(%ebp)
+     a2c:	eb 2f                	jmp    a5d <_ZL18load_shared_objectPKc+0x4d4>
+     a2e:	8b 45 c4             	mov    -0x3c(%ebp),%eax
+     a31:	8b 00                	mov    (%eax),%eax
+     a33:	83 f8 11             	cmp    $0x11,%eax
+     a36:	74 07                	je     a3f <_ZL18load_shared_objectPKc+0x4b6>
+     a38:	83 f8 12             	cmp    $0x12,%eax
+     a3b:	74 12                	je     a4f <_ZL18load_shared_objectPKc+0x4c6>
+     a3d:	eb 1a                	jmp    a59 <_ZL18load_shared_objectPKc+0x4d0>
+     a3f:	8b 45 c4             	mov    -0x3c(%ebp),%eax
+     a42:	8b 50 04             	mov    0x4(%eax),%edx
+     a45:	8b 45 b0             	mov    -0x50(%ebp),%eax
+     a48:	01 d0                	add    %edx,%eax
+     a4a:	89 45 cc             	mov    %eax,-0x34(%ebp)
+     a4d:	eb 0a                	jmp    a59 <_ZL18load_shared_objectPKc+0x4d0>
+     a4f:	8b 45 c4             	mov    -0x3c(%ebp),%eax
+     a52:	8b 40 04             	mov    0x4(%eax),%eax
+     a55:	89 45 c8             	mov    %eax,-0x38(%ebp)
+     a58:	90                   	nop
+     a59:	83 45 c4 08          	addl   $0x8,-0x3c(%ebp)
+     a5d:	8b 45 c4             	mov    -0x3c(%ebp),%eax
+     a60:	8b 00                	mov    (%eax),%eax
+     a62:	85 c0                	test   %eax,%eax
+     a64:	75 c8                	jne    a2e <_ZL18load_shared_objectPKc+0x4a5>
+     a66:	83 7d cc 00          	cmpl   $0x0,-0x34(%ebp)
+     a6a:	74 62                	je     ace <_ZL18load_shared_objectPKc+0x545>
+     a6c:	83 7d c8 00          	cmpl   $0x0,-0x38(%ebp)
+     a70:	74 5c                	je     ace <_ZL18load_shared_objectPKc+0x545>
+     a72:	8b 45 c8             	mov    -0x38(%ebp),%eax
+     a75:	c1 e8 03             	shr    $0x3,%eax
+     a78:	89 45 a0             	mov    %eax,-0x60(%ebp)
+     a7b:	c7 45 c0 00 00 00 00 	movl   $0x0,-0x40(%ebp)
+     a82:	eb 42                	jmp    ac6 <_ZL18load_shared_objectPKc+0x53d>
+     a84:	8b 45 c0             	mov    -0x40(%ebp),%eax
+     a87:	8d 14 c5 00 00 00 00 	lea    0x0(,%eax,8),%edx
+     a8e:	8b 45 cc             	mov    -0x34(%ebp),%eax
+     a91:	01 d0                	add    %edx,%eax
+     a93:	8b 40 04             	mov    0x4(%eax),%eax
+     a96:	3c 08                	cmp    $0x8,%al
+     a98:	75 28                	jne    ac2 <_ZL18load_shared_objectPKc+0x539>
+     a9a:	8b 45 c0             	mov    -0x40(%ebp),%eax
+     a9d:	8d 14 c5 00 00 00 00 	lea    0x0(,%eax,8),%edx
+     aa4:	8b 45 cc             	mov    -0x34(%ebp),%eax
+     aa7:	01 d0                	add    %edx,%eax
+     aa9:	8b 10                	mov    (%eax),%edx
+     aab:	8b 45 b0             	mov    -0x50(%ebp),%eax
+     aae:	01 d0                	add    %edx,%eax
+     ab0:	89 45 9c             	mov    %eax,-0x64(%ebp)
+     ab3:	8b 45 9c             	mov    -0x64(%ebp),%eax
+     ab6:	8b 10                	mov    (%eax),%edx
+     ab8:	8b 45 b0             	mov    -0x50(%ebp),%eax
+     abb:	01 c2                	add    %eax,%edx
+     abd:	8b 45 9c             	mov    -0x64(%ebp),%eax
+     ac0:	89 10                	mov    %edx,(%eax)
+     ac2:	83 45 c0 01          	addl   $0x1,-0x40(%ebp)
+     ac6:	8b 45 c0             	mov    -0x40(%ebp),%eax
+     ac9:	3b 45 a0             	cmp    -0x60(%ebp),%eax
+     acc:	7c b6                	jl     a84 <_ZL18load_shared_objectPKc+0x4fb>
+     ace:	b8 01 00 00 00       	mov    $0x1,%eax
+     ad3:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     ad6:	c9                   	leave
+     ad7:	c3                   	ret
+
+00000ad8 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j>:
+     ad8:	55                   	push   %ebp
+     ad9:	89 e5                	mov    %esp,%ebp
+     adb:	53                   	push   %ebx
+     adc:	83 ec 30             	sub    $0x30,%esp
+     adf:	e8 eb 05 00 00       	call   10cf <__x86.get_pc_thunk.bx>
+     ae4:	81 c3 90 15 00 00    	add    $0x1590,%ebx
+     aea:	83 7d 0c 00          	cmpl   $0x0,0xc(%ebp)
+     aee:	0f 84 b5 01 00 00    	je     ca9 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1d1>
+     af4:	83 7d 10 00          	cmpl   $0x0,0x10(%ebp)
+     af8:	0f 84 ab 01 00 00    	je     ca9 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1d1>
+     afe:	8b 45 10             	mov    0x10(%ebp),%eax
+     b01:	c1 e8 03             	shr    $0x3,%eax
+     b04:	89 45 f4             	mov    %eax,-0xc(%ebp)
+     b07:	c7 45 f8 00 00 00 00 	movl   $0x0,-0x8(%ebp)
+     b0e:	e9 88 01 00 00       	jmp    c9b <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1c3>
+     b13:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     b16:	8d 14 c5 00 00 00 00 	lea    0x0(,%eax,8),%edx
+     b1d:	8b 45 0c             	mov    0xc(%ebp),%eax
+     b20:	01 d0                	add    %edx,%eax
+     b22:	8b 40 04             	mov    0x4(%eax),%eax
+     b25:	88 45 f3             	mov    %al,-0xd(%ebp)
+     b28:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     b2b:	8d 14 c5 00 00 00 00 	lea    0x0(,%eax,8),%edx
+     b32:	8b 45 0c             	mov    0xc(%ebp),%eax
+     b35:	01 d0                	add    %edx,%eax
+     b37:	8b 40 04             	mov    0x4(%eax),%eax
+     b3a:	c1 e8 08             	shr    $0x8,%eax
+     b3d:	89 45 ec             	mov    %eax,-0x14(%ebp)
+     b40:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     b43:	8d 14 c5 00 00 00 00 	lea    0x0(,%eax,8),%edx
+     b4a:	8b 45 0c             	mov    0xc(%ebp),%eax
+     b4d:	01 d0                	add    %edx,%eax
+     b4f:	8b 10                	mov    (%eax),%edx
+     b51:	8b 45 08             	mov    0x8(%ebp),%eax
+     b54:	8b 00                	mov    (%eax),%eax
+     b56:	8b 40 08             	mov    0x8(%eax),%eax
+     b59:	01 d0                	add    %edx,%eax
+     b5b:	89 45 e8             	mov    %eax,-0x18(%ebp)
+     b5e:	0f b6 45 f3          	movzbl -0xd(%ebp),%eax
+     b62:	83 f8 08             	cmp    $0x8,%eax
+     b65:	74 28                	je     b8f <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0xb7>
+     b67:	83 f8 08             	cmp    $0x8,%eax
+     b6a:	0f 8f 27 01 00 00    	jg     c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     b70:	83 f8 01             	cmp    $0x1,%eax
+     b73:	0f 84 c3 00 00 00    	je     c3c <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x164>
+     b79:	85 c0                	test   %eax,%eax
+     b7b:	0f 8e 16 01 00 00    	jle    c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     b81:	83 e8 06             	sub    $0x6,%eax
+     b84:	83 f8 01             	cmp    $0x1,%eax
+     b87:	0f 87 0a 01 00 00    	ja     c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     b8d:	eb 19                	jmp    ba8 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0xd0>
+     b8f:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     b92:	8b 10                	mov    (%eax),%edx
+     b94:	8b 45 08             	mov    0x8(%ebp),%eax
+     b97:	8b 00                	mov    (%eax),%eax
+     b99:	8b 40 08             	mov    0x8(%eax),%eax
+     b9c:	01 c2                	add    %eax,%edx
+     b9e:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     ba1:	89 10                	mov    %edx,(%eax)
+     ba3:	e9 ef 00 00 00       	jmp    c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     ba8:	8b 45 08             	mov    0x8(%ebp),%eax
+     bab:	8b 00                	mov    (%eax),%eax
+     bad:	8b 40 0c             	mov    0xc(%eax),%eax
+     bb0:	85 c0                	test   %eax,%eax
+     bb2:	0f 84 df 00 00 00    	je     c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     bb8:	8b 45 08             	mov    0x8(%ebp),%eax
+     bbb:	8b 00                	mov    (%eax),%eax
+     bbd:	8b 40 10             	mov    0x10(%eax),%eax
+     bc0:	85 c0                	test   %eax,%eax
+     bc2:	0f 84 cf 00 00 00    	je     c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     bc8:	8b 45 08             	mov    0x8(%ebp),%eax
+     bcb:	8b 00                	mov    (%eax),%eax
+     bcd:	8b 50 10             	mov    0x10(%eax),%edx
+     bd0:	8b 45 08             	mov    0x8(%ebp),%eax
+     bd3:	8b 00                	mov    (%eax),%eax
+     bd5:	8b 40 0c             	mov    0xc(%eax),%eax
+     bd8:	8b 4d ec             	mov    -0x14(%ebp),%ecx
+     bdb:	c1 e1 04             	shl    $0x4,%ecx
+     bde:	01 c8                	add    %ecx,%eax
+     be0:	8b 00                	mov    (%eax),%eax
+     be2:	01 d0                	add    %edx,%eax
+     be4:	89 45 e4             	mov    %eax,-0x1c(%ebp)
+     be7:	ff 75 e4             	push   -0x1c(%ebp)
+     bea:	e8 c4 f8 ff ff       	call   4b3 <_ZL20lookup_symbol_globalPKc>
+     bef:	83 c4 04             	add    $0x4,%esp
+     bf2:	89 45 e0             	mov    %eax,-0x20(%ebp)
+     bf5:	83 7d e0 00          	cmpl   $0x0,-0x20(%ebp)
+     bf9:	74 0d                	je     c08 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x130>
+     bfb:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     bfe:	8b 55 e0             	mov    -0x20(%ebp),%edx
+     c01:	89 10                	mov    %edx,(%eax)
+     c03:	e9 8f 00 00 00       	jmp    c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     c08:	8d 83 bc f0 ff ff    	lea    -0xf44(%ebx),%eax
+     c0e:	50                   	push   %eax
+     c0f:	e8 ca f4 ff ff       	call   de <_ZL9sys_printPKc>
+     c14:	83 c4 04             	add    $0x4,%esp
+     c17:	ff 75 e4             	push   -0x1c(%ebp)
+     c1a:	e8 bf f4 ff ff       	call   de <_ZL9sys_printPKc>
+     c1f:	83 c4 04             	add    $0x4,%esp
+     c22:	8d 83 83 f0 ff ff    	lea    -0xf7d(%ebx),%eax
+     c28:	50                   	push   %eax
+     c29:	e8 b0 f4 ff ff       	call   de <_ZL9sys_printPKc>
+     c2e:	83 c4 04             	add    $0x4,%esp
+     c31:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     c34:	c7 00 00 00 00 00    	movl   $0x0,(%eax)
+     c3a:	eb 5b                	jmp    c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     c3c:	8b 45 08             	mov    0x8(%ebp),%eax
+     c3f:	8b 00                	mov    (%eax),%eax
+     c41:	8b 40 0c             	mov    0xc(%eax),%eax
+     c44:	85 c0                	test   %eax,%eax
+     c46:	74 4f                	je     c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     c48:	8b 45 08             	mov    0x8(%ebp),%eax
+     c4b:	8b 00                	mov    (%eax),%eax
+     c4d:	8b 40 10             	mov    0x10(%eax),%eax
+     c50:	85 c0                	test   %eax,%eax
+     c52:	74 43                	je     c97 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1bf>
+     c54:	8b 45 08             	mov    0x8(%ebp),%eax
+     c57:	8b 00                	mov    (%eax),%eax
+     c59:	8b 50 10             	mov    0x10(%eax),%edx
+     c5c:	8b 45 08             	mov    0x8(%ebp),%eax
+     c5f:	8b 00                	mov    (%eax),%eax
+     c61:	8b 40 0c             	mov    0xc(%eax),%eax
+     c64:	8b 4d ec             	mov    -0x14(%ebp),%ecx
+     c67:	c1 e1 04             	shl    $0x4,%ecx
+     c6a:	01 c8                	add    %ecx,%eax
+     c6c:	8b 00                	mov    (%eax),%eax
+     c6e:	01 d0                	add    %edx,%eax
+     c70:	89 45 dc             	mov    %eax,-0x24(%ebp)
+     c73:	ff 75 dc             	push   -0x24(%ebp)
+     c76:	e8 38 f8 ff ff       	call   4b3 <_ZL20lookup_symbol_globalPKc>
+     c7b:	83 c4 04             	add    $0x4,%esp
+     c7e:	89 45 d8             	mov    %eax,-0x28(%ebp)
+     c81:	83 7d d8 00          	cmpl   $0x0,-0x28(%ebp)
+     c85:	74 0f                	je     c96 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1be>
+     c87:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     c8a:	8b 10                	mov    (%eax),%edx
+     c8c:	8b 45 d8             	mov    -0x28(%ebp),%eax
+     c8f:	01 c2                	add    %eax,%edx
+     c91:	8b 45 e8             	mov    -0x18(%ebp),%eax
+     c94:	89 10                	mov    %edx,(%eax)
+     c96:	90                   	nop
+     c97:	83 45 f8 01          	addl   $0x1,-0x8(%ebp)
+     c9b:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     c9e:	3b 45 f4             	cmp    -0xc(%ebp),%eax
+     ca1:	0f 8c 6c fe ff ff    	jl     b13 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x3b>
+     ca7:	eb 01                	jmp    caa <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j+0x1d2>
+     ca9:	90                   	nop
+     caa:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     cad:	c9                   	leave
+     cae:	c3                   	ret
+
+00000caf <_ZL19process_relocationsR12LoadedObject>:
+     caf:	55                   	push   %ebp
+     cb0:	89 e5                	mov    %esp,%ebp
+     cb2:	83 ec 20             	sub    $0x20,%esp
+     cb5:	e8 11 04 00 00       	call   10cb <__x86.get_pc_thunk.ax>
+     cba:	05 ba 13 00 00       	add    $0x13ba,%eax
+     cbf:	8b 45 08             	mov    0x8(%ebp),%eax
+     cc2:	8b 40 18             	mov    0x18(%eax),%eax
+     cc5:	85 c0                	test   %eax,%eax
+     cc7:	0f 84 be 00 00 00    	je     d8b <_ZL19process_relocationsR12LoadedObject+0xdc>
+     ccd:	c7 45 fc 00 00 00 00 	movl   $0x0,-0x4(%ebp)
+     cd4:	c7 45 f8 00 00 00 00 	movl   $0x0,-0x8(%ebp)
+     cdb:	c7 45 f4 00 00 00 00 	movl   $0x0,-0xc(%ebp)
+     ce2:	c7 45 f0 00 00 00 00 	movl   $0x0,-0x10(%ebp)
+     ce9:	8b 45 08             	mov    0x8(%ebp),%eax
+     cec:	8b 40 18             	mov    0x18(%eax),%eax
+     cef:	89 45 ec             	mov    %eax,-0x14(%ebp)
+     cf2:	eb 62                	jmp    d56 <_ZL19process_relocationsR12LoadedObject+0xa7>
+     cf4:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     cf7:	8b 00                	mov    (%eax),%eax
+     cf9:	83 f8 17             	cmp    $0x17,%eax
+     cfc:	74 37                	je     d35 <_ZL19process_relocationsR12LoadedObject+0x86>
+     cfe:	83 f8 17             	cmp    $0x17,%eax
+     d01:	7f 4f                	jg     d52 <_ZL19process_relocationsR12LoadedObject+0xa3>
+     d03:	83 f8 12             	cmp    $0x12,%eax
+     d06:	74 22                	je     d2a <_ZL19process_relocationsR12LoadedObject+0x7b>
+     d08:	83 f8 12             	cmp    $0x12,%eax
+     d0b:	7f 45                	jg     d52 <_ZL19process_relocationsR12LoadedObject+0xa3>
+     d0d:	83 f8 02             	cmp    $0x2,%eax
+     d10:	74 36                	je     d48 <_ZL19process_relocationsR12LoadedObject+0x99>
+     d12:	83 f8 11             	cmp    $0x11,%eax
+     d15:	75 3b                	jne    d52 <_ZL19process_relocationsR12LoadedObject+0xa3>
+     d17:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     d1a:	8b 50 04             	mov    0x4(%eax),%edx
+     d1d:	8b 45 08             	mov    0x8(%ebp),%eax
+     d20:	8b 40 08             	mov    0x8(%eax),%eax
+     d23:	01 d0                	add    %edx,%eax
+     d25:	89 45 fc             	mov    %eax,-0x4(%ebp)
+     d28:	eb 28                	jmp    d52 <_ZL19process_relocationsR12LoadedObject+0xa3>
+     d2a:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     d2d:	8b 40 04             	mov    0x4(%eax),%eax
+     d30:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     d33:	eb 1d                	jmp    d52 <_ZL19process_relocationsR12LoadedObject+0xa3>
+     d35:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     d38:	8b 50 04             	mov    0x4(%eax),%edx
+     d3b:	8b 45 08             	mov    0x8(%ebp),%eax
+     d3e:	8b 40 08             	mov    0x8(%eax),%eax
+     d41:	01 d0                	add    %edx,%eax
+     d43:	89 45 f4             	mov    %eax,-0xc(%ebp)
+     d46:	eb 0a                	jmp    d52 <_ZL19process_relocationsR12LoadedObject+0xa3>
+     d48:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     d4b:	8b 40 04             	mov    0x4(%eax),%eax
+     d4e:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     d51:	90                   	nop
+     d52:	83 45 ec 08          	addl   $0x8,-0x14(%ebp)
+     d56:	8b 45 ec             	mov    -0x14(%ebp),%eax
+     d59:	8b 00                	mov    (%eax),%eax
+     d5b:	85 c0                	test   %eax,%eax
+     d5d:	75 95                	jne    cf4 <_ZL19process_relocationsR12LoadedObject+0x45>
+     d5f:	8b 45 08             	mov    0x8(%ebp),%eax
+     d62:	89 45 e8             	mov    %eax,-0x18(%ebp)
+     d65:	ff 75 f8             	push   -0x8(%ebp)
+     d68:	ff 75 fc             	push   -0x4(%ebp)
+     d6b:	8d 45 e8             	lea    -0x18(%ebp),%eax
+     d6e:	50                   	push   %eax
+     d6f:	e8 64 fd ff ff       	call   ad8 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j>
+     d74:	83 c4 0c             	add    $0xc,%esp
+     d77:	ff 75 f0             	push   -0x10(%ebp)
+     d7a:	ff 75 f4             	push   -0xc(%ebp)
+     d7d:	8d 45 e8             	lea    -0x18(%ebp),%eax
+     d80:	50                   	push   %eax
+     d81:	e8 52 fd ff ff       	call   ad8 <_ZZL19process_relocationsR12LoadedObjectENKUlP9Elf32_ReljE_clES2_j>
+     d86:	83 c4 0c             	add    $0xc,%esp
+     d89:	eb 01                	jmp    d8c <_ZL19process_relocationsR12LoadedObject+0xdd>
+     d8b:	90                   	nop
+     d8c:	c9                   	leave
+     d8d:	c3                   	ret
+
+00000d8e <_ld_main>:
+     d8e:	55                   	push   %ebp
+     d8f:	89 e5                	mov    %esp,%ebp
+     d91:	53                   	push   %ebx
+     d92:	83 ec 60             	sub    $0x60,%esp
+     d95:	e8 35 03 00 00       	call   10cf <__x86.get_pc_thunk.bx>
+     d9a:	81 c3 da 12 00 00    	add    $0x12da,%ebx
+     da0:	8b 45 08             	mov    0x8(%ebp),%eax
+     da3:	8b 00                	mov    (%eax),%eax
+     da5:	89 45 cc             	mov    %eax,-0x34(%ebp)
+     da8:	8b 45 08             	mov    0x8(%ebp),%eax
+     dab:	83 c0 04             	add    $0x4,%eax
+     dae:	89 45 c8             	mov    %eax,-0x38(%ebp)
+     db1:	8b 45 cc             	mov    -0x34(%ebp),%eax
+     db4:	83 c0 01             	add    $0x1,%eax
+     db7:	8d 14 85 00 00 00 00 	lea    0x0(,%eax,4),%edx
+     dbe:	8b 45 c8             	mov    -0x38(%ebp),%eax
+     dc1:	01 d0                	add    %edx,%eax
+     dc3:	89 45 c4             	mov    %eax,-0x3c(%ebp)
+     dc6:	8b 45 c4             	mov    -0x3c(%ebp),%eax
+     dc9:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     dcc:	eb 04                	jmp    dd2 <_ld_main+0x44>
+     dce:	83 45 f8 04          	addl   $0x4,-0x8(%ebp)
+     dd2:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     dd5:	8b 00                	mov    (%eax),%eax
+     dd7:	85 c0                	test   %eax,%eax
+     dd9:	75 f3                	jne    dce <_ld_main+0x40>
+     ddb:	83 45 f8 04          	addl   $0x4,-0x8(%ebp)
+     ddf:	c7 45 f4 00 00 00 00 	movl   $0x0,-0xc(%ebp)
+     de6:	c7 45 f0 00 00 00 00 	movl   $0x0,-0x10(%ebp)
+     ded:	c7 45 ec 00 00 00 00 	movl   $0x0,-0x14(%ebp)
+     df4:	c7 45 e8 00 00 00 00 	movl   $0x0,-0x18(%ebp)
+     dfb:	c7 45 c0 00 00 00 00 	movl   $0x0,-0x40(%ebp)
+     e02:	c7 45 bc 00 00 00 00 	movl   $0x0,-0x44(%ebp)
+     e09:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     e0c:	8b 00                	mov    (%eax),%eax
+     e0e:	89 45 b8             	mov    %eax,-0x48(%ebp)
+     e11:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     e14:	8b 40 04             	mov    0x4(%eax),%eax
+     e17:	89 45 b4             	mov    %eax,-0x4c(%ebp)
+     e1a:	83 7d b8 00          	cmpl   $0x0,-0x48(%ebp)
+     e1e:	74 4e                	je     e6e <.L138+0x6>
+     e20:	8b 45 b8             	mov    -0x48(%ebp),%eax
+     e23:	83 e8 03             	sub    $0x3,%eax
+     e26:	83 f8 06             	cmp    $0x6,%eax
+     e29:	77 3d                	ja     e68 <.L138>
+     e2b:	c1 e0 02             	shl    $0x2,%eax
+     e2e:	8b 84 18 78 f1 ff ff 	mov    -0xe88(%eax,%ebx,1),%eax
+     e35:	01 d8                	add    %ebx,%eax
+     e37:	ff e0                	jmp    *%eax
+
+00000e39 <.L145>:
+     e39:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     e3c:	89 45 f4             	mov    %eax,-0xc(%ebp)
+     e3f:	eb 27                	jmp    e68 <.L138>
+
+00000e41 <.L143>:
+     e41:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     e44:	89 45 f0             	mov    %eax,-0x10(%ebp)
+     e47:	eb 1f                	jmp    e68 <.L138>
+
+00000e49 <.L144>:
+     e49:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     e4c:	89 45 ec             	mov    %eax,-0x14(%ebp)
+     e4f:	eb 17                	jmp    e68 <.L138>
+
+00000e51 <.L139>:
+     e51:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     e54:	89 45 e8             	mov    %eax,-0x18(%ebp)
+     e57:	eb 0f                	jmp    e68 <.L138>
+
+00000e59 <.L141>:
+     e59:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     e5c:	89 45 c0             	mov    %eax,-0x40(%ebp)
+     e5f:	eb 07                	jmp    e68 <.L138>
+
+00000e61 <.L142>:
+     e61:	8b 45 b4             	mov    -0x4c(%ebp),%eax
+     e64:	89 45 bc             	mov    %eax,-0x44(%ebp)
+     e67:	90                   	nop
+
+00000e68 <.L138>:
+     e68:	83 45 f8 08          	addl   $0x8,-0x8(%ebp)
+     e6c:	eb 9b                	jmp    e09 <_ld_main+0x7b>
+     e6e:	90                   	nop
+     e6f:	8d 83 d4 f0 ff ff    	lea    -0xf2c(%ebx),%eax
+     e75:	50                   	push   %eax
+     e76:	e8 63 f2 ff ff       	call   de <_ZL9sys_printPKc>
+     e7b:	83 c4 04             	add    $0x4,%esp
+     e7e:	83 7d f4 00          	cmpl   $0x0,-0xc(%ebp)
+     e82:	74 06                	je     e8a <.L138+0x22>
+     e84:	83 7d e8 00          	cmpl   $0x0,-0x18(%ebp)
+     e88:	75 23                	jne    ead <.L138+0x45>
+     e8a:	8d 83 f4 f0 ff ff    	lea    -0xf0c(%ebx),%eax
+     e90:	50                   	push   %eax
+     e91:	e8 48 f2 ff ff       	call   de <_ZL9sys_printPKc>
+     e96:	83 c4 04             	add    $0x4,%esp
+     e99:	6a 7f                	push   $0x7f
+     e9b:	e8 80 f2 ff ff       	call   120 <_ZL8sys_exiti>
+     ea0:	83 c4 04             	add    $0x4,%esp
+     ea3:	b8 00 00 00 00       	mov    $0x0,%eax
+     ea8:	e9 19 02 00 00       	jmp    10c6 <.L138+0x25e>
+     ead:	8b 45 f4             	mov    -0xc(%ebp),%eax
+     eb0:	89 45 b0             	mov    %eax,-0x50(%ebp)
+     eb3:	c7 45 a8 00 00 00 00 	movl   $0x0,-0x58(%ebp)
+     eba:	8d 45 a8             	lea    -0x58(%ebp),%eax
+     ebd:	50                   	push   %eax
+     ebe:	6a 00                	push   $0x0
+     ec0:	ff 75 ec             	push   -0x14(%ebp)
+     ec3:	ff 75 f0             	push   -0x10(%ebp)
+     ec6:	ff 75 b0             	push   -0x50(%ebp)
+     ec9:	e8 5c f6 ff ff       	call   52a <_ZL25parse_dynamic_for_dyn_ptrP10Elf32_PhdrjjjPP9Elf32_Dyn>
+     ece:	83 c4 14             	add    $0x14,%esp
+     ed1:	8b 45 a8             	mov    -0x58(%ebp),%eax
+     ed4:	50                   	push   %eax
+     ed5:	6a 00                	push   $0x0
+     ed7:	8d 83 11 f1 ff ff    	lea    -0xeef(%ebx),%eax
+     edd:	50                   	push   %eax
+     ede:	e8 cf f3 ff ff       	call   2b2 <_ZL15register_objectPKcjP9Elf32_Dyn>
+     ee3:	83 c4 0c             	add    $0xc,%esp
+     ee6:	8b 45 a8             	mov    -0x58(%ebp),%eax
+     ee9:	85 c0                	test   %eax,%eax
+     eeb:	0f 84 04 01 00 00    	je     ff5 <.L138+0x18d>
+     ef1:	c7 45 e4 00 00 00 00 	movl   $0x0,-0x1c(%ebp)
+     ef8:	8b 45 a8             	mov    -0x58(%ebp),%eax
+     efb:	89 45 e0             	mov    %eax,-0x20(%ebp)
+     efe:	eb 19                	jmp    f19 <.L138+0xb1>
+     f00:	8b 45 e0             	mov    -0x20(%ebp),%eax
+     f03:	8b 00                	mov    (%eax),%eax
+     f05:	83 f8 05             	cmp    $0x5,%eax
+     f08:	75 0b                	jne    f15 <.L138+0xad>
+     f0a:	8b 45 e0             	mov    -0x20(%ebp),%eax
+     f0d:	8b 40 04             	mov    0x4(%eax),%eax
+     f10:	89 45 e4             	mov    %eax,-0x1c(%ebp)
+     f13:	eb 0d                	jmp    f22 <.L138+0xba>
+     f15:	83 45 e0 08          	addl   $0x8,-0x20(%ebp)
+     f19:	8b 45 e0             	mov    -0x20(%ebp),%eax
+     f1c:	8b 00                	mov    (%eax),%eax
+     f1e:	85 c0                	test   %eax,%eax
+     f20:	75 de                	jne    f00 <.L138+0x98>
+     f22:	8b 45 a8             	mov    -0x58(%ebp),%eax
+     f25:	89 45 dc             	mov    %eax,-0x24(%ebp)
+     f28:	e9 bb 00 00 00       	jmp    fe8 <.L138+0x180>
+     f2d:	8b 45 dc             	mov    -0x24(%ebp),%eax
+     f30:	8b 00                	mov    (%eax),%eax
+     f32:	83 f8 01             	cmp    $0x1,%eax
+     f35:	0f 85 a9 00 00 00    	jne    fe4 <.L138+0x17c>
+     f3b:	83 7d e4 00          	cmpl   $0x0,-0x1c(%ebp)
+     f3f:	0f 84 9f 00 00 00    	je     fe4 <.L138+0x17c>
+     f45:	8b 45 dc             	mov    -0x24(%ebp),%eax
+     f48:	8b 50 04             	mov    0x4(%eax),%edx
+     f4b:	8b 45 e4             	mov    -0x1c(%ebp),%eax
+     f4e:	01 d0                	add    %edx,%eax
+     f50:	89 45 ac             	mov    %eax,-0x54(%ebp)
+     f53:	c6 45 db 00          	movb   $0x0,-0x25(%ebp)
+     f57:	c7 45 d4 00 00 00 00 	movl   $0x0,-0x2c(%ebp)
+     f5e:	eb 63                	jmp    fc3 <.L138+0x15b>
+     f60:	8b 55 d4             	mov    -0x2c(%ebp),%edx
+     f63:	8d 83 8c 0f 00 00    	lea    0xf8c(%ebx),%eax
+     f69:	c1 e2 05             	shl    $0x5,%edx
+     f6c:	01 d0                	add    %edx,%eax
+     f6e:	0f b6 00             	movzbl (%eax),%eax
+     f71:	84 c0                	test   %al,%al
+     f73:	74 3b                	je     fb0 <.L138+0x148>
+     f75:	8b 55 d4             	mov    -0x2c(%ebp),%edx
+     f78:	8d 83 90 0f 00 00    	lea    0xf90(%ebx),%eax
+     f7e:	c1 e2 05             	shl    $0x5,%edx
+     f81:	01 d0                	add    %edx,%eax
+     f83:	8b 00                	mov    (%eax),%eax
+     f85:	85 c0                	test   %eax,%eax
+     f87:	74 27                	je     fb0 <.L138+0x148>
+     f89:	8b 55 d4             	mov    -0x2c(%ebp),%edx
+     f8c:	8d 83 90 0f 00 00    	lea    0xf90(%ebx),%eax
+     f92:	c1 e2 05             	shl    $0x5,%edx
+     f95:	01 d0                	add    %edx,%eax
+     f97:	8b 00                	mov    (%eax),%eax
+     f99:	ff 75 ac             	push   -0x54(%ebp)
+     f9c:	50                   	push   %eax
+     f9d:	e8 4c f2 ff ff       	call   1ee <_ZL6str_eqPKcS0_>
+     fa2:	83 c4 08             	add    $0x8,%esp
+     fa5:	84 c0                	test   %al,%al
+     fa7:	74 07                	je     fb0 <.L138+0x148>
+     fa9:	b8 01 00 00 00       	mov    $0x1,%eax
+     fae:	eb 05                	jmp    fb5 <.L138+0x14d>
+     fb0:	b8 00 00 00 00       	mov    $0x0,%eax
+     fb5:	84 c0                	test   %al,%al
+     fb7:	74 06                	je     fbf <.L138+0x157>
+     fb9:	c6 45 db 01          	movb   $0x1,-0x25(%ebp)
+     fbd:	eb 0f                	jmp    fce <.L138+0x166>
+     fbf:	83 45 d4 01          	addl   $0x1,-0x2c(%ebp)
+     fc3:	8b 83 8c 10 00 00    	mov    0x108c(%ebx),%eax
+     fc9:	39 45 d4             	cmp    %eax,-0x2c(%ebp)
+     fcc:	7c 92                	jl     f60 <.L138+0xf8>
+     fce:	0f b6 45 db          	movzbl -0x25(%ebp),%eax
+     fd2:	83 f0 01             	xor    $0x1,%eax
+     fd5:	84 c0                	test   %al,%al
+     fd7:	74 0b                	je     fe4 <.L138+0x17c>
+     fd9:	ff 75 ac             	push   -0x54(%ebp)
+     fdc:	e8 a8 f5 ff ff       	call   589 <_ZL18load_shared_objectPKc>
+     fe1:	83 c4 04             	add    $0x4,%esp
+     fe4:	83 45 dc 08          	addl   $0x8,-0x24(%ebp)
+     fe8:	8b 45 dc             	mov    -0x24(%ebp),%eax
+     feb:	8b 00                	mov    (%eax),%eax
+     fed:	85 c0                	test   %eax,%eax
+     fef:	0f 85 38 ff ff ff    	jne    f2d <.L138+0xc5>
+     ff5:	8d 83 15 f1 ff ff    	lea    -0xeeb(%ebx),%eax
+     ffb:	50                   	push   %eax
+     ffc:	e8 dd f0 ff ff       	call   de <_ZL9sys_printPKc>
+    1001:	83 c4 04             	add    $0x4,%esp
+    1004:	c7 45 d0 00 00 00 00 	movl   $0x0,-0x30(%ebp)
+    100b:	eb 55                	jmp    1062 <.L138+0x1fa>
+    100d:	8b 55 d0             	mov    -0x30(%ebp),%edx
+    1010:	8d 83 8c 0f 00 00    	lea    0xf8c(%ebx),%eax
+    1016:	c1 e2 05             	shl    $0x5,%edx
+    1019:	01 d0                	add    %edx,%eax
+    101b:	0f b6 00             	movzbl (%eax),%eax
+    101e:	84 c0                	test   %al,%al
+    1020:	74 3c                	je     105e <.L138+0x1f6>
+    1022:	8b 55 d0             	mov    -0x30(%ebp),%edx
+    1025:	8d 83 90 0f 00 00    	lea    0xf90(%ebx),%eax
+    102b:	c1 e2 05             	shl    $0x5,%edx
+    102e:	01 d0                	add    %edx,%eax
+    1030:	8b 00                	mov    (%eax),%eax
+    1032:	85 c0                	test   %eax,%eax
+    1034:	74 28                	je     105e <.L138+0x1f6>
+    1036:	8b 55 d0             	mov    -0x30(%ebp),%edx
+    1039:	8d 83 90 0f 00 00    	lea    0xf90(%ebx),%eax
+    103f:	c1 e2 05             	shl    $0x5,%edx
+    1042:	01 d0                	add    %edx,%eax
+    1044:	8b 00                	mov    (%eax),%eax
+    1046:	50                   	push   %eax
+    1047:	e8 92 f0 ff ff       	call   de <_ZL9sys_printPKc>
+    104c:	83 c4 04             	add    $0x4,%esp
+    104f:	8d 83 2e f1 ff ff    	lea    -0xed2(%ebx),%eax
+    1055:	50                   	push   %eax
+    1056:	e8 83 f0 ff ff       	call   de <_ZL9sys_printPKc>
+    105b:	83 c4 04             	add    $0x4,%esp
+    105e:	83 45 d0 01          	addl   $0x1,-0x30(%ebp)
+    1062:	8b 83 8c 10 00 00    	mov    0x108c(%ebx),%eax
+    1068:	39 45 d0             	cmp    %eax,-0x30(%ebp)
+    106b:	7c a0                	jl     100d <.L138+0x1a5>
+    106d:	8d 83 83 f0 ff ff    	lea    -0xf7d(%ebx),%eax
+    1073:	50                   	push   %eax
+    1074:	e8 65 f0 ff ff       	call   de <_ZL9sys_printPKc>
+    1079:	83 c4 04             	add    $0x4,%esp
+    107c:	8d 83 30 f1 ff ff    	lea    -0xed0(%ebx),%eax
+    1082:	50                   	push   %eax
+    1083:	e8 56 f0 ff ff       	call   de <_ZL9sys_printPKc>
+    1088:	83 c4 04             	add    $0x4,%esp
+    108b:	8d 83 8c 0f 00 00    	lea    0xf8c(%ebx),%eax
+    1091:	50                   	push   %eax
+    1092:	e8 18 fc ff ff       	call   caf <_ZL19process_relocationsR12LoadedObject>
+    1097:	83 c4 04             	add    $0x4,%esp
+    109a:	8d 83 54 f1 ff ff    	lea    -0xeac(%ebx),%eax
+    10a0:	50                   	push   %eax
+    10a1:	e8 38 f0 ff ff       	call   de <_ZL9sys_printPKc>
+    10a6:	83 c4 04             	add    $0x4,%esp
+    10a9:	ff 75 e8             	push   -0x18(%ebp)
+    10ac:	e8 92 f1 ff ff       	call   243 <_ZL9print_hexj>
+    10b1:	83 c4 04             	add    $0x4,%esp
+    10b4:	8d 83 83 f0 ff ff    	lea    -0xf7d(%ebx),%eax
+    10ba:	50                   	push   %eax
+    10bb:	e8 1e f0 ff ff       	call   de <_ZL9sys_printPKc>
+    10c0:	83 c4 04             	add    $0x4,%esp
+    10c3:	8b 45 e8             	mov    -0x18(%ebp),%eax
+    10c6:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+    10c9:	c9                   	leave
+    10ca:	c3                   	ret
+
+000010cb <__x86.get_pc_thunk.ax>:
+    10cb:	8b 04 24             	mov    (%esp),%eax
+    10ce:	c3                   	ret
+
+000010cf <__x86.get_pc_thunk.bx>:
+    10cf:	8b 1c 24             	mov    (%esp),%ebx
+    10d2:	c3                   	ret

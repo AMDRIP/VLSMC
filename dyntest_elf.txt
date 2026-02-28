@@ -1,0 +1,121 @@
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           Intel 80386
+  Version:                           0x1
+  Entry point address:               0x40000000
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          9412 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         7
+  Size of section headers:           40 (bytes)
+  Number of section headers:         17
+  Section header string table index: 16
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .text             PROGBITS        40000000 001000 000236 00  AX  0   0 4096
+  [ 2] .plt              PROGBITS        40000240 001240 000030 04  AX  0   0 16
+  [ 3] .rodata           PROGBITS        40001000 002000 0000af 00   A  0   0 4096
+  [ 4] .interp           PROGBITS        400010af 0020af 00000b 00   A  0   0  1
+  [ 5] .dynsym           DYNSYM          400010bc 0020bc 000030 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          400010ec 0020ec 000023 00   A  0   0  1
+  [ 7] .hash             HASH            40001110 002110 000018 04   A  5   0  4
+  [ 8] .gnu.hash         GNU_HASH        40001128 002128 000018 04   A  5   0  4
+  [ 9] .eh_frame         PROGBITS        40001140 002140 0000a8 00   A  0   0  4
+  [10] .rel.dyn          REL             400011e8 0021e8 000010 08   A  5   0  4
+  [11] .dynamic          DYNAMIC         400011f8 0021f8 000090 08  WA  6   0  4
+  [12] .got.plt          PROGBITS        40001288 002288 000014 04  WA  0   0  4
+  [13] .comment          PROGBITS        00000000 00229c 00002d 01  MS  0   0  1
+  [14] .symtab           SYMTAB          00000000 0022cc 0000e0 10     15  10  4
+  [15] .strtab           STRTAB          00000000 0023ac 00009e 00      0   0  1
+  [16] .shstrtab         STRTAB          00000000 00244a 000079 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  D (mbind), p (processor specific)
+
+There are no section groups in this file.
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  PHDR           0x000034 0x3ffff034 0x3ffff034 0x000e0 0x000e0 R   0x4
+  INTERP         0x0020af 0x400010af 0x400010af 0x0000b 0x0000b R   0x1
+      [Requesting program interpreter: /lib/ld.so]
+  LOAD           0x000000 0x3ffff000 0x3ffff000 0x00114 0x00114 R   0x1000
+  LOAD           0x001000 0x40000000 0x40000000 0x00270 0x00270 R E 0x1000
+  LOAD           0x002000 0x40001000 0x40001000 0x0029c 0x0029c RW  0x1000
+  DYNAMIC        0x0021f8 0x400011f8 0x400011f8 0x00090 0x00090 RW  0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RWE 0x10
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     
+   01     .interp 
+   02     
+   03     .text .plt 
+   04     .rodata .interp .dynsym .dynstr .hash .gnu.hash .eh_frame .rel.dyn .dynamic .got.plt 
+   05     .dynamic 
+   06     
+
+Dynamic section at offset 0x21f8 contains 13 entries:
+  Tag        Type                         Name/Value
+ 0x00000001 (NEEDED)                     Shared library: [LIBTEST.SO]
+ 0x00000004 (HASH)                       0x40001110
+ 0x6ffffef5 (GNU_HASH)                   0x40001128
+ 0x00000005 (STRTAB)                     0x400010ec
+ 0x00000006 (SYMTAB)                     0x400010bc
+ 0x0000000a (STRSZ)                      35 (bytes)
+ 0x0000000b (SYMENT)                     16 (bytes)
+ 0x00000015 (DEBUG)                      0x0
+ 0x00000003 (PLTGOT)                     0x40001288
+ 0x00000002 (PLTRELSZ)                   16 (bytes)
+ 0x00000014 (PLTREL)                     REL
+ 0x00000017 (JMPREL)                     0x400011e8
+ 0x00000000 (NULL)                       0x0
+
+Relocation section '.rel.dyn' at offset 0x21e8 contains 2 entries:
+ Offset     Info    Type            Sym.Value  Sym. Name
+40001294  00000107 R_386_JUMP_SLOT   00000000   test_multiply
+40001298  00000207 R_386_JUMP_SLOT   00000000   test_add
+No processor specific unwind information to decode
+
+Symbol table '.dynsym' contains 3 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 00000000     0 FUNC    GLOBAL DEFAULT  UND test_multiply
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND test_add
+
+Symbol table '.symtab' contains 14 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 00000000     0 FILE    LOCAL  DEFAULT  ABS user/crt0.asm
+     2: 4000000c     0 NOTYPE  LOCAL  DEFAULT    1 _start.hang
+     3: 00000000     0 FILE    LOCAL  DEFAULT  ABS dyntest.cpp
+     4: 4000000e    31 FUNC    LOCAL  DEFAULT    1 _ZL8syscall2jjj
+     5: 4000002d   250 FUNC    LOCAL  DEFAULT    1 _ZL13dyn_print_numi
+     6: 40000127    54 FUNC    LOCAL  DEFAULT    1 _ZL9dyn_printPKc
+     7: 00000000     0 FILE    LOCAL  DEFAULT  ABS 
+     8: 400011f8     0 OBJECT  LOCAL  DEFAULT   11 _DYNAMIC
+     9: 40001288     0 OBJECT  LOCAL  DEFAULT   12 _GLOBAL_OFFSET_TABLE_
+    10: 00000000     0 FUNC    GLOBAL DEFAULT  UND test_multiply
+    11: 00000000     0 FUNC    GLOBAL DEFAULT  UND test_add
+    12: 40000000     0 NOTYPE  GLOBAL DEFAULT    1 _start
+    13: 4000015d   217 FUNC    GLOBAL DEFAULT    1 main
+
+Histogram for bucket list length (total of 1 bucket):
+ Length  Number     % of total  Coverage
+      0  0          (  0.0%)
+      1  0          (  0.0%)      0.0%
+      2  1          (100.0%)    100.0%
+
+No version information found in this file.
