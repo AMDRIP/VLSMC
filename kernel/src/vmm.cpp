@@ -5,6 +5,7 @@
 #include "kernel/task_scheduler.h"
 #include "kernel/cow.h"
 #include "kernel/vfs.h"
+#include "kernel/page_cache.h"
 #include "libc.h"
 
 namespace re36 {
@@ -244,13 +245,29 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             VMA* curr_vma = cur.vma_list;
             while (curr_vma) {
                 if (fault_addr >= curr_vma->start && fault_addr < curr_vma->end) {
+                    uint32_t page_addr = fault_addr & ~0xFFF;
+                    bool is_readonly = !(curr_vma->flags & PAGE_WRITABLE);
+                    bool is_file = (curr_vma->type == VMA_TYPE_FILE && curr_vma->file_vnode);
+
+                    if (is_readonly && is_file) {
+                        uint32_t offset_in_vma = page_addr - curr_vma->start;
+                        uint32_t file_offset = curr_vma->file_offset + offset_in_vma;
+                        uint32_t cache_key = curr_vma->file_vnode->inode_num;
+
+                        uint32_t cached = PageCache::lookup(cache_key, file_offset);
+                        if (cached) {
+                            PhysicalMemoryManager::inc_ref(cached);
+                            VMM::map_page(page_addr, cached, curr_vma->flags);
+                            return true;
+                        }
+                    }
+
                     void* new_frame = PhysicalMemoryManager::alloc_frame();
                     if (!new_frame) {
                         printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x !!!\n", fault_addr);
                         while(1) asm volatile("cli; hlt");
                     }
 
-                    uint32_t page_addr = fault_addr & ~0xFFF;
                     uint8_t* frame_ptr = (uint8_t*)new_frame;
                     for (int b = 0; b < 4096; b++) frame_ptr[b] = 0;
 
@@ -266,7 +283,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                         }
 
                         if (read_size > 0) {
-                            if (curr_vma->type == VMA_TYPE_FILE && curr_vma->file_vnode) {
+                            if (is_file) {
                                 vnode* fvn = curr_vma->file_vnode;
                                 if (fvn->ops && fvn->ops->read) {
                                     fvn->ops->read(fvn, file_offset, frame_ptr, read_size);
@@ -277,6 +294,11 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                                     vn->ops->read(vn, file_offset, frame_ptr, read_size);
                                     vnode_release(vn);
                                 }
+                            }
+
+                            if (is_readonly && is_file) {
+                                uint32_t cache_key = curr_vma->file_vnode->inode_num;
+                                PageCache::insert(cache_key, file_offset, (uint32_t)new_frame);
                             }
                         }
                     }

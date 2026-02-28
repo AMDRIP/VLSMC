@@ -29,6 +29,7 @@
 #include "kernel/ata.h"
 #include "kernel/fat16.h"
 #include "kernel/vfs.h"
+#include "kernel/page_cache.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -71,6 +72,7 @@ extern "C" void kernel_main() {
     dbg[5] = 0x4F36; // '6' — VMM
 
     re36::VMM::init();
+    re36::PageCache::init();
     dbg[6] = 0x4F37; // '7' — Scheduler
 
     if (!re36::MemoryValidator::run_all_tests()) {

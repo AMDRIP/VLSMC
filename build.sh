@@ -48,12 +48,13 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/mouse.cpp -o mouse.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/bga.cpp -o bga.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/ahci.cpp -o ahci.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/disk.cpp -o disk.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/page_cache.cpp -o page_cache.o
 
 echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o cow.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o cow.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o page_cache.o \
     shell.o shell_history.o shell_autocomplete.o shell_redirect.o vga.o selftest.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
@@ -166,6 +167,16 @@ nasm -f elf32 user/ldso/ldso_entry.asm -o ldso_entry.o
 x86_64-linux-gnu-g++ -m32 -fPIC -ffreestanding -fno-exceptions -fno-rtti -nostdlib -c user/ldso/ldso.cpp -o ldso_main.o
 x86_64-linux-gnu-ld -m elf_i386 -shared -T user/ldso/ldso.ld ldso_entry.o ldso_main.o -o LD.SO
 mcopy -i data.img LD.SO ::/LD.SO
+
+# === Test Shared Library (libtest.so) ===
+x86_64-linux-gnu-g++ -m32 -fPIC -ffreestanding -fno-exceptions -fno-rtti -nostdlib -c user/libtest/libtest.cpp -o libtest.o
+x86_64-linux-gnu-ld -m elf_i386 -shared -T user/libtest/libtest.ld libtest.o -o LIBTEST.SO
+mcopy -i data.img LIBTEST.SO ::/LIBTEST.SO
+
+# === Dynamic Test App ===
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/dyntest.cpp -o user_dyntest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_dyntest.o LIBTEST.SO -o DYNTEST.ELF
+mcopy -i data.img DYNTEST.ELF ::/DYNTEST.ELF
 
 echo "=== Building ISO Image ==="
 mkdir -p iso_root
