@@ -1,6 +1,6 @@
 #include "app_api.h"
 
-// Простой парсер FAT16, работающий через App::read_sector
+
 struct BootSector {
     uint8_t jump[3];
     char oem[8];
@@ -40,7 +40,7 @@ static uint32_t fat_start_lba;
 static uint32_t root_dir_start_lba;
 static uint32_t data_start_lba;
 
-// Вспомогательные функции сравнения строк (так как libc нет)
+
 static bool str_eq_n(const char* s1, const char* s2, int n) {
     for (int i = 0; i < n; i++) {
         if (s1[i] != s2[i]) return false;
@@ -55,7 +55,7 @@ static void read_fat_info() {
         return;
     }
 
-    // Копирование Boot Sector
+    
     for (int i = 0; i < sizeof(BootSector); i++) {
         ((uint8_t*)&bs)[i] = sector[i];
     }
@@ -78,9 +78,9 @@ static uint32_t find_file(const char* filename83) {
 
         DirEntry* entries = (DirEntry*)sector;
         for (int j = 0; j < SECTOR_SIZE / 32; j++) {
-            if (entries[j].name[0] == 0x00) return 0; // Конец каталога
-            if (entries[j].name[0] == (char)0xE5) continue; // Удаленный файл
-            if (entries[j].attributes & 0x0F) continue; // LFN или спец-атрибуты
+            if (entries[j].name[0] == 0x00) return 0; 
+            if (entries[j].name[0] == (char)0xE5) continue; 
+            if (entries[j].attributes & 0x0F) continue; 
 
             if (str_eq_n(entries[j].name, filename83, 11)) {
                 return entries[j].cluster_low | ((uint32_t)entries[j].cluster_high << 16);
@@ -123,9 +123,9 @@ static int read_file_content(uint32_t cluster, uint8_t* out_buffer, int max_size
     return bytes_read;
 }
 
-// Формат IPC сообщения:
-// Если первый байт '-', это просто текстовый лог
-// Если нужно считать файл, присылается имя "HELLO   TXT". FS отвечает содержимым.
+
+
+
 void fs_main() {
     vlsmc::App::print("[FS] Starting Ring 3 Filesystem Driver...\n");
     read_fat_info();
@@ -136,7 +136,7 @@ void fs_main() {
     while (true) {
         int sz = vlsmc::App::msg_recv(&sender_tid, msg_buf, sizeof(msg_buf));
         if (sz > 0) {
-            // Обеспечим null-терминацию для безопасного парсинга
+            
             if (sz < 512) msg_buf[sz] = '\0';
             else msg_buf[511] = '\0';
 
@@ -149,11 +149,11 @@ void fs_main() {
 
             uint32_t cluster = find_file(filename83);
             if (cluster) {
-                // Читаем контент файла прямо в буфер и отсылаем назад
+                
                 int read_sz = read_file_content(cluster, msg_buf, 512);
                 vlsmc::App::msg_send(sender_tid, msg_buf, read_sz);
             } else {
-                // Файл не найден
+                
                 const char* err = "FILE NOT FOUND";
                 vlsmc::App::msg_send(sender_tid, err, 14);
             }

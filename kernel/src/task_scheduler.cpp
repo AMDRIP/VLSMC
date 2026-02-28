@@ -186,6 +186,26 @@ int TaskScheduler::get_current_tid() {
     return current_tid;
 }
 
+void TaskScheduler::join(int tid) {
+    if (tid < 0 || tid >= MAX_THREADS) return;
+    
+    // Блокируем исполнение до тех пор, пока целевой поток не завершится
+    while (true) {
+        bool finished = false;
+        {
+            InterruptGuard guard;
+            if (threads[tid].state == ThreadState::Unused || 
+                threads[tid].state == ThreadState::Terminated ||
+                threads[tid].state == ThreadState::Zombie) {
+                finished = true;
+            }
+        }
+        if (finished) break;
+        
+        sleep_current(20); // Спим короткий промежуток
+    }
+}
+
 void TaskScheduler::print_threads() {
     InterruptGuard guard;
     

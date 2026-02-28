@@ -23,6 +23,8 @@ public:
     
     static int get_current_tid();
     
+    static void join(int tid);
+    
     static void print_threads();
     
     static int pick_next_thread();

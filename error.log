@@ -1,11 +1,44 @@
-In file included from /usr/include/c++/13/vector:60,
-                 from kernel/src/kernel_main.cpp:3:
+=== VLSMC Bare-Metal Build Script ===
+[1/5] Assembling bootloader (Stage 1 + Stage 2)...
+[2/5] Assembling kernel entry and interrupts...
+[3/5] Compiling C++ kernel sources...
+kernel/src/vmm.cpp: In static member function ‘static bool re36::VMM::handle_page_fault(uint32_t, uint32_t)’:
+kernel/src/vmm.cpp:213:14: warning: unused variable ‘pd_index’ [-Wunused-variable]
+  213 |     uint32_t pd_index = fault_addr >> 22;
+      |              ^~~~~~~~
+kernel/src/vmm.cpp:214:14: warning: unused variable ‘pt_index’ [-Wunused-variable]
+  214 |     uint32_t pt_index = (fault_addr >> 12) & 0x3FF;
+      |              ^~~~~~~~
+In file included from /usr/include/c++/13/string:38,
+                 from kernel/include/kernel/types.h:13,
+                 from kernel/include/kernel/syscalls.h:12,
+                 from kernel/src/syscall_gate.cpp:2:
 /usr/include/c++/13/bits/requires_hosted.h:34:4: error: #error "This header is not available in freestanding mode."
    34 | #  error "This header is not available in freestanding mode."
       |    ^~~~~
+In file included from /usr/include/c++/13/string:41:
+/usr/include/c++/13/bits/stringfwd.h:71:30: error: ‘allocator’ does not name a type; did you mean ‘uses_allocator’?
+   71 |            typename _Alloc = allocator<_CharT> >
+      |                              ^~~~~~~~~
+      |                              uses_allocator
+/usr/include/c++/13/bits/stringfwd.h:71:39: error: expected ‘>’ before ‘<’ token
+   71 |            typename _Alloc = allocator<_CharT> >
+      |                                       ^
+/usr/include/c++/13/bits/stringfwd.h:77:28: error: template argument 3 is invalid
+   77 |   typedef basic_string<char>    string;
+      |                            ^
+/usr/include/c++/13/bits/stringfwd.h:80:31: error: template argument 3 is invalid
+   80 |   typedef basic_string<wchar_t> wstring;
+      |                               ^
+/usr/include/c++/13/bits/stringfwd.h:89:32: error: template argument 3 is invalid
+   89 |   typedef basic_string<char16_t> u16string;
+      |                                ^
+/usr/include/c++/13/bits/stringfwd.h:92:32: error: template argument 3 is invalid
+   92 |   typedef basic_string<char32_t> u32string;
+      |                                ^
 In file included from /usr/include/x86_64-linux-gnu/c++/13/32/bits/c++allocator.h:33,
                  from /usr/include/c++/13/bits/allocator.h:46,
-                 from /usr/include/c++/13/vector:63:
+                 from /usr/include/c++/13/string:43:
 /usr/include/c++/13/bits/new_allocator.h: In member function ‘_Tp* std::__new_allocator<_Tp>::allocate(size_type, const void*)’:
 /usr/include/c++/13/bits/new_allocator.h:139:20: error: ‘__throw_bad_array_new_length’ is not a member of ‘std’; did you mean ‘bad_array_new_length’?
   139 |               std::__throw_bad_array_new_length();
@@ -77,32 +110,621 @@ In file included from /usr/include/x86_64-linux-gnu/c++/13/32/bits/c++allocator.
   288 |   extern template class allocator<wchar_t>;
       |                         ^~~~~~~~~
 /usr/include/c++/13/bits/allocator.h:288:25: error: explicit instantiation of non-template type ‘std::allocator’
-In file included from /usr/include/c++/13/vector:66:
+In file included from /usr/include/c++/13/bits/localefwd.h:41,
+                 from /usr/include/c++/13/string:45:
+/usr/include/c++/13/iosfwd:97:31: error: ‘std::allocator’ is not a template
+   97 |             typename _Alloc = allocator<_CharT> >
+      |                               ^~~~~~~~~
+/usr/include/c++/13/iosfwd:101:30: error: ‘std::allocator’ is not a template
+  101 |            typename _Alloc = allocator<_CharT> >
+      |                              ^~~~~~~~~
+/usr/include/c++/13/iosfwd:105:30: error: ‘std::allocator’ is not a template
+  105 |            typename _Alloc = allocator<_CharT> >
+      |                              ^~~~~~~~~
+/usr/include/c++/13/iosfwd:109:30: error: ‘std::allocator’ is not a template
+  109 |            typename _Alloc = allocator<_CharT> >
+      |                              ^~~~~~~~~
+In file included from /usr/include/c++/13/string:54:
+/usr/include/c++/13/bits/basic_string.h: In constructor ‘std::__cxx11::basic_string<_CharT, _Traits, _Alloc>::basic_string(const _CharT*, size_type, const _Alloc&)’:
+/usr/include/c++/13/bits/basic_string.h:625:16: error: ‘__throw_logic_error’ is not a member of ‘std’; did you mean ‘__throw_runtime_error’?
+  625 |           std::__throw_logic_error(__N("basic_string: "
+      |                ^~~~~~~~~~~~~~~~~~~
+      |                __throw_runtime_error
+/usr/include/c++/13/bits/basic_string.h: In constructor ‘std::__cxx11::basic_string<_CharT, _Traits, _Alloc>::basic_string(const _CharT*, const _Alloc&)’:
+/usr/include/c++/13/bits/basic_string.h:646:16: error: ‘__throw_logic_error’ is not a member of ‘std’; did you mean ‘__throw_runtime_error’?
+  646 |           std::__throw_logic_error(__N("basic_string: "
+      |                ^~~~~~~~~~~~~~~~~~~
+      |                __throw_runtime_error
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:3500:34: error: ‘std::allocator’ is not a template
+ 3500 |            typename _Allocator = allocator<_CharT>,
+      |                                  ^~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:3509:34: error: ‘std::allocator’ is not a template
+ 3509 |            typename _Allocator = allocator<_CharT>,
+      |                                  ^~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:3515:34: error: ‘std::allocator’ is not a template
+ 3515 |            typename _Allocator = allocator<_CharT>,
+      |                                  ^~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4019:60: error: template argument 3 is invalid
+ 4019 |     operator>>(basic_istream<char>& __is, basic_string<char>& __str);
+      |                                                            ^
+/usr/include/c++/13/bits/basic_string.h:4019:5: error: template-id ‘operator>><>’ for ‘std::basic_istream<char>& std::operator>>(basic_istream<char>&, int&)’ does not match any template declaration
+ 4019 |     operator>>(basic_istream<char>& __is, basic_string<char>& __str);
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4014:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::operator>>(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4014 |     operator>>(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~~
+In file included from kernel/include/kernel/types.h:12:
+/usr/include/c++/13/cstddef:130:5: note:                 ‘template<class _IntegerType> constexpr std::__byte_op_t<_IntegerType> std::operator>>(byte, _IntegerType)’
+  130 |     operator>>(byte __b, _IntegerType __shift) noexcept
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4094:57: error: template argument 3 is invalid
+ 4094 |     getline(basic_istream<char>& __in, basic_string<char>& __str,
+      |                                                         ^
+/usr/include/c++/13/bits/basic_string.h:4094:5: error: template-id ‘getline<>’ for ‘std::basic_istream<char>& std::getline(basic_istream<char>&, int&, char)’ does not match any template declaration
+ 4094 |     getline(basic_istream<char>& __in, basic_string<char>& __str,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4087:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4087 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4080:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4080 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4072:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4072 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4055:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4055 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4100:63: error: template argument 3 is invalid
+ 4100 |     getline(basic_istream<wchar_t>& __in, basic_string<wchar_t>& __str,
+      |                                                               ^
+/usr/include/c++/13/bits/basic_string.h:4100:5: error: template-id ‘getline<>’ for ‘std::basic_istream<wchar_t>& std::getline(basic_istream<wchar_t>&, int&, wchar_t)’ does not match any template declaration
+ 4100 |     getline(basic_istream<wchar_t>& __in, basic_string<wchar_t>& __str,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4087:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4087 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4080:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4080 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4072:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4072 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4055:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4055 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘int std::__cxx11::stoi(const std::string&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4121:47: error: ‘strtol’ is not a member of ‘std’
+ 4121 |   { return __gnu_cxx::__stoa<long, int>(&std::strtol, "stoi", __str.c_str(),
+      |                                               ^~~~~~
+/usr/include/c++/13/bits/basic_string.h:4121:69: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4121 |   { return __gnu_cxx::__stoa<long, int>(&std::strtol, "stoi", __str.c_str(),
+      |                                                                     ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long int std::__cxx11::stol(const std::string&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4126:36: error: ‘strtol’ is not a member of ‘std’
+ 4126 |   { return __gnu_cxx::__stoa(&std::strtol, "stol", __str.c_str(),
+      |                                    ^~~~~~
+/usr/include/c++/13/bits/basic_string.h:4126:58: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4126 |   { return __gnu_cxx::__stoa(&std::strtol, "stol", __str.c_str(),
+      |                                                          ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long unsigned int std::__cxx11::stoul(const std::string&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4131:36: error: ‘strtoul’ is not a member of ‘std’
+ 4131 |   { return __gnu_cxx::__stoa(&std::strtoul, "stoul", __str.c_str(),
+      |                                    ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4131:60: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4131 |   { return __gnu_cxx::__stoa(&std::strtoul, "stoul", __str.c_str(),
+      |                                                            ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long long int std::__cxx11::stoll(const std::string&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4136:36: error: ‘strtoll’ is not a member of ‘std’
+ 4136 |   { return __gnu_cxx::__stoa(&std::strtoll, "stoll", __str.c_str(),
+      |                                    ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4136:60: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4136 |   { return __gnu_cxx::__stoa(&std::strtoll, "stoll", __str.c_str(),
+      |                                                            ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long long unsigned int std::__cxx11::stoull(const std::string&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4141:36: error: ‘strtoull’ is not a member of ‘std’
+ 4141 |   { return __gnu_cxx::__stoa(&std::strtoull, "stoull", __str.c_str(),
+      |                                    ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4141:62: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4141 |   { return __gnu_cxx::__stoa(&std::strtoull, "stoull", __str.c_str(),
+      |                                                              ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘float std::__cxx11::stof(const std::string&, std::size_t*)’:
+/usr/include/c++/13/bits/basic_string.h:4147:36: error: ‘strtof’ is not a member of ‘std’
+ 4147 |   { return __gnu_cxx::__stoa(&std::strtof, "stof", __str.c_str(), __idx); }
+      |                                    ^~~~~~
+/usr/include/c++/13/bits/basic_string.h:4147:58: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4147 |   { return __gnu_cxx::__stoa(&std::strtof, "stof", __str.c_str(), __idx); }
+      |                                                          ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘double std::__cxx11::stod(const std::string&, std::size_t*)’:
+/usr/include/c++/13/bits/basic_string.h:4151:36: error: ‘strtod’ is not a member of ‘std’
+ 4151 |   { return __gnu_cxx::__stoa(&std::strtod, "stod", __str.c_str(), __idx); }
+      |                                    ^~~~~~
+/usr/include/c++/13/bits/basic_string.h:4151:58: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4151 |   { return __gnu_cxx::__stoa(&std::strtod, "stod", __str.c_str(), __idx); }
+      |                                                          ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long double std::__cxx11::stold(const std::string&, std::size_t*)’:
+/usr/include/c++/13/bits/basic_string.h:4155:36: error: ‘strtold’ is not a member of ‘std’
+ 4155 |   { return __gnu_cxx::__stoa(&std::strtold, "stold", __str.c_str(), __idx); }
+      |                                    ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4155:60: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::string’ {aka ‘const int’}
+ 4155 |   { return __gnu_cxx::__stoa(&std::strtold, "stold", __str.c_str(), __idx); }
+      |                                                            ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘std::string std::__cxx11::to_string(int)’:
+/usr/include/c++/13/bits/basic_string.h:4171:40: error: invalid types ‘std::string {aka int}[const bool]’ for array subscript
+ 4171 |     __detail::__to_chars_10_impl(&__str[__neg], __len, __uval);
+      |                                        ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘std::string std::__cxx11::to_string(unsigned int)’:
+/usr/include/c++/13/bits/basic_string.h:4183:40: error: invalid types ‘std::string {aka int}[int]’ for array subscript
+ 4183 |     __detail::__to_chars_10_impl(&__str[0], __str.size(), __val);
+      |                                        ^
+/usr/include/c++/13/bits/basic_string.h:4183:51: error: request for member ‘size’ in ‘__str’, which is of non-class type ‘std::string’ {aka ‘int’}
+ 4183 |     __detail::__to_chars_10_impl(&__str[0], __str.size(), __val);
+      |                                                   ^~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘std::string std::__cxx11::to_string(long int)’:
+/usr/include/c++/13/bits/basic_string.h:4198:40: error: invalid types ‘std::string {aka int}[const bool]’ for array subscript
+ 4198 |     __detail::__to_chars_10_impl(&__str[__neg], __len, __uval);
+      |                                        ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘std::string std::__cxx11::to_string(long unsigned int)’:
+/usr/include/c++/13/bits/basic_string.h:4210:40: error: invalid types ‘std::string {aka int}[int]’ for array subscript
+ 4210 |     __detail::__to_chars_10_impl(&__str[0], __str.size(), __val);
+      |                                        ^
+/usr/include/c++/13/bits/basic_string.h:4210:51: error: request for member ‘size’ in ‘__str’, which is of non-class type ‘std::string’ {aka ‘int’}
+ 4210 |     __detail::__to_chars_10_impl(&__str[0], __str.size(), __val);
+      |                                                   ^~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘std::string std::__cxx11::to_string(long long int)’:
+/usr/include/c++/13/bits/basic_string.h:4223:40: error: invalid types ‘std::string {aka int}[const bool]’ for array subscript
+ 4223 |     __detail::__to_chars_10_impl(&__str[__neg], __len, __uval);
+      |                                        ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘std::string std::__cxx11::to_string(long long unsigned int)’:
+/usr/include/c++/13/bits/basic_string.h:4232:40: error: invalid types ‘std::string {aka int}[int]’ for array subscript
+ 4232 |     __detail::__to_chars_10_impl(&__str[0], __str.size(), __val);
+      |                                        ^
+/usr/include/c++/13/bits/basic_string.h:4232:51: error: request for member ‘size’ in ‘__str’, which is of non-class type ‘std::string’ {aka ‘int’}
+ 4232 |     __detail::__to_chars_10_impl(&__str[0], __str.size(), __val);
+      |                                                   ^~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4272:3: error: redefinition of ‘int std::__cxx11::stoi(const std::wstring&, std::size_t*, int)’
+ 4272 |   stoi(const wstring& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h:4120:3: note: ‘int std::__cxx11::stoi(const std::string&, std::size_t*, int)’ previously defined here
+ 4120 |   stoi(const string& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘int std::__cxx11::stoi(const std::wstring&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4273:69: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4273 |   { return __gnu_cxx::__stoa<long, int>(&std::wcstol, "stoi", __str.c_str(),
+      |                                                                     ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4277:3: error: redefinition of ‘long int std::__cxx11::stol(const std::wstring&, std::size_t*, int)’
+ 4277 |   stol(const wstring& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h:4125:3: note: ‘long int std::__cxx11::stol(const std::string&, std::size_t*, int)’ previously defined here
+ 4125 |   stol(const string& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long int std::__cxx11::stol(const std::wstring&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4278:58: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4278 |   { return __gnu_cxx::__stoa(&std::wcstol, "stol", __str.c_str(),
+      |                                                          ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4282:3: error: redefinition of ‘long unsigned int std::__cxx11::stoul(const std::wstring&, std::size_t*, int)’
+ 4282 |   stoul(const wstring& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~~
+/usr/include/c++/13/bits/basic_string.h:4130:3: note: ‘long unsigned int std::__cxx11::stoul(const std::string&, std::size_t*, int)’ previously defined here
+ 4130 |   stoul(const string& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long unsigned int std::__cxx11::stoul(const std::wstring&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4283:60: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4283 |   { return __gnu_cxx::__stoa(&std::wcstoul, "stoul", __str.c_str(),
+      |                                                            ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4287:3: error: redefinition of ‘long long int std::__cxx11::stoll(const std::wstring&, std::size_t*, int)’
+ 4287 |   stoll(const wstring& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~~
+/usr/include/c++/13/bits/basic_string.h:4135:3: note: ‘long long int std::__cxx11::stoll(const std::string&, std::size_t*, int)’ previously defined here
+ 4135 |   stoll(const string& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long long int std::__cxx11::stoll(const std::wstring&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4288:60: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4288 |   { return __gnu_cxx::__stoa(&std::wcstoll, "stoll", __str.c_str(),
+      |                                                            ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4292:3: error: redefinition of ‘long long unsigned int std::__cxx11::stoull(const std::wstring&, std::size_t*, int)’
+ 4292 |   stoull(const wstring& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~~~
+/usr/include/c++/13/bits/basic_string.h:4140:3: note: ‘long long unsigned int std::__cxx11::stoull(const std::string&, std::size_t*, int)’ previously defined here
+ 4140 |   stoull(const string& __str, size_t* __idx = 0, int __base = 10)
+      |   ^~~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long long unsigned int std::__cxx11::stoull(const std::wstring&, std::size_t*, int)’:
+/usr/include/c++/13/bits/basic_string.h:4293:62: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4293 |   { return __gnu_cxx::__stoa(&std::wcstoull, "stoull", __str.c_str(),
+      |                                                              ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4298:3: error: redefinition of ‘float std::__cxx11::stof(const std::wstring&, std::size_t*)’
+ 4298 |   stof(const wstring& __str, size_t* __idx = 0)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h:4146:3: note: ‘float std::__cxx11::stof(const std::string&, std::size_t*)’ previously defined here
+ 4146 |   stof(const string& __str, size_t* __idx = 0)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘float std::__cxx11::stof(const std::wstring&, std::size_t*)’:
+/usr/include/c++/13/bits/basic_string.h:4299:58: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4299 |   { return __gnu_cxx::__stoa(&std::wcstof, "stof", __str.c_str(), __idx); }
+      |                                                          ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4302:3: error: redefinition of ‘double std::__cxx11::stod(const std::wstring&, std::size_t*)’
+ 4302 |   stod(const wstring& __str, size_t* __idx = 0)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h:4150:3: note: ‘double std::__cxx11::stod(const std::string&, std::size_t*)’ previously defined here
+ 4150 |   stod(const string& __str, size_t* __idx = 0)
+      |   ^~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘double std::__cxx11::stod(const std::wstring&, std::size_t*)’:
+/usr/include/c++/13/bits/basic_string.h:4303:58: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4303 |   { return __gnu_cxx::__stoa(&std::wcstod, "stod", __str.c_str(), __idx); }
+      |                                                          ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4306:3: error: redefinition of ‘long double std::__cxx11::stold(const std::wstring&, std::size_t*)’
+ 4306 |   stold(const wstring& __str, size_t* __idx = 0)
+      |   ^~~~~
+/usr/include/c++/13/bits/basic_string.h:4154:3: note: ‘long double std::__cxx11::stold(const std::string&, std::size_t*)’ previously defined here
+ 4154 |   stold(const string& __str, size_t* __idx = 0)
+      |   ^~~~~
+/usr/include/c++/13/bits/basic_string.h: In function ‘long double std::__cxx11::stold(const std::wstring&, std::size_t*)’:
+/usr/include/c++/13/bits/basic_string.h:4307:60: error: request for member ‘c_str’ in ‘__str’, which is of non-class type ‘const std::wstring’ {aka ‘const int’}
+ 4307 |   { return __gnu_cxx::__stoa(&std::wcstold, "stold", __str.c_str(), __idx); }
+      |                                                            ^~~~~
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4454:21: error: redefinition of ‘struct std::__is_fast_hash<std::hash<int> >’
+ 4454 |   template<> struct __is_fast_hash<hash<wstring>> : std::false_type { };
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4453:21: note: previous definition of ‘struct std::__is_fast_hash<std::hash<int> >’
+ 4453 |   template<> struct __is_fast_hash<hash<string>> : std::false_type { };
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4455:21: error: redefinition of ‘struct std::__is_fast_hash<std::hash<int> >’
+ 4455 |   template<> struct __is_fast_hash<hash<u16string>> : std::false_type { };
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4453:21: note: previous definition of ‘struct std::__is_fast_hash<std::hash<int> >’
+ 4453 |   template<> struct __is_fast_hash<hash<string>> : std::false_type { };
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4456:21: error: redefinition of ‘struct std::__is_fast_hash<std::hash<int> >’
+ 4456 |   template<> struct __is_fast_hash<hash<u32string>> : std::false_type { };
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4453:21: note: previous definition of ‘struct std::__is_fast_hash<std::hash<int> >’
+ 4453 |   template<> struct __is_fast_hash<hash<string>> : std::false_type { };
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4486:29: error: template argument 3 is invalid
+ 4486 |     inline basic_string<char>
+      |                             ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘int std::literals::string_literals::operator""s(const char*, std::size_t)’:
+/usr/include/c++/13/bits/basic_string.h:4488:31: error: template argument 3 is invalid
+ 4488 |     { return basic_string<char>{__str, __len}; }
+      |                               ^
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4491:32: error: template argument 3 is invalid
+ 4491 |     inline basic_string<wchar_t>
+      |                                ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘int std::literals::string_literals::operator""s(const wchar_t*, std::size_t)’:
+/usr/include/c++/13/bits/basic_string.h:4493:34: error: template argument 3 is invalid
+ 4493 |     { return basic_string<wchar_t>{__str, __len}; }
+      |                                  ^
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4503:33: error: template argument 3 is invalid
+ 4503 |     inline basic_string<char16_t>
+      |                                 ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘int std::literals::string_literals::operator""s(const char16_t*, std::size_t)’:
+/usr/include/c++/13/bits/basic_string.h:4505:35: error: template argument 3 is invalid
+ 4505 |     { return basic_string<char16_t>{__str, __len}; }
+      |                                   ^
+/usr/include/c++/13/bits/basic_string.h: At global scope:
+/usr/include/c++/13/bits/basic_string.h:4508:33: error: template argument 3 is invalid
+ 4508 |     inline basic_string<char32_t>
+      |                                 ^
+/usr/include/c++/13/bits/basic_string.h: In function ‘int std::literals::string_literals::operator""s(const char32_t*, std::size_t)’:
+/usr/include/c++/13/bits/basic_string.h:4510:35: error: template argument 3 is invalid
+ 4510 |     { return basic_string<char32_t>{__str, __len}; }
+      |                                   ^
+In file included from /usr/include/c++/13/string:55:
+/usr/include/c++/13/bits/basic_string.tcc: In member function ‘std::__cxx11::basic_string<_CharT, _Traits, _Alloc>::pointer std::__cxx11::basic_string<_CharT, _Traits, _Alloc>::_M_create(size_type&, size_type)’:
+/usr/include/c++/13/bits/basic_string.tcc:144:14: error: ‘__throw_length_error’ is not a member of ‘std’; did you mean ‘__throw_runtime_error’?
+  144 |         std::__throw_length_error(__N("basic_string::_M_create"));
+      |              ^~~~~~~~~~~~~~~~~~~~
+      |              __throw_runtime_error
+/usr/include/c++/13/bits/basic_string.tcc: At global scope:
+/usr/include/c++/13/bits/basic_string.tcc:969:42: error: template argument 3 is invalid
+  969 |   extern template class basic_string<char>;
+      |                                          ^
+/usr/include/c++/13/bits/basic_string.tcc:984:5: error: template-id ‘operator>><>’ for ‘std::basic_istream<char>& std::operator>>(basic_istream<char>&, string&)’ does not match any template declaration
+  984 |     operator>>(basic_istream<char>&, string&);
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:827:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::operator>>(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+  827 |     operator>>(basic_istream<_CharT, _Traits>& __in,
+      |     ^~~~~~~~
+/usr/include/c++/13/cstddef:130:5: note:                 ‘template<class _IntegerType> constexpr std::__byte_op_t<_IntegerType> std::operator>>(byte, _IntegerType)’
+  130 |     operator>>(byte __b, _IntegerType __shift) noexcept
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:987:5: error: template-id ‘operator<< <>’ for ‘std::basic_ostream<char>& std::operator<<(basic_ostream<char>&, const string&)’ does not match any template declaration
+  987 |     operator<<(basic_ostream<char>&, const string&);
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4032:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_ostream<_CharT, _Traits>& std::operator<<(basic_ostream<_CharT, _Traits>&, const __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4032 |     operator<<(basic_ostream<_CharT, _Traits>& __os,
+      |     ^~~~~~~~
+/usr/include/c++/13/cstddef:124:5: note:                 ‘template<class _IntegerType> constexpr std::__byte_op_t<_IntegerType> std::operator<<(byte, _IntegerType)’
+  124 |     operator<<(byte __b, _IntegerType __shift) noexcept
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:990:5: error: template-id ‘getline<>’ for ‘std::basic_istream<char>& std::getline(basic_istream<char>&, string&, char)’ does not match any template declaration
+  990 |     getline(basic_istream<char>&, string&, char);
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4087:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4087 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4080:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4080 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4072:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4072 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:899:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+  899 |     getline(basic_istream<_CharT, _Traits>& __in,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:993:5: error: template-id ‘getline<>’ for ‘std::basic_istream<char>& std::getline(basic_istream<char>&, string&)’ does not match any template declaration
+  993 |     getline(basic_istream<char>&, string&);
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4087:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4087 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4080:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4080 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4072:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4072 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:899:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+  899 |     getline(basic_istream<_CharT, _Traits>& __in,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:997:45: error: template argument 3 is invalid
+  997 |   extern template class basic_string<wchar_t>;
+      |                                             ^
+/usr/include/c++/13/bits/basic_string.tcc:1010:5: error: template-id ‘operator>><>’ for ‘std::basic_istream<wchar_t>& std::operator>>(basic_istream<wchar_t>&, wstring&)’ does not match any template declaration
+ 1010 |     operator>>(basic_istream<wchar_t>&, wstring&);
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:827:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::operator>>(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+  827 |     operator>>(basic_istream<_CharT, _Traits>& __in,
+      |     ^~~~~~~~
+/usr/include/c++/13/cstddef:130:5: note:                 ‘template<class _IntegerType> constexpr std::__byte_op_t<_IntegerType> std::operator>>(byte, _IntegerType)’
+  130 |     operator>>(byte __b, _IntegerType __shift) noexcept
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:1013:5: error: template-id ‘operator<< <>’ for ‘std::basic_ostream<wchar_t>& std::operator<<(basic_ostream<wchar_t>&, const wstring&)’ does not match any template declaration
+ 1013 |     operator<<(basic_ostream<wchar_t>&, const wstring&);
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4032:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_ostream<_CharT, _Traits>& std::operator<<(basic_ostream<_CharT, _Traits>&, const __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4032 |     operator<<(basic_ostream<_CharT, _Traits>& __os,
+      |     ^~~~~~~~
+/usr/include/c++/13/cstddef:124:5: note:                 ‘template<class _IntegerType> constexpr std::__byte_op_t<_IntegerType> std::operator<<(byte, _IntegerType)’
+  124 |     operator<<(byte __b, _IntegerType __shift) noexcept
+      |     ^~~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:1016:5: error: template-id ‘getline<>’ for ‘std::basic_istream<wchar_t>& std::getline(basic_istream<wchar_t>&, wstring&, wchar_t)’ does not match any template declaration
+ 1016 |     getline(basic_istream<wchar_t>&, wstring&, wchar_t);
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4087:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4087 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4080:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4080 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4072:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4072 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:899:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+  899 |     getline(basic_istream<_CharT, _Traits>& __in,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:1019:5: error: template-id ‘getline<>’ for ‘std::basic_istream<wchar_t>& std::getline(basic_istream<wchar_t>&, wstring&)’ does not match any template declaration
+ 1019 |     getline(basic_istream<wchar_t>&, wstring&);
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4087:5: note: candidates are: ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4087 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4080:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+ 4080 |     getline(basic_istream<_CharT, _Traits>&& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.h:4072:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&)’
+ 4072 |     getline(basic_istream<_CharT, _Traits>& __is,
+      |     ^~~~~~~
+/usr/include/c++/13/bits/basic_string.tcc:899:5: note:                 ‘template<class _CharT, class _Traits, class _Alloc> std::basic_istream<_CharT, _Traits>& std::getline(basic_istream<_CharT, _Traits>&, __cxx11::basic_string<_CharT, _Traits, _Allocator>&, _CharT)’
+  899 |     getline(basic_istream<_CharT, _Traits>& __in,
+      |     ^~~~~~~
+In file included from /usr/include/c++/13/string:58:
+/usr/include/c++/13/bits/memory_resource.h: In member function ‘_Tp* std::pmr::polymorphic_allocator<_Tp>::allocate(std::size_t)’:
+/usr/include/c++/13/bits/memory_resource.h:161:16: error: ‘__throw_bad_array_new_length’ is not a member of ‘std’; did you mean ‘bad_array_new_length’?
+  161 |           std::__throw_bad_array_new_length();
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                bad_array_new_length
+In file included from /usr/include/c++/13/vector:66,
+                 from kernel/include/kernel/types.h:14:
+/usr/include/c++/13/bits/stl_vector.h: At global scope:
 /usr/include/c++/13/bits/stl_vector.h:427:44: error: ‘std::allocator’ is not a template
   427 |   template<typename _Tp, typename _Alloc = std::allocator<_Tp> >
       |                                            ^~~
 /usr/include/c++/13/bits/stl_vector.h:2020:34: error: ‘std::allocator’ is not a template
  2020 |            typename _Allocator = allocator<_ValT>,
       |                                  ^~~~~~~~~
-In file included from /usr/include/c++/13/vector:80:
-/usr/include/c++/13/bits/memory_resource.h: In member function ‘_Tp* std::pmr::polymorphic_allocator<_Tp>::allocate(std::size_t)’:
-/usr/include/c++/13/bits/memory_resource.h:161:16: error: ‘__throw_bad_array_new_length’ is not a member of ‘std’; did you mean ‘bad_array_new_length’?
-  161 |           std::__throw_bad_array_new_length();
-      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
-      |                bad_array_new_length
-In file included from /usr/include/c++/13/bits/stl_uninitialized.h:64,
-                 from /usr/include/c++/13/vector:65:
-/usr/include/c++/13/ext/alloc_traits.h: In instantiation of ‘struct __gnu_cxx::__alloc_traits<std::allocator, void>’:
-/usr/include/c++/13/bits/stl_vector.h:88:21:   required from ‘struct std::_Vector_base<int, std::allocator>’
-/usr/include/c++/13/bits/stl_vector.h:428:11:   required from ‘class std::vector<int>’
-kernel/src/kernel_main.cpp:39:22:   required from here
-/usr/include/c++/13/ext/alloc_traits.h:59:53: error: forming reference to void
-   59 |     typedef value_type&                             reference;
-      |                                                     ^~~~~~~~~
-/usr/include/c++/13/ext/alloc_traits.h:60:53: error: forming reference to void
-   60 |     typedef const value_type&                       const_reference;
-      |                                                     ^~~~~~~~~~~~~~~
-kernel/src/kernel_main.cpp: In function ‘void kernel_main()’:
-kernel/src/kernel_main.cpp:47:55: error: no match for ‘operator[]’ (operand types are ‘std::vector<int>’ and ‘size_t’ {aka ‘unsigned int’})
-   47 |         uint32_t val = static_cast<uint32_t>(my_vector[i]);
-      |                                                       ^
+kernel/include/kernel/types.h:304:35: warning: invalid conversion from ‘const char*’ to ‘std::string’ {aka ‘int’} [-fpermissive]
+  304 |     std::string rootPassword    = "root";        ///< Пароль суперпользователя по умолчанию
+      |                                   ^~~~~~
+      |                                   |
+      |                                   const char*
+kernel/include/kernel/types.h:305:35: warning: invalid conversion from ‘const char*’ to ‘std::string’ {aka ‘int’} [-fpermissive]
+  305 |     std::string hostname        = "rand-elecorner-36"; ///< Имя хоста
+      |                                   ^~~~~~~~~~~~~~~~~~~
+      |                                   |
+      |                                   const char*
+In file included from /usr/include/c++/13/unordered_map:41,
+                 from kernel/include/kernel/syscalls.h:16:
+/usr/include/c++/13/bits/unordered_map.h:51:30: error: ‘std::allocator’ is not a template
+   51 |            typename _Alloc = std::allocator<std::pair<const _Key, _Tp> >,
+      |                              ^~~
+/usr/include/c++/13/bits/unordered_map.h:68:30: error: ‘std::allocator’ is not a template
+   68 |            typename _Alloc = std::allocator<std::pair<const _Key, _Tp> >,
+      |                              ^~~
+/usr/include/c++/13/bits/unordered_map.h:108:30: error: ‘std::allocator’ is not a template
+  108 |            typename _Alloc = allocator<std::pair<const _Key, _Tp>>>
+      |                              ^~~~~~~~~
+/usr/include/c++/13/bits/unordered_map.h:1148:34: error: ‘std::allocator’ is not a template
+ 1148 |            typename _Allocator = allocator<__iter_to_alloc_t<_InputIterator>>,
+      |                                  ^~~~~~~~~
+In file included from /usr/include/c++/13/bits/hashtable.h:35,
+                 from /usr/include/c++/13/bits/unordered_map.h:33:
+/usr/include/c++/13/bits/hashtable_policy.h: In instantiation of ‘struct std::__detail::_Hashtable_alloc<std::allocator>’:
+/usr/include/c++/13/bits/hashtable_policy.h:899:13:   required from ‘struct std::__detail::_Insert_base<int, std::pair<const int, int>, std::allocator, std::__detail::_Select1st, std::equal_to<int>, std::hash<int>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >’
+/usr/include/c++/13/bits/hashtable_policy.h:1093:12:   required from ‘struct std::__detail::_Insert<int, std::pair<const int, int>, std::allocator, std::__detail::_Select1st, std::equal_to<int>, std::hash<int>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true>, false>’
+/usr/include/c++/13/bits/hashtable.h:181:11:   required from ‘class std::_Hashtable<int, std::pair<const int, int>, std::allocator, std::__detail::_Select1st, std::equal_to<int>, std::hash<int>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >’
+/usr/include/c++/13/bits/unordered_map.h:112:18:   required from ‘class std::unordered_map<int, int>’
+/usr/include/c++/13/bits/unordered_map.h:1154:37:   required from here
+/usr/include/c++/13/bits/hashtable_policy.h:1929:13: error: invalid use of incomplete type ‘struct std::__detail::_Hashtable_alloc<std::allocator>::__get_value_type<void>’
+ 1929 |       using __value_alloc_traits = typename __node_alloc_traits::template
+      |             ^~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/hashtable_policy.h:1918:16: note: declaration of ‘struct std::__detail::_Hashtable_alloc<std::allocator>::__get_value_type<void>’
+ 1918 |         struct __get_value_type;
+      |                ^~~~~~~~~~~~~~~~
+/usr/include/c++/13/bits/unordered_map.h:1162:34: error: ‘std::allocator’ is not a template
+ 1162 |            typename _Allocator = allocator<pair<const _Key, _Tp>>,
+      |                                  ^~~~~~~~~
+/usr/include/c++/13/bits/unordered_map.h:1253:30: error: ‘std::allocator’ is not a template
+ 1253 |            typename _Alloc = allocator<std::pair<const _Key, _Tp>>>
+      |                              ^~~~~~~~~
+/usr/include/c++/13/bits/unordered_map.h:2050:34: error: ‘std::allocator’ is not a template
+ 2050 |            typename _Allocator = allocator<__iter_to_alloc_t<_InputIterator>>,
+      |                                  ^~~~~~~~~
+/usr/include/c++/13/bits/unordered_map.h:2065:34: error: ‘std::allocator’ is not a template
+ 2065 |            typename _Allocator = allocator<pair<const _Key, _Tp>>,
+      |                                  ^~~~~~~~~
+kernel/include/kernel/syscalls.h:169:83: warning: invalid conversion from ‘const char*’ to ‘std::string’ {aka ‘int’} [-fpermissive]
+  169 |     std::string getString(const std::string& key, const std::string& defaultVal = "") const;
+      |                                                                                   ^~
+      |                                                                                   |
+      |                                                                                   const char*
+kernel/include/kernel/syscalls.h:339:83: warning: invalid conversion from ‘const char*’ to ‘std::string’ {aka ‘int’} [-fpermissive]
+  339 |     std::string getString(const std::string& key, const std::string& defaultVal = "") const;
+      |                                                                                   ^~
+      |                                                                                   |
+      |                                                                                   const char*
+In file included from kernel/src/syscall_gate.cpp:18:
+kernel/include/libc.h:15:6: error: conflicting declaration of C function ‘void putchar(char)’
+   15 | void putchar(char c);
+      |      ^~~~~~~
+In file included from /usr/include/c++/13/cstdio:42,
+                 from /usr/include/c++/13/ext/string_conversions.h:45,
+                 from /usr/include/c++/13/bits/basic_string.h:4109:
+/usr/include/stdio.h:618:12: note: previous declaration ‘int putchar(int)’
+  618 | extern int putchar (int __c);
+      |            ^~~~~~~
+kernel/include/libc.h:16:6: error: conflicting declaration of C function ‘char getchar()’
+   16 | char getchar();
+      |      ^~~~~~~
+/usr/include/stdio.h:582:12: note: previous declaration ‘int getchar()’
+  582 | extern int getchar (void);
+      |            ^~~~~~~
+kernel/include/libc.h:36:6: error: conflicting declaration of C function ‘void printf(const char*, ...)’
+   36 | void printf(const char* format, ...);
+      |      ^~~~~~
+/usr/include/stdio.h:363:12: note: previous declaration ‘int printf(const char*, ...)’
+  363 | extern int printf (const char *__restrict __format, ...);
+      |            ^~~~~~
+kernel/src/syscall_gate.cpp: In function ‘uint32_t re36::sys_lseek(SyscallRegs*)’:
+kernel/src/syscall_gate.cpp:663:19: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
+  663 |     if (f->offset < 0) {
+      |         ~~~~~~~~~~^~~
+kernel/src/syscall_gate.cpp: In function ‘uint32_t re36::handle_syscall(SyscallRegs*)’:
+kernel/src/syscall_gate.cpp:1203:9: warning: case value ‘0’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1203 |         case static_cast<SyscallId>(0):  return sys_exit(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1204:9: warning: case value ‘1’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1204 |         case static_cast<SyscallId>(1):  return sys_print(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1205:9: warning: case value ‘2’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1205 |         case static_cast<SyscallId>(2):  return sys_getchar(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1206:9: warning: case value ‘3’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1206 |         case static_cast<SyscallId>(3):  return sys_sleep(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1207:9: warning: case value ‘4’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1207 |         case static_cast<SyscallId>(4):  return sys_yield(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1208:9: warning: case value ‘5’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1208 |         case static_cast<SyscallId>(5):  return sys_getpid(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1209:9: warning: case value ‘12’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1209 |         case static_cast<SyscallId>(12): return sys_mmap(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1210:9: warning: case value ‘13’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1210 |         case static_cast<SyscallId>(13): return sys_munmap(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1211:9: warning: case value ‘14’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1211 |         case static_cast<SyscallId>(14): return sys_send(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1212:9: warning: case value ‘15’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1212 |         case static_cast<SyscallId>(15): return sys_recv(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1213:9: warning: case value ‘16’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1213 |         case static_cast<SyscallId>(16): return sys_time(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1214:9: warning: case value ‘17’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1214 |         case static_cast<SyscallId>(17): return sys_inb(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1215:9: warning: case value ‘18’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1215 |         case static_cast<SyscallId>(18): return sys_outb(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1216:9: warning: case value ‘19’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1216 |         case static_cast<SyscallId>(19): return sys_inw(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1217:9: warning: case value ‘20’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1217 |         case static_cast<SyscallId>(20): return sys_outw(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1218:9: warning: case value ‘22’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1218 |         case static_cast<SyscallId>(22): return sys_wait_irq(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1219:9: warning: case value ‘23’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1219 |         case static_cast<SyscallId>(23): return sys_send_msg(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1220:9: warning: case value ‘24’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1220 |         case static_cast<SyscallId>(24): return sys_recv_msg(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1221:9: warning: case value ‘25’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1221 |         case static_cast<SyscallId>(25): return sys_read_sector(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1222:9: warning: case value ‘26’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1222 |         case static_cast<SyscallId>(26): return sys_map_mmio(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1223:9: warning: case value ‘27’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1223 |         case static_cast<SyscallId>(27): return sys_find_thread(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1224:9: warning: case value ‘28’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1224 |         case static_cast<SyscallId>(28): return sys_sbrk(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1225:9: warning: case value ‘29’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1225 |         case static_cast<SyscallId>(29): return sys_fopen(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1226:9: warning: case value ‘30’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1226 |         case static_cast<SyscallId>(30): return sys_fread(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1227:9: warning: case value ‘31’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1227 |         case static_cast<SyscallId>(31): return sys_fwrite(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1228:9: warning: case value ‘32’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1228 |         case static_cast<SyscallId>(32): return sys_fclose(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1229:9: warning: case value ‘33’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1229 |         case static_cast<SyscallId>(33): return sys_fsize(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1230:9: warning: case value ‘34’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1230 |         case static_cast<SyscallId>(34): return sys_fork(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1231:9: warning: case value ‘35’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1231 |         case static_cast<SyscallId>(35): return sys_exec(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1232:9: warning: case value ‘36’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1232 |         case static_cast<SyscallId>(36): return sys_wait(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1233:9: warning: case value ‘37’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1233 |         case static_cast<SyscallId>(37): return sys_grant_mmio(regs);
+      |         ^~~~
+kernel/src/syscall_gate.cpp:1234:9: warning: case value ‘38’ not in enumerated type ‘re36::SyscallId’ [-Wswitch]
+ 1234 |         case static_cast<SyscallId>(38): return sys_set_driver(regs);
+      |         ^~~~

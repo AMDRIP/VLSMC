@@ -454,14 +454,14 @@ static void elf_thread_entry() {
     );
 }
 
-bool elf_exec(const char* filename) {
+int elf_exec(const char* filename) {
     int tid = thread_create(filename, elf_thread_entry, 5);
     if (tid < 0) {
         printf("[ELF] Failed to create thread\n");
-        return false;
+        return -1;
     }
     printf("[ELF] Spawned '%s' as TID %d\n", filename, tid);
-    return true;
+    return tid;
 }
 
 } // namespace re36

@@ -36,7 +36,9 @@ static uint32_t sys_exit(SyscallRegs* regs) {
 
     if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_ &&
         cur.page_directory_phys != nullptr) {
-        VMM::destroy_address_space(cur.page_directory_phys);
+        uint32_t* old_dir = cur.page_directory_phys;
+        VMM::switch_address_space((uint32_t*)VMM::kernel_directory_phys_);
+        VMM::destroy_address_space(old_dir);
         cur.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
     }
 
@@ -881,7 +883,9 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     }
 
     if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_) {
-        VMM::destroy_address_space(cur.page_directory_phys);
+        uint32_t* old_dir = cur.page_directory_phys;
+        VMM::switch_address_space((uint32_t*)VMM::kernel_directory_phys_);
+        VMM::destroy_address_space(old_dir);
     }
 
     VMA* v = cur.vma_list;
@@ -922,6 +926,15 @@ static uint32_t sys_exec(SyscallRegs* regs) {
         new_vma->file_offset = phdrs[i].p_offset - align_diff;
         new_vma->file_size = phdrs[i].p_filesz + align_diff;
         new_vma->flags = flags;
+        new_vma->type = VMA_TYPE_FILE;      // Set the type
+        
+        vnode* exec_vn = nullptr;
+        if (vfs_resolve_path(cur.name, &exec_vn) == 0 && exec_vn) {
+            new_vma->file_vnode = exec_vn;  // Store vnode for demand paging
+        } else {
+            new_vma->file_vnode = nullptr;
+        }
+
         new_vma->next = cur.vma_list;
         cur.vma_list = new_vma;
     }

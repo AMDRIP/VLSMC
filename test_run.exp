@@ -1,0 +1,8 @@
+#!/usr/bin/expect -f
+set timeout 10
+log_file -a qemu_test.log
+spawn qemu-system-i386 -fda disk.img -hda data.img -boot a -nographic -serial mon:stdio -no-reboot -d int -D qemu.log
+expect "sys>"
+send "anim\n"
+expect "sys>"
+send "\x01x"

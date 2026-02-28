@@ -1,0 +1,42 @@
+
+File: ANIM.ELF
+
+Elf file type is EXEC (Executable file)
+Entry point 0x40000000
+There are 4 program headers, starting at offset 52
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  LOAD           0x001000 0x40000000 0x40000000 0x00763 0x00763 R E 0x1000
+  LOAD           0x002000 0x40001000 0x40001000 0x004f4 0x004f4 R   0x1000
+  LOAD           0x003000 0x40002000 0x40002000 0x00004 0x0100c RW  0x1000
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RWE 0x10
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .text 
+   01     .rodata .eh_frame 
+   02     .data .bss 
+   03     
+
+File: LIBC.SO
+
+Elf file type is DYN (Shared object file)
+Entry point 0x0
+There are 5 program headers, starting at offset 52
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  LOAD           0x000000 0x00000000 0x00000000 0x000d4 0x000d4 R   0x1000
+  LOAD           0x001000 0x00001000 0x00001000 0x03c90 0x03c90 RWE 0x1000
+  LOAD           0x005000 0x00005000 0x00005000 0x00004 0x01434 RW  0x1000
+  DYNAMIC        0x004b9c 0x00004b9c 0x00004b9c 0x00098 0x00098 RW  0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x10
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     
+   01     .text .plt .rodata .dynsym .dynstr .hash .gnu.hash .rel.dyn .dynamic .got .got.plt 
+   02     .data .bss 
+   03     .dynamic 
+   04     

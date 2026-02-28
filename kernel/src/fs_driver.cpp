@@ -1,12 +1,5 @@
-// Не используется, не удалять
-/**
- * @file fs_driver.cpp
- * @brief Реализация фундаментального драйвера файловой системы.
- *
- * Все операции работают с виртуальным диском (in-memory массив блоков).
- * Кеш блоков, журнал и bitmaps обновляются при каждой операции.
- * Статистика I/O ведётся для визуализации в GUI.
- */
+
+
 
 #include "kernel/fs_driver.h"
 #include "kernel/event_bus.h"
@@ -16,9 +9,9 @@
 
 namespace re36 {
 
-// ============================================================================
-// Конструктор / деструктор
-// ============================================================================
+
+
+
 
 FsDriver::FsDriver(EventBus& eventBus, uint32_t totalBlocks,
                    uint32_t blockSize, uint32_t maxInodes)
@@ -33,21 +26,21 @@ FsDriver::~FsDriver() {
     }
 }
 
-// ============================================================================
-// Жизненный цикл
-// ============================================================================
+
+
+
 
 bool FsDriver::format(const std::string& volumeLabel) {
-    // Создать виртуальный диск
+    
     disk_.resize(totalBlocks_);
     for (uint32_t i = 0; i < totalBlocks_; ++i) {
         disk_[i].resize(blockSize_, 0);
     }
 
-    // Рассчитать геометрию
+    
     calculateLayout();
 
-    // Инициализировать суперблок
+    
     superblock_ = Superblock{};
     superblock_.magic = FS_MAGIC;
     superblock_.version = FS_VERSION;
@@ -58,23 +51,23 @@ bool FsDriver::format(const std::string& volumeLabel) {
     superblock_.state = FsState::Clean;
     superblock_.mountCount = 0;
 
-    // Инициализировать bitmaps
+    
     blockBitmap_.assign(totalBlocks_, false);
     inodeBitmap_.assign(maxInodes_, false);
 
-    // Зарезервировать служебные блоки (суперблок + bitmaps + область инодов)
+    
     uint32_t reservedBlocks = superblock_.firstDataBlock;
     for (uint32_t i = 0; i < reservedBlocks && i < totalBlocks_; ++i) {
-        blockBitmap_[i] = true;   // занят
+        blockBitmap_[i] = true;   
     }
 
     superblock_.freeBlocks = totalBlocks_ - reservedBlocks;
     superblock_.freeInodes = maxInodes_;
 
-    // Записать суперблок на «диск»
+    
     writeSuperblock();
 
-    // Очистить журнал и кеш
+    
     journal_.clear();
     cache_.clear();
     stats_ = DriverStats{};
@@ -82,7 +75,7 @@ bool FsDriver::format(const std::string& volumeLabel) {
     nextTxId_ = 1;
     activeTx_.clear();
 
-    // Событие
+    
     Event evt(EventType::FileCreated, 0, "fs_driver");
     evt.with("action", std::string("format"))
        .with("volumeLabel", volumeLabel)
@@ -96,16 +89,16 @@ bool FsDriver::format(const std::string& volumeLabel) {
 bool FsDriver::mount() {
     if (mounted_) return false;
 
-    // Диск должен быть уже создан (format или loadFromFile)
+    
     if (disk_.empty()) return false;
 
-    // Прочитать суперблок
+    
     if (!readSuperblock()) return false;
 
-    // Проверить magic
+    
     if (!superblock_.isValid()) return false;
 
-    // Пометить dirty (смонтирована)
+    
     superblock_.state = FsState::Dirty;
     superblock_.mountCount++;
     writeSuperblock();
@@ -117,10 +110,10 @@ bool FsDriver::mount() {
 void FsDriver::unmount() {
     if (!mounted_) return;
 
-    // Сбросить кеш
+    
     sync();
 
-    // Пометить clean
+    
     superblock_.state = FsState::Clean;
     writeSuperblock();
 
@@ -131,14 +124,14 @@ bool FsDriver::isMounted() const {
     return mounted_;
 }
 
-// ============================================================================
-// Блочный I/O
-// ============================================================================
+
+
+
 
 std::optional<RawBlock> FsDriver::readBlock(uint32_t blockId) {
     if (blockId >= totalBlocks_) return std::nullopt;
 
-    // Проверить кеш
+    
     auto cacheIt = cache_.find(blockId);
     if (cacheIt != cache_.end()) {
         stats_.cacheHits++;
@@ -147,7 +140,7 @@ std::optional<RawBlock> FsDriver::readBlock(uint32_t blockId) {
         return cacheIt->second.block;
     }
 
-    // Кеш-промах — читаем с «диска»
+    
     stats_.cacheMisses++;
     stats_.totalReads++;
 
@@ -156,7 +149,7 @@ std::optional<RawBlock> FsDriver::readBlock(uint32_t blockId) {
     block.data = disk_[blockId];
     block.dirty = false;
 
-    // Положить в кеш
+    
     if (cache_.size() >= maxCacheSize_) {
         evictLruCache();
     }
@@ -175,12 +168,12 @@ bool FsDriver::writeBlock(uint32_t blockId, const std::vector<uint8_t>& data) {
 
     stats_.totalWrites++;
 
-    // Подготовить данные (обрезать или дополнить до blockSize_)
+    
     std::vector<uint8_t> padded(blockSize_, 0);
     size_t copySize = std::min(data.size(), static_cast<size_t>(blockSize_));
     std::copy_n(data.begin(), copySize, padded.begin());
 
-    // Записать в кеш (write-back)
+    
     auto cacheIt = cache_.find(blockId);
     if (cacheIt != cache_.end()) {
         cacheIt->second.block.data = padded;
@@ -201,7 +194,7 @@ bool FsDriver::writeBlock(uint32_t blockId, const std::vector<uint8_t>& data) {
         cache_[blockId] = std::move(entry);
     }
 
-    // Write-through: также записать на «диск» сразу
+    
     disk_[blockId] = padded;
 
     superblock_.lastWriteTick = currentTick_;
@@ -218,18 +211,18 @@ std::optional<std::string> FsDriver::readBlockString(uint32_t blockId) {
     auto block = readBlock(blockId);
     if (!block) return std::nullopt;
 
-    // Найти конец строки (первый нулевой байт)
+    
     auto it = std::find(block->data.begin(), block->data.end(), 0);
     size_t len = static_cast<size_t>(std::distance(block->data.begin(), it));
     return std::string(block->data.begin(), block->data.begin() + len);
 }
 
-// ============================================================================
-// Управление блоками (bitmap)
-// ============================================================================
+
+
+
 
 uint32_t FsDriver::allocBlock() {
-    // Искать первый свободный блок после firstDataBlock
+    
     uint32_t start = superblock_.firstDataBlock;
     for (uint32_t i = start; i < totalBlocks_; ++i) {
         if (!blockBitmap_[i]) {
@@ -237,16 +230,16 @@ uint32_t FsDriver::allocBlock() {
             superblock_.freeBlocks--;
             stats_.blockAllocs++;
 
-            // Обнулить блок
+            
             disk_[i].assign(blockSize_, 0);
 
-            // Журнал
+            
             journalWrite(JournalOpType::BlockWrite, i, 0, "allocBlock");
 
             return i;
         }
     }
-    return 0;   // Нет свободных блоков
+    return 0;   
 }
 
 std::vector<uint32_t> FsDriver::allocBlocks(uint32_t count) {
@@ -258,7 +251,7 @@ std::vector<uint32_t> FsDriver::allocBlocks(uint32_t count) {
     for (uint32_t i = 0; i < count; ++i) {
         uint32_t blk = allocBlock();
         if (blk == 0) {
-            // Откатить все выделенные
+            
             for (auto id : result) freeBlock(id);
             return {};
         }
@@ -269,20 +262,20 @@ std::vector<uint32_t> FsDriver::allocBlocks(uint32_t count) {
 
 void FsDriver::freeBlock(uint32_t blockId) {
     if (blockId >= totalBlocks_) return;
-    if (blockId < superblock_.firstDataBlock) return;   // служебный
-    if (!blockBitmap_[blockId]) return;                 // уже свободен
+    if (blockId < superblock_.firstDataBlock) return;   
+    if (!blockBitmap_[blockId]) return;                 
 
     blockBitmap_[blockId] = false;
     superblock_.freeBlocks++;
     stats_.blockFrees++;
 
-    // Обнулить данные
+    
     disk_[blockId].assign(blockSize_, 0);
 
-    // Удалить из кеша
+    
     cache_.erase(blockId);
 
-    // Журнал
+    
     journalWrite(JournalOpType::BlockFree, blockId, 0, "freeBlock");
 }
 
@@ -295,12 +288,12 @@ uint32_t FsDriver::getFreeBlockCount() const {
     return superblock_.freeBlocks;
 }
 
-// ============================================================================
-// Управление инодами (bitmap)
-// ============================================================================
+
+
+
 
 uint32_t FsDriver::allocInode() {
-    for (uint32_t i = 1; i < maxInodes_; ++i) {    // 0 зарезервирован
+    for (uint32_t i = 1; i < maxInodes_; ++i) {    
         if (!inodeBitmap_[i]) {
             inodeBitmap_[i] = true;
             superblock_.freeInodes--;
@@ -310,12 +303,12 @@ uint32_t FsDriver::allocInode() {
             return i;
         }
     }
-    return 0;   // Нет свободных инодов
+    return 0;   
 }
 
 void FsDriver::freeInode(uint32_t inodeId) {
     if (inodeId == 0 || inodeId >= maxInodes_) return;
-    if (!inodeBitmap_[inodeId]) return;     // уже свободен
+    if (!inodeBitmap_[inodeId]) return;     
 
     inodeBitmap_[inodeId] = false;
     superblock_.freeInodes++;
@@ -333,9 +326,9 @@ uint32_t FsDriver::getFreeInodeCount() const {
     return superblock_.freeInodes;
 }
 
-// ============================================================================
-// Журнал (WAL)
-// ============================================================================
+
+
+
 
 uint32_t FsDriver::beginTransaction() {
     uint32_t txId = nextTxId_++;
@@ -386,9 +379,9 @@ void FsDriver::clearJournal() {
     journal_.clear();
 }
 
-// ============================================================================
-// Кеш
-// ============================================================================
+
+
+
 
 void FsDriver::sync() {
     for (auto& [blockId, entry] : cache_) {
@@ -398,7 +391,7 @@ void FsDriver::sync() {
         }
     }
 
-    // Обновить суперблок
+    
     writeSuperblock();
 }
 
@@ -414,9 +407,9 @@ void FsDriver::setCacheSize(uint32_t maxEntries) {
     }
 }
 
-// ============================================================================
-// Запросы
-// ============================================================================
+
+
+
 
 const Superblock& FsDriver::getSuperblock() const {
     return superblock_;
@@ -440,15 +433,15 @@ uint32_t FsDriver::getBlockSize() const { return blockSize_; }
 uint32_t FsDriver::getTotalBlocks() const { return totalBlocks_; }
 uint32_t FsDriver::getMaxInodes() const { return maxInodes_; }
 
-// ============================================================================
-// Внутренние методы
-// ============================================================================
+
+
+
 
 void FsDriver::writeSuperblock() {
-    // Сериализовать суперблок в блок 0
+    
     std::vector<uint8_t> data(blockSize_, 0);
 
-    // Простая бинарная сериализация (для симулятора)
+    
     auto writeU32 = [&data](size_t offset, uint32_t val) {
         if (offset + 4 <= data.size()) {
             data[offset + 0] = static_cast<uint8_t>(val & 0xFF);
@@ -479,13 +472,13 @@ void FsDriver::writeSuperblock() {
     writeU32(off, superblock_.bitmapBlockStart); off += 4;
     writeU32(off, superblock_.inodeBitmapStart); off += 4;
     data[off++] = static_cast<uint8_t>(superblock_.state);
-    // padding до 8-байтового выравнивания
+    
     off = 48;
     writeU64(off, superblock_.mountCount);      off += 8;
     writeU64(off, superblock_.lastMountTick);   off += 8;
     writeU64(off, superblock_.lastWriteTick);   off += 8;
 
-    // Метка тома (до 32 байт)
+    
     off = 72;
     size_t lblLen = std::min(superblock_.volumeLabel.size(), static_cast<size_t>(31));
     for (size_t i = 0; i < lblLen; ++i) {
@@ -541,7 +534,7 @@ bool FsDriver::readSuperblock() {
     superblock_.lastMountTick = readU64(off);     off += 8;
     superblock_.lastWriteTick = readU64(off);     off += 8;
 
-    // Метка тома
+    
     off = 72;
     std::string label;
     for (size_t i = 0; i < 31 && off + i < data.size() && data[off + i] != 0; ++i) {
@@ -553,40 +546,40 @@ bool FsDriver::readSuperblock() {
 }
 
 void FsDriver::calculateLayout() {
-    // Блок 0:             суперблок
-    // Блок 1..B:          bitmap блоков (1 бит/блок)
-    // Блок B+1..B+I:      bitmap инодов (1 бит/инод)
-    // Блок B+I+1..B+I+D:  область инодов (для симулятора не используется напрямую)
-    // Остальное:          область данных
+    
+    
+    
+    
+    
 
-    // Сколько блоков нужно для bitmap блоков?
-    // Каждый блок может хранить blockSize_*8 бит
+    
+    
     uint32_t bitsPerBlock = blockSize_ * 8;
     uint32_t blockBitmapBlocks = (totalBlocks_ + bitsPerBlock - 1) / bitsPerBlock;
 
-    // Сколько блоков нужно для bitmap инодов?
+    
     uint32_t inodeBitmapBlocks = (maxInodes_ + bitsPerBlock - 1) / bitsPerBlock;
 
     superblock_.bitmapBlockStart = 1;
     superblock_.inodeBitmapStart = superblock_.bitmapBlockStart + blockBitmapBlocks;
     superblock_.inodeAreaStart = superblock_.inodeBitmapStart + inodeBitmapBlocks;
 
-    // Область инодов: для симулятора мы храним иноды в FileSystem,
-    // но резервируем блоки для корректности геометрии
-    uint32_t inodeBlocks = (maxInodes_ * 128 + blockSize_ - 1) / blockSize_;  // ~128 байт/инод
+    
+    
+    uint32_t inodeBlocks = (maxInodes_ * 128 + blockSize_ - 1) / blockSize_;  
 
     superblock_.firstDataBlock = superblock_.inodeAreaStart + inodeBlocks;
 
-    // Корректировка: не может превышать totalBlocks_
+    
     if (superblock_.firstDataBlock >= totalBlocks_) {
-        superblock_.firstDataBlock = totalBlocks_ / 2;  // аварийно — хотя бы половина
+        superblock_.firstDataBlock = totalBlocks_ / 2;  
     }
 }
 
 void FsDriver::evictLruCache() {
     if (cache_.empty()) return;
 
-    // Найти запись с наименьшим lastAccess
+    
     uint32_t victimId = 0;
     uint64_t minAccess = UINT64_MAX;
 
@@ -597,7 +590,7 @@ void FsDriver::evictLruCache() {
         }
     }
 
-    // Если dirty — записать на диск
+    
     auto it = cache_.find(victimId);
     if (it != cache_.end()) {
         if (it->second.block.dirty) {
@@ -620,12 +613,12 @@ void FsDriver::journalWrite(JournalOpType op, uint32_t targetId,
     journal_.push_back(entry);
     stats_.journalEntries++;
 
-    // Ограничить размер журнала
+    
     while (journal_.size() > JOURNAL_MAX_ENTRIES) {
         journal_.pop_front();
     }
 
-    // Добавить в транзакцию если есть
+    
     if (txId > 0) {
         auto txIt = activeTx_.find(txId);
         if (txIt != activeTx_.end()) {
@@ -638,4 +631,4 @@ void FsDriver::updateTick(uint64_t tick) {
     currentTick_ = tick;
 }
 
-} // namespace re36
+} 

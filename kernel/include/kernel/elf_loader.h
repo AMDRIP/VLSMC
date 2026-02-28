@@ -8,6 +8,6 @@ namespace re36 {
 #define USER_STACK_TOP     0xBFFF0000
 #define USER_STACK_PAGES   4
 
-bool elf_exec(const char* filename);
+int elf_exec(const char* filename);
 
 } // namespace re36

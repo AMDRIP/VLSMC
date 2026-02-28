@@ -100,7 +100,7 @@ echo "=== Building User Programs ==="
 nasm -f elf32 user/crt0.asm -o user_crt0.o
 mmd -i data.img ::/tests
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -Iuser/libc/include -c user/hello.cpp -o user_hello.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_hello.o LIBC.SO -o HELLO.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_hello.o user_libc.a -o HELLO.ELF
 mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/tests/vesa_test.cpp -o user_vesa_test.o
@@ -185,12 +185,12 @@ mcopy -i data.img LIBTEST.SO ::/lib/libtest.so
 
 # === Dynamic Test App ===
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -Iuser/libc/include -c user/tests/dyntest.cpp -o user_dyntest.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_dyntest.o LIBTEST.SO -o DYNTEST.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_dyntest.o LIBTEST.SO user_libc.a -o DYNTEST.ELF
 mcopy -i data.img DYNTEST.ELF ::/tests/DYNTEST.ELF
 
 # === DynHello (LIBC.SO test) ===
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/tests/dynhello.cpp -o user_dynhello.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_dynhello.o LIBC.SO -o DYNHELLO.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_dynhello.o LIBC.SO user_libc.a -o DYNHELLO.ELF
 mcopy -i data.img DYNHELLO.ELF ::/tests/DYNHELLO.ELF
 
 echo "=== Building ISO Image ==="

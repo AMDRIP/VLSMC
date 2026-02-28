@@ -261,7 +261,7 @@ static void exec_command(const char* cmd) {
     } else if (str_eq(cmd, "help")) {
         printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
-        printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
+        printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear, runall <dir>\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
@@ -578,6 +578,40 @@ static void exec_command(const char* cmd) {
                 printf("\n");
             }
         }
+    } else if (str_starts(cmd, "runall ", 7)) {
+        const char* path = str_after(cmd, 7);
+        vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
+        int count = vfs_readdir(path, dir_entries, VFS_DIR_MAX_ENTRIES);
+        if (count < 0) {
+            printf("Could not read directory %s.\n", path);
+        } else {
+            for (int i = 0; i < count; i++) {
+                if (dir_entries[i].type != 'D') {
+                    char fullpath[256];
+                    int len = 0;
+                    while (path[len] && len < 200) { fullpath[len] = path[len]; len++; }
+                    if (len > 0 && fullpath[len-1] != '/') fullpath[len++] = '/';
+                    int nlen = 0;
+                    while (dir_entries[i].name[nlen] && len < 255) { fullpath[len++] = dir_entries[i].name[nlen++]; }
+                    fullpath[len] = '\0';
+                    
+                    if (str_eq(dir_entries[i].name, "LD.SO") || str_eq(dir_entries[i].name, "LIBC.SO") || str_eq(dir_entries[i].name, "LIBTEST.SO")) {
+                        continue;
+                    }
+                    
+                    if (len >= 4 && fullpath[len-4] == '.' && fullpath[len-3] == 'E' && fullpath[len-2] == 'L' && fullpath[len-1] == 'F') {
+                        printf("\n========================================\n");
+                        printf("=== Running %s \n", fullpath);
+                        printf("========================================\n");
+                        int tid = elf_exec(fullpath);
+                        if (tid >= 0) {
+                            TaskScheduler::join(tid);
+                        }
+                    }
+                }
+            }
+            printf("\n--- runall finished ---\n");
+        }
     } else {
         printf("Unknown command: %s\n", cmd);
     }
@@ -643,6 +677,9 @@ void shell_main() {
 
     input_len = 0;
     input_buf[0] = '\0';
+    
+    printf("\n[AUTO] Running ALL tests to trigger crash...\n");
+    exec_command("runall /tests");
 
     while (true) {
         char c = getchar();

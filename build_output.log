@@ -23,11 +23,11 @@ x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a
 mkfs.fat 4.2 (2021-01-31)
 --- Boot disk ---
  Volume in drive : has no label
- Volume Serial Number is D1A1-942F
+ Volume Serial Number is E7AA-7618
 Directory for ::/
 
-STAGE2   BIN      1181 2026-03-01   1:24 
-KERNEL   BIN    127576 2026-03-01   1:24 
+STAGE2   BIN      1181 2026-03-01   1:30 
+KERNEL   BIN    127576 2026-03-01   1:30 
         2 files             128 757 bytes
                           1 328 128 bytes free
 
