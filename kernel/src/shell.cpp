@@ -29,7 +29,6 @@ namespace re36 {
 static char input_buf[SHELL_MAX_CMD_LEN];
 static int input_len = 0;
 static int cursor_x = 0;
-bool shell_debug = false;
 
 static volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
 
@@ -209,17 +208,6 @@ static void exec_command(const char* cmd) {
         printf("Sleeping for %d ms...\n", ms);
         TaskScheduler::sleep_current(ms);
         printf("Awake!\n");
-    } else if (str_starts(cmd, "debug ", 6)) {
-        const char* arg = str_after(cmd, 6);
-        if (str_eq(arg, "on")) {
-            shell_debug = true;
-            printf("Shell debug output enabled.\n");
-        } else if (str_eq(arg, "off")) {
-            shell_debug = false;
-            printf("Shell debug output disabled.\n");
-        } else {
-            printf("Usage: debug <on|off>\n");
-        }
     } else if (str_eq(cmd, "yield")) {
         re36::thread_yield();
     } else if (str_eq(cmd, "kernelpanic")) {
@@ -274,7 +262,7 @@ static void exec_command(const char* cmd) {
         printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
-        printf("        reboot, kernelpanic, echo, sleep, yield, help, debug <on|off>\n");
+        printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
@@ -380,15 +368,11 @@ static void exec_command(const char* cmd) {
                 dest[dlen] = '\0';
             }
             
-            printf("[DEBUG: PRE VFS RENAME]\n");
             if (vfs_rename(src, dest) == 0) {
-                printf("[DEBUG: POST VFS RENAME SUCCESS]\n");
                 printf("Moved %s to %s successfully.\n", src, dest);
             } else {
-                printf("[DEBUG: POST VFS RENAME FAIL]\n");
                 printf("Failed to move %s to %s.\n", src, dest);
             }
-            printf("[DEBUG: DONE VFS RENAME BLOCK]\n");
         }
     } else if (str_starts(cmd, "exec ", 5)) {
         elf_exec(str_after(cmd, 5));
@@ -644,9 +628,7 @@ void shell_main() {
     input_buf[0] = '\0';
 
     while (true) {
-        if (shell_debug) printf("[DEBUG: WAIT KEY]\n");
         char c = getchar();
-        if (shell_debug) printf("[DEBUG: GOT KEY %d]\n", c);
 
         if (c == '\n') {
             printf("\n");
