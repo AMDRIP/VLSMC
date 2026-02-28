@@ -87,7 +87,8 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdio.cpp -o user_libc_stdio.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdlib.cpp -o user_libc_stdlib.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/math.cpp -o user_libc_math.o
-x86_64-linux-gnu-ar rcs user_libc.a user_libc_syscall.o user_libc_errno.o user_libc_string.o user_libc_malloc.o user_libc_stdio.o user_libc_stdlib.o user_libc_math.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/cxx.cpp -o user_libc_cxx.o
+x86_64-linux-gnu-ar rcs user_libc.a user_libc_syscall.o user_libc_errno.o user_libc_string.o user_libc_malloc.o user_libc_stdio.o user_libc_stdlib.o user_libc_math.o user_libc_cxx.o
 
 echo "=== Building User Programs ==="
 nasm -f elf32 user/crt0.asm -o user_crt0.o
@@ -154,6 +155,11 @@ mcopy -i data.img FILEIO.ELF ::/FILEIO.ELF
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/anim.cpp -o user_anim.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_anim.o -o ANIM.ELF
 mcopy -i data.img ANIM.ELF ::/ANIM.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/ps2_driver.cpp -o user_ps2_driver.o
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/ps2_test.cpp -o user_ps2_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_ps2_test.o user_ps2_driver.o user_libc.a -o PS2TEST.ELF
+mcopy -i data.img PS2TEST.ELF ::/PS2TEST.ELF
 
 echo "=== Building ISO Image ==="
 mkdir -p iso_root

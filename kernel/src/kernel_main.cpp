@@ -152,7 +152,10 @@ extern "C" void kernel_main() {
     set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     re36::thread_create("idle", idle_thread, 255);
-    re36::thread_create("shell", shell_thread, 1);
+    int shell_tid = re36::thread_create("shell", shell_thread, 1);
+    if (shell_tid >= 0) {
+        re36::threads[shell_tid].is_driver = true;
+    }
 
     set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     printf("Spawned threads: idle (pri=255), shell (pri=1)\n");

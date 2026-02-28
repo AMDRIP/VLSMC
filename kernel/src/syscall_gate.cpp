@@ -226,7 +226,7 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
 
 static uint32_t sys_wait_irq(SyscallRegs* regs) {
     uint8_t irq = (uint8_t)regs->ebx;
-    EventSystem::wait((int)irq + 1000);
+    EventSystem::wait((int)irq);
     return 0;
 }
 

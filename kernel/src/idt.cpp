@@ -10,6 +10,7 @@
 #include "kernel/mouse.h"
 #include "kernel/bga.h"
 #include "kernel/vga.h"
+#include "kernel/event_channel.h"
 #include "libc.h"
 
 namespace re36 {
@@ -158,6 +159,9 @@ extern "C" void isr_handler(re36::Registers* regs) {
         if (regs->int_no == 44) {
             re36::MouseDriver::handle_interrupt();
         }
+
+        // Notify user-space drivers waiting via sys_wait_irq
+        re36::EventSystem::push(regs->int_no - 32, 1);
 
         re36::pic_send_eoi(regs->int_no - 32);
 

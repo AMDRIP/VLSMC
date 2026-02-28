@@ -175,8 +175,8 @@ static void exec_command(const char* cmd) {
             PhysicalMemoryManager::free_frame(test_buf);
         }
     } else if (str_eq(cmd, "help")) {
-        printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
-        printf("System: ps (threads), kill, killall, ticks, uptime, date\n");
+        printf("File: ls, cat, less, more, write, rm, stat, hexdump, exec, mknod, link\n");
+        printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
@@ -254,6 +254,65 @@ static void exec_command(const char* cmd) {
                 printf("%s\n", (const char*)file_buf);
             }
         }
+    } else if (str_starts(cmd, "less ", 5) || str_starts(cmd, "more ", 5)) {
+        const char* fname = str_after(cmd, 5);
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(fname, &vn) != 0 || !vn) {
+            printf("File not found: %s\n", fname);
+        } else {
+            int max_lines = 23;
+            int lines = 0;
+            uint32_t offset = 0;
+            bool eof = false;
+            while (!eof) {
+                uint8_t buf[64];
+                int bytes = -1;
+                if (vn->ops && vn->ops->read) {
+                    bytes = vn->ops->read(vn, offset, buf, sizeof(buf));
+                }
+                if (bytes <= 0) break;
+                
+                for (int i = 0; i < bytes; i++) {
+                    putchar(buf[i]);
+                    if (buf[i] == '\n') {
+                        lines++;
+                        if (lines >= max_lines) {
+                            set_color(VGA_COLOR_BLACK, VGA_COLOR_LIGHT_GREY);
+                            printf("--More--");
+                            set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+                            char c = getchar();
+                            printf("\r        \r");
+                            if (c == 'q' || c == 'Q') {
+                                eof = true;
+                                break;
+                            }
+                            lines = 0;
+                        }
+                    }
+                }
+                offset += bytes;
+            }
+            if (!eof && lines > 0) printf("\n");
+            vnode_release(vn);
+        }
+    } else if (str_eq(cmd, "whoiam") || str_eq(cmd, "whoami")) {
+        printf("root\n");
+    } else if (str_starts(cmd, "mknod ", 6)) {
+        const char* fname = str_after(cmd, 6);
+        if (vfs_write_file(fname, (const uint8_t*)"", 0) >= 0) {
+            printf("Created empty file: %s\n", fname);
+        } else {
+            printf("Failed to create file: %s\n", fname);
+        }
+    } else if (str_starts(cmd, "link ", 5)) {
+        printf("link/symlink is not supported on this filesystem (FAT16)\n");
+    } else if (str_eq(cmd, "fork")) {
+        printf("Forking test thread...\n");
+        auto fork_test_entry = []() {
+            printf("\n[fork] Child thread running! PID = %d\n", TaskScheduler::get_current_tid());
+        };
+        int child = thread_create("fork_test", fork_test_entry, 10);
+        printf("Spawned child with TID %d\n", child);
     } else if (str_starts(cmd, "write ", 6)) {
         const char* args = str_after(cmd, 6);
         const char* space = args;

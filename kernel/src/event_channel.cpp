@@ -16,12 +16,21 @@ void EventSystem::init() {
         channels_[i].waiter_count = 0;
         channels_[i].name[0] = '\0';
     }
+    
+    // Pre-activate Channels 0-15 for Hardware IRQs
+    for (int i = 0; i < 16; i++) {
+        channels_[i].active = true;
+        channels_[i].name[0] = 'I'; channels_[i].name[1] = 'R'; channels_[i].name[2] = 'Q';
+        channels_[i].name[3] = (i >= 10) ? '1' : ('0' + i);
+        channels_[i].name[4] = (i >= 10) ? ('0' + (i % 10)) : '\0';
+        channels_[i].name[5] = '\0';
+    }
 }
 
 int EventSystem::create_channel(const char* name) {
     InterruptGuard guard;
     
-    for (int i = 0; i < MAX_CHANNELS; i++) {
+    for (int i = 16; i < MAX_CHANNELS; i++) {
         if (!channels_[i].active) {
             channels_[i].active = true;
             channels_[i].head = 0;

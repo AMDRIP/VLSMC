@@ -199,3 +199,25 @@ extern "C" void* realloc(void* ptr, size_t size) {
     free(ptr);
     return new_ptr;
 }
+
+// Global operators for C++
+void* operator new(size_t size) {
+    return malloc(size);
+}
+void* operator new[](size_t size) {
+    return malloc(size);
+}
+void operator delete(void* p) {
+    free(p);
+}
+void operator delete[](void* p) {
+    free(p);
+}
+void operator delete(void* p, unsigned int size) {
+    (void)size;
+    free(p);
+}
+void operator delete[](void* p, unsigned int size) {
+    (void)size;
+    free(p);
+}
