@@ -153,3 +153,16 @@ struct Elf32_Dyn {
 #define DT_PLTREL   20
 #define DT_JMPREL   23
 
+#define AT_NULL    0
+#define AT_PHDR    3
+#define AT_PHENT   4
+#define AT_PHNUM   5
+#define AT_PAGESZ  6
+#define AT_BASE    7
+#define AT_ENTRY   9
+
+struct Elf32_auxv {
+    uint32_t a_type;
+    uint32_t a_un;
+};
+
