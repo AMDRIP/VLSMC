@@ -89,28 +89,64 @@ int vfs_mount(const char* fs_type, const char* target_path, block_device* bdev) 
     return 0;
 }
 
-// Упрощенный Path Resolver: 
-// В этой минимальной реализации мы считаем, что мы всегда обращаемся к корню первой смонтированной ФС (FAT16).
-// Для поддержки /mnt/disk и директорий потребуется полноценный парсер путей и реализация lookup.
+// Helper to extract the next path component. Returns length of component.
+static int extract_path_component(const char* path, int start_idx, char* out_buf, int max_len) {
+    int i = start_idx;
+    int o = 0;
+    while (path[i] == '/') i++; // skip extra slashes
+    if (!path[i]) return 0; // end of path
+
+    while (path[i] && path[i] != '/' && o < max_len - 1) {
+        out_buf[o++] = path[i++];
+    }
+    out_buf[o] = '\0';
+    return i - start_idx;
+}
+
+// Parses paths like /A/B/C and resolves them recursively.
 int vfs_resolve_path(const char* path, vnode** out) {
     if (!path || !out) return -1;
     if (num_mount_points == 0) return -1;
 
-    superblock* root_sb = mount_points[0]; // Пока берем первую ФС
+    superblock* root_sb = mount_points[0]; // TODO: Support other mount points based on prefix
     if (!root_sb || !root_sb->root_vnode) return -1;
 
     vnode* current = root_sb->root_vnode;
+    int path_idx = 0;
+    char component[64];
 
-    // Временный хак: пропускаем слеш "/"
-    int i = 0;
-    if (path[0] == '/') i++;
+    while (true) {
+        int consumed = extract_path_component(path, path_idx, component, sizeof(component));
+        if (consumed == 0) break; // Finished parsing path
 
-    // Вызываем lookup драйвера для поиска файла
-    if (current->ops && current->ops->lookup) {
-        return current->ops->lookup(current, path + i, out);
+        // We have a component, let's lookup in 'current' directory
+        if (!current->ops || !current->ops->lookup) {
+            // No lookup operation -> not a directory or not supported
+            if (current != root_sb->root_vnode) vnode_release(current);
+            return -1;
+        }
+
+        vnode* next_vn = nullptr;
+        int res = current->ops->lookup(current, component, &next_vn);
+        
+        // If we allocated a temporary vnode during traversal, we should release it.
+        if (current != root_sb->root_vnode) vnode_release(current);
+
+        if (res != 0 || !next_vn) {
+            return -1; // Not found
+        }
+
+        current = next_vn;
+        path_idx += consumed;
     }
 
-    return -1;
+    // Found the target node
+    if (current == root_sb->root_vnode) {
+        // Return a referenced root node
+        __atomic_add_fetch(&current->refcount, 1, __ATOMIC_SEQ_CST);
+    }
+    *out = current;
+    return 0;
 }
 
 int vfs_open(const char* path, int flags, int mode) {
@@ -157,74 +193,187 @@ int vfs_open(const char* path, int flags, int mode) {
 
 int vfs_readdir(const char* path, vfs_dir_entry* entries, int max_entries) {
     if (!entries || max_entries <= 0) return -1;
-    if (num_mount_points == 0) return -1;
+    if (!path) return -1;
 
-    superblock* sb = mount_points[0];
-    if (!sb || !sb->root_vnode) return -1;
+    vnode* dir = nullptr;
+    if (vfs_resolve_path(path, &dir) != 0 || !dir) return -1;
 
-    vnode* dir = sb->root_vnode;
-
-    if (path && path[0] != '\0' && !(path[0] == '/' && path[1] == '\0')) {
-        if (vfs_resolve_path(path, &dir) != 0) return -1;
+    if (!dir->ops || !dir->ops->readdir) {
+        vnode_release(dir);
+        return -1;
     }
 
-    if (!dir->ops || !dir->ops->readdir) return -1;
-    return dir->ops->readdir(dir, entries, max_entries);
+    int rc = dir->ops->readdir(dir, entries, max_entries);
+    vnode_release(dir);
+    return rc;
 }
 
 int vfs_stat(const char* path, vfs_stat_t* out) {
     if (!path || !out) return -1;
-    if (num_mount_points == 0) return -1;
+    
+    // Resolve the vnode itself
+    vnode* target = nullptr;
+    if (vfs_resolve_path(path, &target) != 0 || !target) return -1;
 
-    superblock* sb = mount_points[0];
-    if (!sb || !sb->root_vnode) return -1;
+    // Fast path: if the target supports stat directly
+    if (target->ops && target->ops->stat) {
+        // FAT16 stat implementation currently expects a parent dir and a name.
+        // We will change FAT16 stat to just take the target node, but for now we must adapt:
+        // Or better yet, we can resolve the parent, and then call stat.
+    }
+    vnode_release(target);
+    
+    // Resolve parent directory and filename
+    char dir_path[256];
+    char filename[64];
+    int len = 0;
+    while (path[len]) len++;
+    
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/') {
+            last_slash = i;
+            break;
+        }
+    }
 
-    vnode* root = sb->root_vnode;
-    int i = 0;
-    if (path[0] == '/') i++;
+    if (last_slash == -1) {
+        dir_path[0] = '/'; dir_path[1] = '\0';
+        int i;
+        for (i = 0; path[i] && i < 63; i++) filename[i] = path[i];
+        filename[i] = '\0';
+    } else {
+        if (last_slash == 0) {
+            dir_path[0] = '/'; dir_path[1] = '\0';
+        } else {
+            int i;
+            for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
+            dir_path[i] = '\0';
+        }
+        int o = 0;
+        for (int i = last_slash + 1; path[i] && o < 63; i++) filename[o++] = path[i];
+        filename[o] = '\0';
+    }
 
-    if (!root->ops || !root->ops->stat) return -1;
-    return root->ops->stat(root, path + i, out);
+    vnode* parent = nullptr;
+    if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) return -1;
+
+    if (!parent->ops || !parent->ops->stat) {
+        vnode_release(parent);
+        return -1;
+    }
+
+    int rc = parent->ops->stat(parent, filename, out);
+    vnode_release(parent);
+    return rc;
 }
 
 int vfs_unlink(const char* path) {
     if (!path) return -1;
-    if (num_mount_points == 0) return -1;
 
-    superblock* sb = mount_points[0];
-    if (!sb || !sb->root_vnode) return -1;
+    // Resolve parent directory and filename
+    char dir_path[256];
+    char filename[64];
+    int len = 0;
+    while (path[len]) len++;
+    
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/') {
+            last_slash = i;
+            break;
+        }
+    }
 
-    vnode* root = sb->root_vnode;
-    int i = 0;
-    if (path[0] == '/') i++;
+    if (last_slash == -1 || (last_slash == 0 && path[1] == '\0')) {
+        return -1; // Cannot unlink root
+    }
 
-    if (!root->ops || !root->ops->unlink) return -1;
-    return root->ops->unlink(root, path + i);
+    if (last_slash == 0) {
+        dir_path[0] = '/'; dir_path[1] = '\0';
+    } else {
+        int i;
+        for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
+        dir_path[i] = '\0';
+    }
+    int o = 0;
+    for (int i = last_slash + 1; path[i] && o < 63; i++) filename[o++] = path[i];
+    filename[o] = '\0';
+
+    vnode* parent = nullptr;
+    if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) return -1;
+
+    if (!parent->ops || !parent->ops->unlink) {
+        vnode_release(parent);
+        return -1;
+    }
+
+    int rc = parent->ops->unlink(parent, filename);
+    vnode_release(parent);
+    return rc;
 }
 
 int vfs_write_file(const char* path, const uint8_t* data, uint32_t size) {
     if (!path) return -1;
     if (num_mount_points == 0) return -1;
 
-    superblock* sb = mount_points[0];
-    if (!sb || !sb->root_vnode) return -1;
+    // Extract directory path and filename
+    char dir_path[256];
+    char filename[64];
+    int len = 0;
+    while (path[len]) len++;
+    
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/') {
+            last_slash = i;
+            break;
+        }
+    }
 
-    vnode* root = sb->root_vnode;
-    int i = 0;
-    if (path[0] == '/') i++;
+    if (last_slash == -1) {
+        dir_path[0] = '/'; dir_path[1] = '\0';
+        int i;
+        for (i = 0; path[i] && i < 63; i++) filename[i] = path[i];
+        filename[i] = '\0';
+    } else {
+        if (last_slash == 0) {
+            dir_path[0] = '/'; dir_path[1] = '\0';
+        } else {
+            int i;
+            for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
+            dir_path[i] = '\0';
+        }
+        int o = 0;
+        for (int i = last_slash + 1; path[i] && o < 63; i++) {
+            filename[o++] = path[i];
+        }
+        filename[o] = '\0';
+    }
+
+    vnode* parent = nullptr;
+    if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) {
+        return -1;
+    }
 
     vnode* vn = nullptr;
-    if (root->ops && root->ops->lookup) {
-        root->ops->lookup(root, path + i, &vn);
+    if (parent->ops && parent->ops->lookup) {
+        parent->ops->lookup(parent, filename, &vn);
     }
 
     if (!vn) {
-        if (root->ops && root->ops->create) {
-            if (root->ops->create(root, path + i, 0, &vn) != 0) return -1;
+        if (parent->ops && parent->ops->create) {
+            if (parent->ops->create(parent, filename, 0, &vn) != 0) {
+                vnode_release(parent);
+                return -1;
+            }
         } else {
+            vnode_release(parent);
             return -1;
         }
     }
+
+    vnode_release(parent);
 
     if (!vn || !vn->ops || !vn->ops->write) {
         if (vn) vnode_release(vn);
@@ -234,6 +383,54 @@ int vfs_write_file(const char* path, const uint8_t* data, uint32_t size) {
     int result = vn->ops->write(vn, 0, data, size);
     vnode_release(vn);
     return result;
+}
+
+int vfs_mkdir(const char* path, int mode) {
+    if (!path) return -1;
+    if (num_mount_points == 0) return -1;
+
+    // Extract directory path and new dir name
+    char dir_path[256];
+    char dirname[64];
+    int len = 0;
+    while (path[len]) len++;
+    
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/') {
+            last_slash = i;
+            break;
+        }
+    }
+
+    if (last_slash == -1 || (last_slash == 0 && path[1] == '\0')) {
+        return -1; // Cannot mkdir root
+    }
+
+    if (last_slash == 0) {
+        dir_path[0] = '/'; dir_path[1] = '\0';
+    } else {
+        int i;
+        for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
+        dir_path[i] = '\0';
+    }
+    int o = 0;
+    for (int i = last_slash + 1; path[i] && o < 63; i++) dirname[o++] = path[i];
+    dirname[o] = '\0';
+
+    vnode* parent = nullptr;
+    if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) {
+        return -1;
+    }
+
+    if (!parent->ops || !parent->ops->mkdir) {
+        vnode_release(parent);
+        return -1;
+    }
+
+    int rc = parent->ops->mkdir(parent, dirname, mode);
+    vnode_release(parent);
+    return rc;
 }
 
 } // namespace re36

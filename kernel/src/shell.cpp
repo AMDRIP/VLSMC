@@ -175,7 +175,7 @@ static void exec_command(const char* cmd) {
             PhysicalMemoryManager::free_frame(test_buf);
         }
     } else if (str_eq(cmd, "help")) {
-        printf("File: ls, cat, less, more, write, rm, stat, hexdump, exec, mknod, link\n");
+        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, stat, hexdump, exec, mknod, link\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
@@ -222,11 +222,14 @@ static void exec_command(const char* cmd) {
         printf("Launching Ring 3 user process...\n");
         void (*entry)() = []() { enter_usermode(); };
         thread_create("user0", entry, 10);
-    } else if (str_eq(cmd, "ls")) {
+    } else if (str_starts(cmd, "ls", 2)) {
+        const char* path = "/";
+        if (cmd[2] == ' ') path = str_after(cmd, 3);
+        
         vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
-        int count = vfs_readdir("/", dir_entries, VFS_DIR_MAX_ENTRIES);
+        int count = vfs_readdir(path, dir_entries, VFS_DIR_MAX_ENTRIES);
         if (count < 0) {
-            printf("No filesystem mounted\n");
+            printf("Could not read directory %s. Check if filesystem is mounted and path exists.\n", path);
         } else {
             printf("\n  Name          Size     Type\n");
             printf("  ------------- -------- ----\n");
@@ -234,6 +237,13 @@ static void exec_command(const char* cmd) {
                 printf("  [%c] %s\t%d B\n", dir_entries[i].type, dir_entries[i].name, dir_entries[i].size);
             }
             printf("\n  Total: %d entries\n\n", count);
+        }
+    } else if (str_starts(cmd, "mkdir ", 6)) {
+        const char* path = str_after(cmd, 6);
+        if (vfs_mkdir(path, 0) == 0) {
+            printf("Directory %s created successfully.\n", path);
+        } else {
+            printf("Failed to create directory %s.\n", path);
         }
     } else if (str_starts(cmd, "exec ", 5)) {
         elf_exec(str_after(cmd, 5));

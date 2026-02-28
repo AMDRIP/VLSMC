@@ -236,7 +236,7 @@ int Fat16::read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, 
 
     uint32_t sector;
     int index;
-    if (find_dir_entry(name, &sector, &index) != 0) return -1;
+    if (find_dir_entry(0, name, &sector, &index) != 0) return -1;
 
     Disk::read_sectors(sector, 1, dma_buffer_);
     FAT16_DirEntry* entry = &((FAT16_DirEntry*)dma_buffer_)[index];
@@ -318,28 +318,124 @@ void Fat16::format_83_name(const char* name, char* out) {
     }
 }
 
-int Fat16::find_dir_entry(const char* name, uint32_t* sector_out, int* index_out) {
+int Fat16::find_dir_entry(uint32_t dir_cluster, const char* name, uint32_t* sector_out, int* index_out, uint32_t* prev_cluster_out) {
     if (!mounted_) return -1;
     
-    for (uint32_t s = 0; s < root_dir_sectors_; s++) {
-        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dma_buffer_)) continue;
-        
-        FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
-        int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
-        
-        for (int i = 0; i < entries_per_sector; i++) {
-            if (entries[i].name[0] == 0x00) return -1;
-            if ((uint8_t)entries[i].name[0] == 0xE5) continue;
-            if (entries[i].attributes & (FAT_ATTR_LFN | FAT_ATTR_VOLUME_ID)) continue;
+    if (prev_cluster_out) *prev_cluster_out = 0;
+
+    if (dir_cluster == 0) {
+        for (uint32_t s = 0; s < root_dir_sectors_; s++) {
+            if (!Disk::read_sectors(root_dir_lba_ + s, 1, dma_buffer_)) continue;
             
-            if (match_filename(&entries[i], name)) {
-                if (sector_out) *sector_out = root_dir_lba_ + s;
-                if (index_out) *index_out = i;
-                return 0;
+            FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+            int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+            
+            for (int i = 0; i < entries_per_sector; i++) {
+                if (entries[i].name[0] == 0x00) return -1;
+                if ((uint8_t)entries[i].name[0] == 0xE5) continue;
+                if (entries[i].attributes & (FAT_ATTR_LFN | FAT_ATTR_VOLUME_ID)) continue;
+                
+                if (match_filename(&entries[i], name)) {
+                    if (sector_out) *sector_out = root_dir_lba_ + s;
+                    if (index_out) *index_out = i;
+                    return 0;
+                }
             }
         }
+        return -1;
     }
+
+    // Search in subdirectory clusters
+    uint16_t cluster = (uint16_t)dir_cluster;
+    uint32_t prev_cluster = 0;
+
+    while (cluster >= 2 && cluster < 0xFFF8) {
+        uint32_t lba = cluster_to_lba(cluster);
+        for (uint8_t s = 0; s < bpb_.sectors_per_cluster; s++) {
+            if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) continue;
+            
+            FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+            int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+            
+            for (int i = 0; i < entries_per_sector; i++) {
+                if (entries[i].name[0] == 0x00) return -1;
+                if ((uint8_t)entries[i].name[0] == 0xE5) continue;
+                if (entries[i].attributes & (FAT_ATTR_LFN | FAT_ATTR_VOLUME_ID)) continue;
+                
+                if (match_filename(&entries[i], name)) {
+                    if (sector_out) *sector_out = lba + s;
+                    if (index_out) *index_out = i;
+                    if (prev_cluster_out) *prev_cluster_out = prev_cluster;
+                    return 0;
+                }
+            }
+        }
+        prev_cluster = cluster;
+        cluster = fat_table_[cluster];
+    }
+
     return -1;
+}
+
+int Fat16::find_free_dir_entry(uint32_t dir_cluster, uint32_t* sector_out, int* index_out, uint32_t* new_cluster_allocated) {
+    if (!mounted_) return -1;
+    if (new_cluster_allocated) *new_cluster_allocated = 0;
+
+    if (dir_cluster == 0) {
+        for (uint32_t s = 0; s < root_dir_sectors_; s++) {
+            if (!Disk::read_sectors(root_dir_lba_ + s, 1, dma_buffer_)) continue;
+            FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+            int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+            for (int i = 0; i < entries_per_sector; i++) {
+                if (entries[i].name[0] == 0x00 || (uint8_t)entries[i].name[0] == 0xE5) {
+                    if (sector_out) *sector_out = root_dir_lba_ + s;
+                    if (index_out) *index_out = i;
+                    return 0;
+                }
+            }
+        }
+        return -1; // Root dir full
+    }
+
+    uint16_t cluster = (uint16_t)dir_cluster;
+    uint16_t prev_cluster = cluster;
+
+    while (cluster >= 2 && cluster < 0xFFF8) {
+        uint32_t lba = cluster_to_lba(cluster);
+        for (uint8_t s = 0; s < bpb_.sectors_per_cluster; s++) {
+            if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) continue;
+            FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+            int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+            for (int i = 0; i < entries_per_sector; i++) {
+                if (entries[i].name[0] == 0x00 || (uint8_t)entries[i].name[0] == 0xE5) {
+                    if (sector_out) *sector_out = lba + s;
+                    if (index_out) *index_out = i;
+                    return 0;
+                }
+            }
+        }
+        prev_cluster = cluster;
+        cluster = fat_table_[cluster];
+    }
+
+    // Subdirectory is full, allocate a new cluster for it
+    uint16_t new_cluster = alloc_cluster();
+    if (new_cluster == 0) return -1; // Disk full
+
+    fat_table_[prev_cluster] = new_cluster;
+    flush_fat();
+    
+    // Clear and return the first entry of the new cluster
+    uint32_t new_lba = cluster_to_lba(new_cluster);
+    for (int b = 0; b < 512; b++) dma_buffer_[b] = 0;
+    for (uint8_t s = 0; s < bpb_.sectors_per_cluster; s++) {
+        Disk::write_sectors(new_lba + s, 1, dma_buffer_);
+    }
+
+    if (sector_out) *sector_out = new_lba;
+    if (index_out) *index_out = 0;
+    if (new_cluster_allocated) *new_cluster_allocated = new_cluster;
+    return 0;
 }
 
 uint16_t Fat16::alloc_cluster() {
@@ -386,7 +482,7 @@ bool Fat16::write_file(const char* name, const uint8_t* data, uint32_t size) {
     
     uint32_t old_sector;
     int old_index;
-    if (find_dir_entry(name, &old_sector, &old_index) == 0) {
+    if (find_dir_entry(0, name, &old_sector, &old_index) == 0) {
         Disk::read_sectors(old_sector, 1, dma_buffer_);
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
         if (entries[old_index].first_cluster >= 2) {
@@ -464,7 +560,7 @@ bool Fat16::delete_file(const char* name) {
     
     uint32_t sector;
     int index;
-    if (find_dir_entry(name, &sector, &index) != 0) {
+    if (find_dir_entry(0, name, &sector, &index) != 0) {
         printf("File not found: %s\n", name);
         return false;
     }
@@ -491,7 +587,7 @@ void Fat16::stat_file(const char* name) {
     
     uint32_t sector;
     int index;
-    if (find_dir_entry(name, &sector, &index) != 0) {
+    if (find_dir_entry(0, name, &sector, &index) != 0) {
         printf("File not found: %s\n", name);
         return;
     }
@@ -578,12 +674,12 @@ int Fat16::fat16_close(vnode* vn) {
 }
 
 int Fat16::fat16_lookup(vnode* dir, const char* name, vnode** out) {
-    (void)dir;
-    if (!mounted_) return -1;
+    if (!dir) return -1;
+    uint32_t dir_cluster = dir->inode_num;
     
     uint32_t sector;
     int index;
-    if (find_dir_entry(name, &sector, &index) != 0) return -1;
+    if (find_dir_entry(dir_cluster, name, &sector, &index) != 0) return -1;
 
     // Read the entry to get details
     Disk::read_sectors(sector, 1, dma_buffer_);
@@ -643,34 +739,69 @@ int Fat16::fat16_mount(block_device* bdev, superblock* sb) {
 }
 
 int Fat16::fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries) {
-    (void)dir;
-    if (!mounted_) return -1;
+    if (!mounted_ || !dir) return -1;
 
     int count = 0;
-    for (uint32_t s = 0; s < root_dir_sectors_ && count < max_entries; s++) {
-        if (!Disk::read_sectors(root_dir_lba_ + s, 1, dma_buffer_)) continue;
+    uint32_t dir_cluster = dir->inode_num;
 
-        FAT16_DirEntry* dir_entries = (FAT16_DirEntry*)dma_buffer_;
-        int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+    if (dir_cluster == 0) {
+        for (uint32_t s = 0; s < root_dir_sectors_ && count < max_entries; s++) {
+            if (!Disk::read_sectors(root_dir_lba_ + s, 1, dma_buffer_)) continue;
 
-        for (int i = 0; i < entries_per_sector && count < max_entries; i++) {
-            if (dir_entries[i].name[0] == 0x00) goto done;
-            if ((uint8_t)dir_entries[i].name[0] == 0xE5) continue;
-            if (dir_entries[i].attributes & FAT_ATTR_LFN) continue;
-            if (dir_entries[i].attributes & FAT_ATTR_VOLUME_ID) continue;
+            FAT16_DirEntry* dir_entries = (FAT16_DirEntry*)dma_buffer_;
+            int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
 
-            int ci = 0;
-            for (int j = 0; j < 8 && dir_entries[i].name[j] != ' '; j++)
-                entries[count].name[ci++] = dir_entries[i].name[j];
-            if (dir_entries[i].ext[0] != ' ') {
-                entries[count].name[ci++] = '.';
-                for (int j = 0; j < 3 && dir_entries[i].ext[j] != ' '; j++)
-                    entries[count].name[ci++] = dir_entries[i].ext[j];
+            for (int i = 0; i < entries_per_sector && count < max_entries; i++) {
+                if (dir_entries[i].name[0] == 0x00) goto done;
+                if ((uint8_t)dir_entries[i].name[0] == 0xE5) continue;
+                if (dir_entries[i].attributes & FAT_ATTR_LFN) continue;
+                if (dir_entries[i].attributes & FAT_ATTR_VOLUME_ID) continue;
+
+                int ci = 0;
+                for (int j = 0; j < 8 && dir_entries[i].name[j] != ' '; j++)
+                    entries[count].name[ci++] = dir_entries[i].name[j];
+                if (dir_entries[i].ext[0] != ' ') {
+                    entries[count].name[ci++] = '.';
+                    for (int j = 0; j < 3 && dir_entries[i].ext[j] != ' '; j++)
+                        entries[count].name[ci++] = dir_entries[i].ext[j];
+                }
+                entries[count].name[ci] = '\0';
+                entries[count].size = dir_entries[i].file_size;
+                entries[count].type = (dir_entries[i].attributes & FAT_ATTR_DIRECTORY) ? 'D' : 'F';
+                count++;
             }
-            entries[count].name[ci] = '\0';
-            entries[count].size = dir_entries[i].file_size;
-            entries[count].type = (dir_entries[i].attributes & FAT_ATTR_DIRECTORY) ? 'D' : 'F';
-            count++;
+        }
+    } else {
+        uint16_t cluster = (uint16_t)dir_cluster;
+        while (cluster >= 2 && cluster < 0xFFF8 && count < max_entries) {
+            uint32_t lba = cluster_to_lba(cluster);
+            for (uint8_t s = 0; s < bpb_.sectors_per_cluster && count < max_entries; s++) {
+                if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) continue;
+
+                FAT16_DirEntry* dir_entries = (FAT16_DirEntry*)dma_buffer_;
+                int entries_per_sector = 512 / sizeof(FAT16_DirEntry);
+
+                for (int i = 0; i < entries_per_sector && count < max_entries; i++) {
+                    if (dir_entries[i].name[0] == 0x00) goto done;
+                    if ((uint8_t)dir_entries[i].name[0] == 0xE5) continue;
+                    if (dir_entries[i].attributes & FAT_ATTR_LFN) continue;
+                    if (dir_entries[i].attributes & FAT_ATTR_VOLUME_ID) continue;
+
+                    int ci = 0;
+                    for (int j = 0; j < 8 && dir_entries[i].name[j] != ' '; j++)
+                        entries[count].name[ci++] = dir_entries[i].name[j];
+                    if (dir_entries[i].ext[0] != ' ') {
+                        entries[count].name[ci++] = '.';
+                        for (int j = 0; j < 3 && dir_entries[i].ext[j] != ' '; j++)
+                            entries[count].name[ci++] = dir_entries[i].ext[j];
+                    }
+                    entries[count].name[ci] = '\0';
+                    entries[count].size = dir_entries[i].file_size;
+                    entries[count].type = (dir_entries[i].attributes & FAT_ATTR_DIRECTORY) ? 'D' : 'F';
+                    count++;
+                }
+            }
+            cluster = fat_table_[cluster];
         }
     }
 done:
@@ -678,12 +809,12 @@ done:
 }
 
 int Fat16::fat16_stat(vnode* dir, const char* name, vfs_stat_t* out) {
-    (void)dir;
-    if (!mounted_ || !name || !out) return -1;
+    if (!mounted_ || !dir || !name || !out) return -1;
 
+    uint32_t dir_cluster = dir->inode_num;
     uint32_t sector;
     int index;
-    if (find_dir_entry(name, &sector, &index) != 0) return -1;
+    if (find_dir_entry(dir_cluster, name, &sector, &index) != 0) return -1;
 
     Disk::read_sectors(sector, 1, dma_buffer_);
     FAT16_DirEntry* entry = &((FAT16_DirEntry*)dma_buffer_)[index];
@@ -698,9 +829,84 @@ int Fat16::fat16_stat(vnode* dir, const char* name, vfs_stat_t* out) {
 }
 
 int Fat16::fat16_unlink(vnode* dir, const char* name) {
-    (void)dir;
-    if (!mounted_ || !name) return -1;
-    return delete_file(name) ? 0 : -1;
+    if (!mounted_ || !dir || !name) return -1;
+    // We haven't refactored the underlying `delete_file` entirely,
+    // so it uses the root fallback in its internal implementation.
+    // Let's refactor this immediately inline:
+    uint32_t sector;
+    int index;
+    if (find_dir_entry(dir->inode_num, name, &sector, &index) != 0) return -1;
+    
+    Disk::read_sectors(sector, 1, dma_buffer_);
+    FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+    
+    if (entries[index].first_cluster >= 2) {
+        free_chain(entries[index].first_cluster);
+        flush_fat();
+    }
+    
+    entries[index].name[0] = 0xE5;
+    Disk::write_sectors(sector, 1, dma_buffer_);
+    return 0;
+}
+
+int Fat16::fat16_mkdir(vnode* dir, const char* name, int mode) {
+    (void)mode;
+    if (!mounted_ || !dir || !name) return -1;
+
+    uint32_t parent_cluster = dir->inode_num;
+    uint32_t sector;
+    int index;
+    
+    // Check if it already exists
+    if (find_dir_entry(parent_cluster, name, &sector, &index) == 0) return -1; // Exists
+
+    // Find free entry
+    if (find_free_dir_entry(parent_cluster, &sector, &index) != 0) return -1;
+
+    uint16_t cluster = alloc_cluster();
+    if (cluster == 0) return -1; // Disk full
+
+    Disk::read_sectors(sector, 1, dma_buffer_);
+    FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+    
+    format_83_name(name, entries[index].name);
+    entries[index].attributes = FAT_ATTR_DIRECTORY;
+    for (int r = 0; r < 10; r++) entries[index].reserved[r] = 0;
+    entries[index].time = RTC::fat_time();
+    entries[index].date = RTC::fat_date();
+    entries[index].first_cluster = cluster;
+    entries[index].file_size = 0;
+    
+    Disk::write_sectors(sector, 1, dma_buffer_);
+    flush_fat();
+
+    // Init the directory '.' and '..'
+    uint32_t new_dir_lba = cluster_to_lba(cluster);
+    for (int b = 0; b < 512; b++) dma_buffer_[b] = 0;
+    
+    FAT16_DirEntry* new_entries = (FAT16_DirEntry*)dma_buffer_;
+    // '.'
+    for (int i=0; i<11; i++) new_entries[0].name[i] = ' ';
+    new_entries[0].name[0] = '.';
+    new_entries[0].attributes = FAT_ATTR_DIRECTORY;
+    new_entries[0].first_cluster = cluster;
+    
+    // '..'
+    for (int i=0; i<11; i++) new_entries[1].name[i] = ' ';
+    new_entries[1].name[0] = '.'; new_entries[1].name[1] = '.';
+    new_entries[1].attributes = FAT_ATTR_DIRECTORY;
+    new_entries[1].first_cluster = (uint16_t)parent_cluster;
+    
+    Disk::write_sectors(new_dir_lba, 1, dma_buffer_);
+    
+    // Fill the rest of the cluster with 0
+    for (int b = 0; b < 512; b++) dma_buffer_[b] = 0;
+    for (uint8_t s = 1; s < bpb_.sectors_per_cluster; s++) {
+        Disk::write_sectors(new_dir_lba + s, 1, dma_buffer_);
+    }
+
+    return 0;
 }
 
 vnode_operations Fat16::fat16_vnode_ops = {
@@ -710,7 +916,7 @@ vnode_operations Fat16::fat16_vnode_ops = {
     Fat16::fat16_write,
     Fat16::fat16_lookup,
     Fat16::fat16_create,
-    nullptr,
+    Fat16::fat16_mkdir,
     Fat16::fat16_unlink,
     Fat16::fat16_readdir,
     Fat16::fat16_stat,

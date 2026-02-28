@@ -26,16 +26,24 @@
 14. yield - передать управление планировщику
 15. whoami / whoiam - имя текущего пользователя
 
-Файловая система и Удобство
-1. print / echo - вывести текст на экран
-2. ls - список файлов
-3. cat - вывести содержимое файла на экран
-4. write - записать строку в файл (write <file> <text>)
-5. rm - удалить файл
-6. stat - получить информацию о файле и его атрибутах
-7. hexdump - вывести бинарный дамп файла
-8. less / more - вывести содержимое файла на экран с постраничным выводом
-9. grep / sed / awk - обработка текста (планы)
+Файловая система### File System
+- `ls [path]`
+  - Prints directory listing (names, sizes, types). If no path is provided, lists `/`.
+- `mkdir <path>`
+  - Creates a new directory at the specified absolute path.
+- `cat <file>`
+  - Reads and outputs the entire file content to the console.
+- `less <file>`
+  - Reads a file page by page (20 lines at a time). Wait for keypress to advance.
+- `more <file>`
+  - Alias for `less`.
+- `mknod <file>`
+- `print / echo` - вывести текст на экран
+- `write` - записать строку в файл (write <file> <text>)
+- `rm` - удалить файл
+- `stat` - получить информацию о файле и его атрибутах
+- `hexdump` - вывести бинарный дамп файла
+- `grep / sed / awk` - обработка текста (планы)
 
 Аппаратное обеспечение и Отладка
 1. pci - сканирование и вывод списка PCI устройств

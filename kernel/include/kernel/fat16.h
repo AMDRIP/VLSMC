@@ -64,6 +64,7 @@ public:
     static int fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries);
     static int fat16_stat(vnode* dir, const char* name, vfs_stat_t* out);
     static int fat16_unlink(vnode* dir, const char* name);
+    static int fat16_mkdir(vnode* dir, const char* name, int mode);
 
     // Old API (kept for internal use/transition)
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
@@ -75,7 +76,8 @@ public:
     static uint32_t root_dir_lba() { return root_dir_lba_; }
 
 
-    static int find_dir_entry(const char* name, uint32_t* sector_out, int* index_out);
+    static int find_dir_entry(uint32_t dir_cluster, const char* name, uint32_t* sector_out, int* index_out, uint32_t* prev_cluster_out = nullptr);
+    static int find_free_dir_entry(uint32_t dir_cluster, uint32_t* sector_out, int* index_out, uint32_t* new_cluster_allocated = nullptr);
 
 private:
     static FAT16_BPB bpb_;
