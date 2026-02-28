@@ -23,11 +23,11 @@ x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a
 mkfs.fat 4.2 (2021-01-31)
 --- Boot disk ---
  Volume in drive : has no label
- Volume Serial Number is 2106-5CC3
+ Volume Serial Number is 4609-4950
 Directory for ::/
 
-STAGE2   BIN      1181 2026-03-01   0:37 
-KERNEL   BIN    127576 2026-03-01   0:37 
+STAGE2   BIN      1181 2026-03-01   0:47 
+KERNEL   BIN    127576 2026-03-01   0:47 
         2 files             128 757 bytes
                           1 328 128 bytes free
 
@@ -47,53 +47,5 @@ x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section impli
 x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
 x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
 x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: ldso_entry.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: LIBTEST.SO has a LOAD segment with RWX permissions
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
-x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
-=== Building ISO Image ===
-I: -input-charset not specified, using utf-8 (detected in locale settings)
-Size of boot image is 2880 sectors -> Emulating a 1440 kB floppy
- 55.07% done, estimate finish Sun Mar  1 00:37:51 2026
-Total translation table size: 2048
-Total rockridge attributes bytes: 413
-Total directory bytes: 0
-Path table size(bytes): 10
-Max brk space used 0
-9095 extents written (17 MB)
-
-DONE! To run:
-qemu-system-i386 -fda disk.img -hda data.img -boot a
+x86_64-linux-gnu-ld: user_crt0.o: in function `_start':
+user/crt0.asm:(.text+0x19): undefined reference to `__libc_start_main'

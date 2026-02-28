@@ -11,6 +11,9 @@ extern "C" {
 #define EXIT_FAILURE 1
 #define RAND_MAX 32767
 
+extern char** environ;
+extern char* __progname;
+
 typedef struct {
     int quot;
     int rem;
