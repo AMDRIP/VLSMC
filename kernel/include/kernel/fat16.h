@@ -41,9 +41,15 @@ struct __attribute__((packed)) FAT16_DirEntry {
 #define FAT_ATTR_DIRECTORY 0x10
 #define FAT_ATTR_ARCHIVE   0x20
 #define FAT_ATTR_LFN       0x0F
-
+#define FAT_ATTR_PROTECT_MODIFY 0x40 // -gc
+#define FAT_ATTR_PROTECT_DELETE 0x80 // -gd
 #define FAT16_MAX_FAT_ENTRIES 32768
 #define FAT16_SECTOR_BUF_SIZE 512
+
+struct Fat16NodeData {
+    char name[13];
+    uint32_t parent_cluster;
+};
 
 class Fat16 {
 public:
@@ -70,11 +76,13 @@ public:
     // Old API (kept for internal use/transition)
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
     static int read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, uint32_t size);
-    static bool write_file(const char* name, const uint8_t* data, uint32_t size);
+    static bool write_file_in_dir(uint32_t dir_cluster, const char* name, const uint8_t* data, uint32_t size);
     static bool delete_file(const char* name);
     static void stat_file(const char* name);
     static bool is_mounted();
     static uint32_t root_dir_lba() { return root_dir_lba_; }
+    
+    static bool change_attributes(vnode* vn, uint8_t flag, bool set);
 
 
     static int find_dir_entry(uint32_t dir_cluster, const char* name, uint32_t* sector_out, int* index_out, uint32_t* prev_cluster_out = nullptr);

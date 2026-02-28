@@ -34,49 +34,52 @@ int puts(const char* s) {
     return count + 1;
 }
 
-static void print_int(int val) {
+static void print_uint_core(unsigned int val, int base, int uppercase, bool is_signed, bool is_negative, int width, char pad_char, bool left_justify) {
+    char buf[32];
+    int i = 0;
+    
     if (val == 0) {
-        putchar('0');
-        return;
+        buf[i++] = '0';
+    } else {
+        while (val > 0) {
+            unsigned int rem = val % base;
+            if (rem < 10) buf[i++] = '0' + rem;
+            else buf[i++] = (uppercase ? 'A' : 'a') + (rem - 10);
+            val /= base;
+        }
     }
-    if (val < 0) {
-        putchar('-');
-        val = -val;
+    
+    int prefix_len = (is_signed && is_negative) ? 1 : 0;
+    int pad_len = width - i - prefix_len;
+    if (pad_len < 0) pad_len = 0;
+    
+    if (!left_justify && pad_char == ' ') {
+        for (int p = 0; p < pad_len; p++) putchar(' ');
     }
-    char buf[12];
-    int i = 11;
-    buf[i] = '\0';
-    while (val > 0) {
-        i--;
-        buf[i] = '0' + (val % 10);
-        val /= 10;
+    
+    if (is_signed && is_negative) putchar('-');
+    
+    if (!left_justify && pad_char == '0') {
+        for (int p = 0; p < pad_len; p++) putchar('0');
     }
-    while (buf[i]) {
-        putchar(buf[i++]);
+    
+    for (int j = i - 1; j >= 0; j--) {
+        putchar(buf[j]);
+    }
+    
+    if (left_justify) {
+        for (int p = 0; p < pad_len; p++) putchar(' ');
     }
 }
 
-static void print_hex(unsigned int val, int uppercase) {
-    if (val == 0) {
-        putchar('0');
-        return;
-    }
-    char buf[9];
-    int i = 8;
-    buf[i] = '\0';
-    while (val > 0) {
-        i--;
-        int digit = val % 16;
-        if (digit < 10) {
-            buf[i] = '0' + digit;
-        } else {
-            buf[i] = (uppercase ? 'A' : 'a') + (digit - 10);
-        }
-        val /= 16;
-    }
-    while (buf[i]) {
-        putchar(buf[i++]);
-    }
+static void print_int(int val, int width, char pad_char, bool left_justify) {
+    bool is_neg = val < 0;
+    unsigned int uval = is_neg ? (unsigned int)-val : (unsigned int)val;
+    print_uint_core(uval, 10, 0, true, is_neg, width, pad_char, left_justify);
+}
+
+static void print_hex(unsigned int val, int uppercase, int width, char pad_char, bool left_justify) {
+    print_uint_core(val, 16, uppercase, false, false, width, pad_char, left_justify);
 }
 
 static void print_ptr(void* ptr) {
@@ -158,19 +161,58 @@ int printf(const char* format, ...) {
                 count++;
             }
         } else {
+            bool left_justify = false;
+            char pad_char = ' ';
+            int width = 0;
+            
+            if (*format == '-') {
+                left_justify = true;
+                format++;
+            }
+            if (*format == '0') {
+                pad_char = '0';
+                format++;
+            }
+            
+            while (*format >= '0' && *format <= '9') {
+                width = width * 10 + (*format - '0');
+                format++;
+            }
+            
             switch (*format) {
                 case 's': {
                     const char* str = va_arg(args, const char*);
                     if (!str) str = "(null)";
+                    
+                    int len = 0;
+                    while (str[len]) len++;
+                    
+                    int pad_len = width - len;
+                    if (pad_len < 0) pad_len = 0;
+                    
+                    if (!left_justify) {
+                        for (int p=0; p<pad_len; p++) { putchar(' '); count++; }
+                    }
+                    
                     while (*str) {
                         putchar(*str++);
                         count++;
                     }
+                    
+                    if (left_justify) {
+                        for (int p=0; p<pad_len; p++) { putchar(' '); count++; }
+                    }
                     break;
                 }
-                case 'd': {
+                case 'd':
+                case 'i': {
                     int val = va_arg(args, int);
-                    print_int(val);
+                    print_int(val, width, pad_char, left_justify);
+                    break;
+                }
+                case 'u': {
+                    unsigned int val = va_arg(args, unsigned int);
+                    print_uint_core(val, 10, 0, false, false, width, pad_char, left_justify);
                     break;
                 }
                 case 'c': {
@@ -181,12 +223,12 @@ int printf(const char* format, ...) {
                 }
                 case 'x': {
                     unsigned int val = va_arg(args, unsigned int);
-                    print_hex(val, 0);
+                    print_hex(val, 0, width, pad_char, left_justify);
                     break;
                 }
                 case 'X': {
                     unsigned int val = va_arg(args, unsigned int);
-                    print_hex(val, 1);
+                    print_hex(val, 1, width, pad_char, left_justify);
                     break;
                 }
                 case 'p': {
@@ -201,12 +243,12 @@ int printf(const char* format, ...) {
                 }
                 case 'f': {
                     double val = va_arg(args, double);
-                    print_float(val, 6);
+                    print_float(val, width > 0 ? width : 6); 
                     break;
                 }
                 default: {
                     putchar('%');
-                    putchar(*format);
+                    if (*format) putchar(*format);
                     count += 2;
                     break;
                 }

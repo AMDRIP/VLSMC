@@ -20,6 +20,8 @@
 #include "kernel/bga.h"
 #include "kernel/pic.h"
 #include "kernel/memory_validator.h"
+#include "kernel/kmalloc.h"
+#include "kernel/fat16.h"
 #include "libc.h"
 
 namespace re36 {
@@ -27,6 +29,7 @@ namespace re36 {
 static char input_buf[SHELL_MAX_CMD_LEN];
 static int input_len = 0;
 static int cursor_x = 0;
+bool shell_debug = false;
 
 static volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
 
@@ -65,6 +68,88 @@ static bool str_starts(const char* str, const char* prefix, int len) {
 
 static const char* str_after(const char* str, int skip) {
     return str + skip;
+}
+
+static void run_interactive_write(const char* fname, bool append) {
+    int max_len = 16380;
+    char* ebuf = (char*)kmalloc(max_len + 4);
+    if (!ebuf) {
+        printf("Out of memory for editor\n");
+        return;
+    }
+    int elen = 0;
+    int orig_len = 0;
+    
+    if (append) {
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(fname, &vn) == 0 && vn && vn->ops && vn->ops->read) {
+            while (elen < max_len) {
+                int r = vn->ops->read(vn, elen, (uint8_t*)&ebuf[elen], max_len - elen > 512 ? 512 : max_len - elen);
+                if (r <= 0) break;
+                elen += r;
+            }
+        }
+        if (vn) vnode_release(vn);
+        orig_len = elen;
+        printf("[Appending to %s, %d existing bytes]\n", fname, orig_len);
+    } else {
+        printf("[Inserting to %s (Interactive)]\n", fname);
+    }
+    
+    printf("TAB=Indent, ENTER=New Line (auto-indents), ESC=Save&Exit\n\n");
+    
+    int current_indent = 0;
+    
+    while (true) {
+        char c = getchar();
+        
+        if (c == 27) { // ESC
+            break;
+        } else if (c == '\n') {
+            printf("\n");
+            if (elen < max_len) ebuf[elen++] = '\n';
+            
+            current_indent = 0;
+            int i = elen - 2; 
+            while (i >= orig_len && ebuf[i] != '\n') i--; 
+            i++; 
+            while (i < elen - 1 && ebuf[i] == ' ') {
+                current_indent++;
+                i++;
+            }
+            
+            for (int k = 0; k < current_indent && elen < max_len; k++) {
+                printf(" ");
+                ebuf[elen++] = ' ';
+            }
+        } else if (c == '\b') {
+            if (elen > orig_len) {
+                if (ebuf[elen - 1] != '\n') { 
+                    elen--;
+                    printf("\b \b");
+                }
+            }
+        } else if (c == '\t') {
+            for (int i = 0; i < 4 && elen < max_len; i++) {
+                ebuf[elen++] = ' ';
+                printf(" ");
+            }
+        } else if (c >= 32 && c <= 126) {
+            if (elen < max_len) {
+                ebuf[elen++] = c;
+                printf("%c", c);
+            }
+        }
+    }
+    
+    printf("\nSaving %d bytes...\n", elen);
+    if (vfs_write_file(fname, (const uint8_t*)ebuf, elen) >= 0) {
+        printf("Written successfully.\n");
+    } else {
+        printf("Write failed!\n");
+    }
+    
+    kfree(ebuf);
 }
 
 static void exec_command(const char* cmd) {
@@ -124,6 +209,17 @@ static void exec_command(const char* cmd) {
         printf("Sleeping for %d ms...\n", ms);
         TaskScheduler::sleep_current(ms);
         printf("Awake!\n");
+    } else if (str_starts(cmd, "debug ", 6)) {
+        const char* arg = str_after(cmd, 6);
+        if (str_eq(arg, "on")) {
+            shell_debug = true;
+            printf("Shell debug output enabled.\n");
+        } else if (str_eq(arg, "off")) {
+            shell_debug = false;
+            printf("Shell debug output disabled.\n");
+        } else {
+            printf("Usage: debug <on|off>\n");
+        }
     } else if (str_eq(cmd, "yield")) {
         re36::thread_yield();
     } else if (str_eq(cmd, "kernelpanic")) {
@@ -178,7 +274,7 @@ static void exec_command(const char* cmd) {
         printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
-        printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
+        printf("        reboot, kernelpanic, echo, sleep, yield, help, debug <on|off>\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
@@ -231,10 +327,18 @@ static void exec_command(const char* cmd) {
         if (count < 0) {
             printf("Could not read directory %s. Check if filesystem is mounted and path exists.\n", path);
         } else {
-            printf("\n  Name          Size     Type\n");
-            printf("  ------------- -------- ----\n");
+            printf("\n  Name          Size     Attr\n");
+            printf("  ------------- -------- --------\n");
             for (int i = 0; i < count; i++) {
-                printf("  [%c] %s\t%d B\n", dir_entries[i].type, dir_entries[i].name, dir_entries[i].size);
+                char attrs[16] = "[    ]";
+                if (dir_entries[i].type == 'D') attrs[1] = 'D';
+                if (dir_entries[i].attributes & 0x01) attrs[2] = 'R';
+                if (dir_entries[i].attributes & 0x02) attrs[3] = 'H';
+                if (dir_entries[i].attributes & 0x40) { attrs[4] = '-'; attrs[5] = 'g'; attrs[6] = 'c'; attrs[7] = ' '; }
+                if (dir_entries[i].attributes & 0x80) { attrs[8] = '-'; attrs[9] = 'g'; attrs[10] = 'd'; }
+                attrs[11] = '\0';
+                
+                printf("  %-13s %8d B\t %s\n", dir_entries[i].name, dir_entries[i].size, attrs);
             }
             printf("\n  Total: %d entries\n\n", count);
         }
@@ -264,11 +368,27 @@ static void exec_command(const char* cmd) {
         if (src[0] == '\0' || dest[0] == '\0') {
             printf("Usage: mv <src> <dest>\n");
         } else {
+            vfs_stat_t st;
+            if (vfs_stat(dest, &st) == 0 && st.type == re36::VnodeType::Directory) {
+                const char* basename = src;
+                for (int m = 0; src[m]; m++) {
+                    if (src[m] == '/') basename = &src[m + 1];
+                }
+                int dlen = 0; while (dest[dlen]) dlen++;
+                if (dest[dlen - 1] != '/') dest[dlen++] = '/';
+                for (int m = 0; basename[m]; m++) dest[dlen++] = basename[m];
+                dest[dlen] = '\0';
+            }
+            
+            printf("[DEBUG: PRE VFS RENAME]\n");
             if (vfs_rename(src, dest) == 0) {
+                printf("[DEBUG: POST VFS RENAME SUCCESS]\n");
                 printf("Moved %s to %s successfully.\n", src, dest);
             } else {
+                printf("[DEBUG: POST VFS RENAME FAIL]\n");
                 printf("Failed to move %s to %s.\n", src, dest);
             }
+            printf("[DEBUG: DONE VFS RENAME BLOCK]\n");
         }
     } else if (str_starts(cmd, "exec ", 5)) {
         elf_exec(str_after(cmd, 5));
@@ -330,6 +450,35 @@ static void exec_command(const char* cmd) {
             if (!eof && lines > 0) printf("\n");
             vnode_release(vn);
         }
+    } else if (str_starts(cmd, "chattr ", 7)) {
+        const char* args = str_after(cmd, 7);
+        while (*args == ' ') args++;
+        
+        bool set = false;
+        bool rem = false;
+        uint8_t flag = 0;
+        
+        if (str_starts(args, "+gd ", 4)) { set = true; flag = 0x80; args += 4; }
+        else if (str_starts(args, "-gd ", 4)) { rem = true; flag = 0x80; args += 4; }
+        else if (str_starts(args, "+gc ", 4)) { set = true; flag = 0x40; args += 4; }
+        else if (str_starts(args, "-gc ", 4)) { rem = true; flag = 0x40; args += 4; }
+        
+        while (*args == ' ') args++;
+        if (!*args || (!set && !rem)) {
+            printf("Usage: chattr <+gd|-gd|+gc|-gc> <filename>\n");
+        } else {
+            vnode* vn = nullptr;
+            if (vfs_resolve_path(args, &vn) == 0 && vn) {
+                if (re36::Fat16::change_attributes(vn, flag, set)) {
+                    printf("Attributes updated.\n");
+                } else {
+                    printf("Failed to update attributes.\n");
+                }
+                vnode_release(vn);
+            } else {
+                printf("File not found: %s\n", args);
+            }
+        }
     } else if (str_eq(cmd, "whoiam") || str_eq(cmd, "whoami")) {
         printf("root\n");
     } else if (str_starts(cmd, "mknod ", 6)) {
@@ -367,6 +516,16 @@ static void exec_command(const char* cmd) {
         } else {
             printf("Usage: write <filename> <content>\n");
         }
+    } else if (str_starts(cmd, "writeo ", 7)) {
+        const char* fname = str_after(cmd, 7);
+        while (*fname == ' ') fname++;
+        if (*fname) run_interactive_write(fname, true);
+        else printf("Usage: writeo <filename>\n");
+    } else if (str_starts(cmd, "writei ", 7)) {
+        const char* fname = str_after(cmd, 7);
+        while (*fname == ' ') fname++;
+        if (*fname) run_interactive_write(fname, false);
+        else printf("Usage: writei <filename>\n");
     } else if (str_starts(cmd, "rm ", 3)) {
         if (vfs_unlink(str_after(cmd, 3)) == 0)
             printf("Deleted: %s\n", str_after(cmd, 3));
@@ -384,6 +543,8 @@ static void exec_command(const char* cmd) {
             if (st.attributes & 0x04) printf("S ");
             if (st.attributes & 0x10) printf("D ");
             if (st.attributes & 0x20) printf("A ");
+            if (st.attributes & 0x40) printf("-gc(ModifyProtect) ");
+            if (st.attributes & 0x80) printf("-gd(DeleteProtect) ");
             printf("\n");
             uint16_t t = st.mod_time;
             uint16_t d = st.mod_date;
@@ -483,7 +644,9 @@ void shell_main() {
     input_buf[0] = '\0';
 
     while (true) {
+        if (shell_debug) printf("[DEBUG: WAIT KEY]\n");
         char c = getchar();
+        if (shell_debug) printf("[DEBUG: GOT KEY %d]\n", c);
 
         if (c == '\n') {
             printf("\n");

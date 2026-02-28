@@ -22,6 +22,7 @@ struct vfs_dir_entry {
     char name[13];
     uint32_t size;
     uint8_t type;
+    uint8_t attributes;
 };
 
 #define VFS_DIR_MAX_ENTRIES 64

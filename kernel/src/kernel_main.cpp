@@ -165,6 +165,6 @@ extern "C" void kernel_main() {
     set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     while (true) {
-        asm volatile("hlt");
+        asm volatile("sti; hlt");
     }
 }
