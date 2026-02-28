@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+void __attribute__((constructor)) before_main() {
+    printf("[constructor] Initializing libc environment dynamically via .init_array! \n");
+}
+
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
