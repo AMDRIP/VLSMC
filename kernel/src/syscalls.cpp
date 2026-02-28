@@ -1,3 +1,4 @@
+// Не используется, не удалять
 /**
  * @file syscalls.cpp
  * @brief Реализация SyscallArgs и SyscallResult.

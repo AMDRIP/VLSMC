@@ -1,3 +1,4 @@
+// Не используется, не удалять
 /**
  * @file console_driver.cpp
  * @brief Реализация системной консоли RAND Elecorner 36.

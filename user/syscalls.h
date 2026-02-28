@@ -6,6 +6,39 @@ typedef unsigned int uint32_t;
 typedef unsigned long long uint64_t;
 typedef uint32_t size_t;
 
+#define SYS_EXIT        0
+#define SYS_PRINT       1
+#define SYS_GETCHAR     2
+#define SYS_SLEEP       3
+#define SYS_YIELD       4
+#define SYS_GETPID      5
+#define SYS_MMAP        12
+#define SYS_MUNMAP      13
+#define SYS_SEND        14
+#define SYS_RECV        15
+#define SYS_TIME        16
+#define SYS_INB         17
+#define SYS_OUTB        18
+#define SYS_INW         19
+#define SYS_OUTW        20
+#define SYS_WAIT_IRQ    22
+#define SYS_SEND_MSG    23
+#define SYS_RECV_MSG    24
+#define SYS_READ_SECTOR 25
+#define SYS_MAP_MMIO    26
+#define SYS_FIND_THREAD 27
+#define SYS_SBRK        28
+#define SYS_FOPEN       29
+#define SYS_FREAD       30
+#define SYS_FWRITE      31
+#define SYS_FCLOSE      32
+#define SYS_FSIZE       33
+#define SYS_FORK        34
+#define SYS_EXEC        35
+#define SYS_WAIT        36
+#define SYS_GRANT_MMIO  37
+#define SYS_SET_DRIVER  38
+
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -29,23 +62,6 @@ static inline uint32_t syscall3(uint32_t num, uint32_t arg1, uint32_t arg2, uint
     asm volatile("int $0x80" : "=a"(ret) : "a"(num), "b"(arg1), "c"(arg2), "d"(arg3));
     return ret;
 }
-
-#define SYS_EXIT     0
-#define SYS_PRINT    1
-#define SYS_GETCHAR  2
-#define SYS_SLEEP    3
-#define SYS_YIELD    4
-#define SYS_GETPID   5
-#define SYS_TIME     16
-
-#define SYS_SEND_MSG 23
-#define SYS_RECV_MSG 24
-#define SYS_READ_SECTOR 25
-#define SYS_MAP_MMIO 26
-#define SYS_FIND_THREAD 27
-#define SYS_SBRK 28
-#define SYS_GRANT_MMIO 37
-#define SYS_SET_DRIVER 38
 
 static inline void sys_exit(void) {
     syscall0(SYS_EXIT);
@@ -75,6 +91,26 @@ static inline uint32_t sys_time(void) {
     return syscall0(SYS_TIME);
 }
 
+static inline uint8_t sys_inb(uint16_t port) {
+    return (uint8_t)syscall1(SYS_INB, (uint32_t)port);
+}
+
+static inline void sys_outb(uint16_t port, uint8_t val) {
+    syscall2(SYS_OUTB, (uint32_t)port, (uint32_t)val);
+}
+
+static inline uint16_t sys_inw(uint16_t port) {
+    return (uint16_t)syscall1(SYS_INW, (uint32_t)port);
+}
+
+static inline void sys_outw(uint16_t port, uint16_t val) {
+    syscall2(SYS_OUTW, (uint32_t)port, (uint32_t)val);
+}
+
+static inline void sys_wait_irq(uint8_t irq) {
+    syscall1(SYS_WAIT_IRQ, (uint32_t)irq);
+}
+
 static inline int sys_send_msg(int target_tid, const void* buffer, uint32_t size) {
     return (int)syscall3(SYS_SEND_MSG, (uint32_t)target_tid, (uint32_t)buffer, size);
 }
@@ -97,6 +133,38 @@ static inline int sys_find_thread(const char* name) {
 
 static inline void* sys_sbrk(int increment) {
     return (void*)syscall1(SYS_SBRK, (uint32_t)increment);
+}
+
+static inline int sys_fopen(const char* path, int mode) {
+    return (int)syscall2(SYS_FOPEN, (uint32_t)path, (uint32_t)mode);
+}
+
+static inline int sys_fread(int fd, void* buf, uint32_t size) {
+    return (int)syscall3(SYS_FREAD, (uint32_t)fd, (uint32_t)buf, size);
+}
+
+static inline int sys_fwrite(int fd, const void* buf, uint32_t size) {
+    return (int)syscall3(SYS_FWRITE, (uint32_t)fd, (uint32_t)buf, size);
+}
+
+static inline int sys_fclose(int fd) {
+    return (int)syscall1(SYS_FCLOSE, (uint32_t)fd);
+}
+
+static inline uint32_t sys_fsize(int fd) {
+    return syscall1(SYS_FSIZE, (uint32_t)fd);
+}
+
+static inline int sys_fork(void) {
+    return (int)syscall0(SYS_FORK);
+}
+
+static inline int sys_exec(const char* path, char* const* argv, char* const* envp) {
+    return (int)syscall3(SYS_EXEC, (uint32_t)path, (uint32_t)argv, (uint32_t)envp);
+}
+
+static inline int sys_wait(int* status) {
+    return (int)syscall1(SYS_WAIT, (uint32_t)status);
 }
 
 static inline int sys_grant_mmio(int target_tid, uint32_t phys_start, uint32_t phys_end) {

@@ -191,9 +191,8 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
         }
 
         if (ascii != 0) {
-            // Если зажат Ctrl, можно сформировать спец. коды (например, Ctrl+C -> 0x03)
             if (ctrl_pressed_ && is_letter) {
-                ascii = ascii - 'a' + 1; // Возвращает непечатные символы для систем на базе Unix (Ctrl+C = 3)
+                ascii = ascii - 'a' + 1;
             }
 
             int next_head = (buffer_head_ + 1) % 256;
@@ -201,13 +200,6 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
                 char_buffer_[buffer_head_] = ascii;
                 buffer_head_ = next_head;
                 EventSystem::push(kbd_channel_id_, 1);
-            }
-
-            if (ascii == '\t') {
-            } else if (ascii >= 32 || ascii == '\n' || ascii == '\b') {
-                putchar(ascii);
-            } else if (ctrl_pressed_) {
-                printf("^%c", base_char - 32);
             }
         }
     }

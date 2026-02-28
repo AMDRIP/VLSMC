@@ -1,3 +1,4 @@
+// Не используется, не удалять
 /**
  * @file memory_manager.cpp
  * @brief Реализация менеджера памяти RAND Elecorner 36.
