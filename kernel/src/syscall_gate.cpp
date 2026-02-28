@@ -139,17 +139,138 @@ static uint32_t sys_recv(SyscallRegs* regs) {
     return EventSystem::pop(channel_id);
 }
 
-static uint32_t sys_mmap(SyscallRegs* regs) {
-    uint32_t virt = regs->ebx;
-    uint32_t phys = regs->ecx;
-    uint32_t flags = regs->edx;
-    VMM::map_page(virt, phys, flags);
+static uint32_t find_free_vaddr(uint32_t size) {
+    uint32_t candidate = 0x20000000;
+    uint32_t end_limit = 0xB0000000;
+    Thread& cur = threads[current_tid];
+
+    while (candidate + size <= end_limit) {
+        bool conflict = false;
+        VMA* v = cur.vma_list;
+        while (v) {
+            if (candidate < v->end && (candidate + size) > v->start) {
+                candidate = (v->end + 0xFFF) & ~0xFFF;
+                conflict = true;
+                break;
+            }
+            v = v->next;
+        }
+        if (!conflict) return candidate;
+    }
     return 0;
 }
 
+static uint32_t sys_mmap(SyscallRegs* regs) {
+    uint32_t addr   = regs->ebx;
+    uint32_t length = regs->ecx;
+    uint32_t prot   = regs->edx;
+    uint32_t flags  = regs->esi;
+    int      fd     = (int)regs->edi;
+
+    if (length == 0) return (uint32_t)-1;
+
+    length = (length + 0xFFF) & ~0xFFF;
+
+    uint32_t page_flags = PAGE_PRESENT | PAGE_USER;
+    if (prot & PROT_WRITE) page_flags |= PAGE_WRITABLE;
+
+    uint32_t vaddr;
+    if (addr && (flags & MAP_FIXED)) {
+        if (addr < KERNEL_SPACE_END) return (uint32_t)-1;
+        vaddr = addr & ~0xFFF;
+    } else {
+        vaddr = find_free_vaddr(length);
+        if (vaddr == 0) return (uint32_t)-1;
+    }
+
+    Thread& cur = threads[current_tid];
+
+    VMA* vma = (VMA*)kmalloc(sizeof(VMA));
+    if (!vma) return (uint32_t)-1;
+
+    vma->start = vaddr;
+    vma->end = vaddr + length;
+    vma->flags = page_flags;
+
+    if (flags & MAP_ANONYMOUS) {
+        vma->type = VMA_TYPE_ANON;
+        vma->file_vnode = nullptr;
+        vma->file_offset = 0;
+        vma->file_size = 0;
+
+        for (uint32_t off = 0; off < length; off += 4096) {
+            void* frame = PhysicalMemoryManager::alloc_frame();
+            if (!frame) {
+                for (uint32_t undo = 0; undo < off; undo += 4096) {
+                    uint32_t phys = VMM::get_physical(vaddr + undo);
+                    if (phys) {
+                        VMM::unmap_page(vaddr + undo);
+                        PhysicalMemoryManager::free_frame((void*)phys);
+                    }
+                }
+                kfree(vma);
+                return (uint32_t)-1;
+            }
+            VMM::map_page(vaddr + off, (uint32_t)frame, page_flags);
+            uint8_t* p = (uint8_t*)(vaddr + off);
+            for (int b = 0; b < 4096; b++) p[b] = 0;
+        }
+    } else {
+        if (fd < 0 || fd >= MAX_OPEN_FILES || !cur.fd_table[fd]) {
+            kfree(vma);
+            return (uint32_t)-1;
+        }
+        file* f = cur.fd_table[fd];
+        if (!f->vn) {
+            kfree(vma);
+            return (uint32_t)-1;
+        }
+        vma->type = VMA_TYPE_FILE;
+        vma->file_vnode = f->vn;
+        __atomic_add_fetch(&f->vn->refcount, 1, __ATOMIC_SEQ_CST);
+        vma->file_offset = 0;
+        vma->file_size = length;
+    }
+
+    vma->next = cur.vma_list;
+    cur.vma_list = vma;
+
+    return vaddr;
+}
+
 static uint32_t sys_munmap(SyscallRegs* regs) {
-    uint32_t virt = regs->ebx;
-    VMM::unmap_page(virt);
+    uint32_t addr   = regs->ebx;
+    uint32_t length = regs->ecx;
+
+    if (addr == 0 || length == 0) return (uint32_t)-1;
+    addr &= ~0xFFF;
+    length = (length + 0xFFF) & ~0xFFF;
+
+    Thread& cur = threads[current_tid];
+
+    for (uint32_t off = 0; off < length; off += 4096) {
+        uint32_t v = addr + off;
+        uint32_t phys = VMM::get_physical(v);
+        if (phys) {
+            VMM::unmap_page(v);
+            PhysicalMemoryManager::free_frame((void*)phys);
+        }
+    }
+
+    VMA** prev = &cur.vma_list;
+    while (*prev) {
+        VMA* v = *prev;
+        if (v->start >= addr && v->end <= addr + length) {
+            *prev = v->next;
+            if (v->type == VMA_TYPE_FILE && v->file_vnode) {
+                vnode_release(v->file_vnode);
+            }
+            kfree(v);
+        } else {
+            prev = &v->next;
+        }
+    }
+
     return 0;
 }
 

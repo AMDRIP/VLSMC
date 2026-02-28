@@ -108,6 +108,8 @@ static void elf_thread_entry() {
         new_vma->file_offset = phdrs[i].p_offset - align_diff;
         new_vma->file_size = phdrs[i].p_filesz + align_diff;
         new_vma->flags = flags;
+        new_vma->type = VMA_TYPE_FILE;
+        new_vma->file_vnode = vn;
         
         // Вставляем в начало списка VMA текущего потока
         new_vma->next = threads[current_tid].vma_list;
