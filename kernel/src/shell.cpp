@@ -317,16 +317,25 @@ static void exec_command(const char* cmd) {
         } else {
             printf("\n  Name          Size     Attr\n");
             printf("  ------------- -------- --------\n");
-            for (int i = 0; i < count; i++) {
-                char attrs[16] = "[    ]";
-                if (dir_entries[i].type == 'D') attrs[1] = 'D';
-                if (dir_entries[i].attributes & 0x01) attrs[2] = 'R';
-                if (dir_entries[i].attributes & 0x02) attrs[3] = 'H';
-                if (dir_entries[i].attributes & 0x40) { attrs[4] = '-'; attrs[5] = 'g'; attrs[6] = 'c'; attrs[7] = ' '; }
-                if (dir_entries[i].attributes & 0x80) { attrs[8] = '-'; attrs[9] = 'g'; attrs[10] = 'd'; }
-                attrs[11] = '\0';
-                
-                printf("  %-13s %8d B\t %s\n", dir_entries[i].name, dir_entries[i].size, attrs);
+            for (int pass = 0; pass < 2; pass++) {
+                for (int i = 0; i < count; i++) {
+                    bool is_dir = (dir_entries[i].type == 'D');
+                    if ((pass == 0 && !is_dir) || (pass == 1 && is_dir)) continue;
+
+                    char attrs[16] = "[    ]";
+                    if (is_dir) attrs[1] = 'D';
+                    if (dir_entries[i].attributes & 0x01) attrs[2] = 'R';
+                    if (dir_entries[i].attributes & 0x02) attrs[3] = 'H';
+                    if (dir_entries[i].attributes & 0x40) { attrs[4] = '-'; attrs[5] = 'g'; attrs[6] = 'c'; attrs[7] = ' '; }
+                    if (dir_entries[i].attributes & 0x80) { attrs[8] = '-'; attrs[9] = 'g'; attrs[10] = 'd'; }
+                    attrs[11] = '\0';
+
+                    if (is_dir) {
+                        printf("  %-13s    <DIR>\t %s\n", dir_entries[i].name, attrs);
+                    } else {
+                        printf("  %-13s %8d B\t %s\n", dir_entries[i].name, dir_entries[i].size, attrs);
+                    }
+                }
             }
             printf("\n  Total: %d entries\n\n", count);
         }
