@@ -510,14 +510,22 @@ static void exec_command(const char* cmd) {
             printf("Usage: write <filename> <content>\n");
         }
     } else if (str_starts(cmd, "writeo ", 7)) {
-        const char* fname = str_after(cmd, 7);
-        while (*fname == ' ') fname++;
-        if (*fname) run_interactive_write(fname, true);
+        const char* args = str_after(cmd, 7);
+        while (*args == ' ') args++;
+        char wfname[32];
+        int wi = 0;
+        while (args[wi] && args[wi] != ' ' && wi < 31) { wfname[wi] = args[wi]; wi++; }
+        wfname[wi] = '\0';
+        if (wfname[0]) run_interactive_write(wfname, true);
         else printf("Usage: writeo <filename>\n");
     } else if (str_starts(cmd, "writei ", 7)) {
-        const char* fname = str_after(cmd, 7);
-        while (*fname == ' ') fname++;
-        if (*fname) run_interactive_write(fname, false);
+        const char* args = str_after(cmd, 7);
+        while (*args == ' ') args++;
+        char wfname[32];
+        int wi = 0;
+        while (args[wi] && args[wi] != ' ' && wi < 31) { wfname[wi] = args[wi]; wi++; }
+        wfname[wi] = '\0';
+        if (wfname[0]) run_interactive_write(wfname, false);
         else printf("Usage: writei <filename>\n");
     } else if (str_starts(cmd, "rm ", 3)) {
         if (vfs_unlink(str_after(cmd, 3)) == 0)
@@ -653,6 +661,7 @@ void shell_main() {
             if (input_len > 0) {
                 input_len--;
                 input_buf[input_len] = '\0';
+                printf("\b \b");
             }
         } else if (c == '\t') {
             const char* completed = ShellAutocomplete::complete(input_buf);
@@ -669,6 +678,7 @@ void shell_main() {
             if (input_len < SHELL_MAX_CMD_LEN - 1) {
                 input_buf[input_len++] = c;
                 input_buf[input_len] = '\0';
+                putchar(c);
             }
         }
     }

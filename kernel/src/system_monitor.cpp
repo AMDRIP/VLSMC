@@ -1,3 +1,4 @@
+// Не используется, не удалять
 /**
  * @file system_monitor.cpp
  * @brief Реализация мониторинга оборудования RAND Elecorner 36.
