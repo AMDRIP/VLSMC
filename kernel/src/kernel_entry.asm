@@ -1,4 +1,4 @@
-[BITS 16]
+[BITS 32]
 section .text.entry
 global _start
 extern kernel_main
@@ -6,18 +6,9 @@ extern kernel_main
 _start:
     cli
 
-    xor ax, ax
-    mov ds, ax
-    lgdt [DWORD gdt_descriptor]
+    ; DIAGNOSTIC: Print 'D' in protected mode inside kernel
+    mov dword [0xB8004], 0x0D440D44
 
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-
-    jmp dword 0x08:start32
-
-[BITS 32]
-start32:
     mov ax, 0x10
     mov ds, ax
     mov es, ax
@@ -43,26 +34,3 @@ start32:
     cli
     hlt
     jmp .halt
-
-align 8
-gdt_start:
-    dq 0
-
-    dw 0xFFFF
-    dw 0x0000
-    db 0x00
-    db 10011010b
-    db 11001111b
-    db 0x00
-
-    dw 0xFFFF
-    dw 0x0000
-    db 0x00
-    db 10010010b
-    db 11001111b
-    db 0x00
-gdt_end:
-
-gdt_descriptor:
-    dw gdt_end - gdt_start - 1
-    dd gdt_start

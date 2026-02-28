@@ -1,7 +1,6 @@
 #include "kernel/shell_autocomplete.h"
 #include "kernel/shell_history.h"
-#include "kernel/fat16.h"
-#include "kernel/ata.h"
+#include "kernel/vfs.h"
 #include "libc.h"
 
 namespace re36 {
@@ -53,46 +52,27 @@ const char* ShellAutocomplete::complete(const char* partial) {
     if (flen == 0) return nullptr;
 
     static char result[SHELL_MAX_CMD_LEN];
-    if (Fat16::is_mounted()) {
-        uint8_t dir_buf[512];
-        for (uint32_t s = 0; s < 14; s++) {
-            if (!ATA::read_sectors(Fat16::root_dir_lba() + s, 1, dir_buf)) continue;
-            FAT16_DirEntry* entries = (FAT16_DirEntry*)dir_buf;
-            for (int i = 0; i < 16; i++) {
-                if (entries[i].name[0] == 0x00) return nullptr;
-                if ((uint8_t)entries[i].name[0] == 0xE5) continue;
-                if (entries[i].attributes & (FAT_ATTR_LFN | FAT_ATTR_VOLUME_ID)) continue;
+    vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
+    int count = vfs_readdir("/", dir_entries, VFS_DIR_MAX_ENTRIES);
 
-                char fname[13];
-                int ci = 0;
-                for (int j = 0; j < 8 && entries[i].name[j] != ' '; j++)
-                    fname[ci++] = entries[i].name[j];
-                if (entries[i].ext[0] != ' ') {
-                    fname[ci++] = '.';
-                    for (int j = 0; j < 3 && entries[i].ext[j] != ' '; j++)
-                        fname[ci++] = entries[i].ext[j];
-                }
-                fname[ci] = '\0';
+    for (int i = 0; i < count; i++) {
+        bool match = true;
+        for (int k = 0; k < flen; k++) {
+            char a = file_part[k];
+            char b = dir_entries[i].name[k];
+            if (a >= 'a' && a <= 'z') a -= 32;
+            if (b >= 'a' && b <= 'z') b -= 32;
+            if (a != b) { match = false; break; }
+        }
 
-                bool match = true;
-                for (int k = 0; k < flen; k++) {
-                    char a = file_part[k];
-                    char b = fname[k];
-                    if (a >= 'a' && a <= 'z') a -= 32;
-                    if (b >= 'a' && b <= 'z') b -= 32;
-                    if (a != b) { match = false; break; }
-                }
-
-                if (match) {
-                    int ri = 0;
-                    for (int k = 0; k <= last_space; k++)
-                        result[ri++] = partial[k];
-                    for (int k = 0; fname[k]; k++)
-                        result[ri++] = fname[k];
-                    result[ri] = '\0';
-                    return result;
-                }
-            }
+        if (match) {
+            int ri = 0;
+            for (int k = 0; k <= last_space; k++)
+                result[ri++] = partial[k];
+            for (int k = 0; dir_entries[i].name[k]; k++)
+                result[ri++] = dir_entries[i].name[k];
+            result[ri] = '\0';
+            return result;
         }
     }
     return nullptr;

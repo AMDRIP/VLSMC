@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "kernel/vfs.h"
 
 namespace re36 {
 
@@ -40,9 +41,15 @@ struct __attribute__((packed)) FAT16_DirEntry {
 #define FAT_ATTR_DIRECTORY 0x10
 #define FAT_ATTR_ARCHIVE   0x20
 #define FAT_ATTR_LFN       0x0F
-
+#define FAT_ATTR_PROTECT_MODIFY 0x40 // -gc
+#define FAT_ATTR_PROTECT_DELETE 0x80 // -gd
 #define FAT16_MAX_FAT_ENTRIES 32768
 #define FAT16_SECTOR_BUF_SIZE 512
+
+struct Fat16NodeData {
+    char name[13];
+    uint32_t parent_cluster;
+};
 
 class Fat16 {
 public:
@@ -50,21 +57,36 @@ public:
     
     static void list_root();
     
-    static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
+    // VFS Driver Interface
+    static int fat16_mount(block_device* bdev, superblock* sb);
     
-    static int read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, uint32_t size);
-    
-    static bool write_file(const char* name, const uint8_t* data, uint32_t size);
-    
-    static bool delete_file(const char* name);
-    
-    static void stat_file(const char* name);
-    
-    static bool is_mounted();
-    
-    static uint32_t root_dir_lba() { return root_dir_lba_; }
+    // VFS Vnode Operations
+    static int fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size);
+    static int fat16_write(vnode* vn, uint32_t offset, const uint8_t* buffer, uint32_t size);
+    static int fat16_open(vnode* vn);
+    static int fat16_close(vnode* vn);
+    static int fat16_lookup(vnode* dir, const char* name, vnode** out);
+    static int fat16_create(vnode* dir, const char* name, int mode, vnode** out);
+    static int fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries);
+    static int fat16_stat(vnode* dir, const char* name, vfs_stat_t* out);
+    static int fat16_unlink(vnode* dir, const char* name);
+    static int fat16_mkdir(vnode* dir, const char* name, int mode);
+    static int fat16_rename(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name);
 
-    static int find_dir_entry(const char* name, uint32_t* sector_out, int* index_out);
+    // Old API (kept for internal use/transition)
+    static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
+    static int read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, uint32_t size);
+    static bool write_file_in_dir(uint32_t dir_cluster, const char* name, const uint8_t* data, uint32_t size);
+    static bool delete_file(const char* name);
+    static void stat_file(const char* name);
+    static bool is_mounted();
+    static uint32_t root_dir_lba() { return root_dir_lba_; }
+    
+    static bool change_attributes(vnode* vn, uint8_t flag, bool set);
+
+
+    static int find_dir_entry(uint32_t dir_cluster, const char* name, uint32_t* sector_out, int* index_out, uint32_t* prev_cluster_out = nullptr);
+    static int find_free_dir_entry(uint32_t dir_cluster, uint32_t* sector_out, int* index_out, uint32_t* new_cluster_allocated = nullptr);
 
 private:
     static FAT16_BPB bpb_;
@@ -86,6 +108,12 @@ private:
     static void free_chain(uint16_t start_cluster);
     static void flush_fat();
     static void format_83_name(const char* name, char* out);
+    
+    // VFS static operations and structures
+    static vnode_operations fat16_vnode_ops;
 };
+
+// Global VFS driver instance for FAT16
+extern vfs_filesystem_driver fat16_driver;
 
 } // namespace re36

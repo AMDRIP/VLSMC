@@ -2,14 +2,29 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "kernel/vfs.h"
 
 namespace re36 {
+
+struct ForkChildState {
+    uint32_t eip;
+    uint32_t useresp;
+    uint32_t eflags;
+    uint32_t ebx;
+    uint32_t ecx;
+    uint32_t edx;
+    uint32_t esi;
+    uint32_t edi;
+    uint32_t ebp;
+};
 
 #define MAX_THREADS 32
 #define THREAD_STACK_SIZE 4096
 
 #define IPC_MAX_MSG_SIZE 512
 #define IPC_MSG_QUEUE_SIZE 4
+
+#define MAX_OPEN_FILES 16
 
 struct IpcMessage {
     int sender_tid;
@@ -23,10 +38,25 @@ enum class ThreadState : uint8_t {
     Running,
     Blocked,
     Sleeping,
-    Terminated
+    Terminated,
+    Zombie
 };
 
 typedef void (*ThreadEntry)();
+
+#define VMA_TYPE_ANON  0
+#define VMA_TYPE_FILE  1
+
+#define MAP_PRIVATE    0x02
+#define MAP_ANONYMOUS  0x20
+#define MAP_FIXED      0x10
+
+#define PROT_NONE  0x0
+#define PROT_READ  0x1
+#define PROT_WRITE 0x2
+#define PROT_EXEC  0x4
+
+struct vnode;
 
 struct VMA {
     uint32_t start;
@@ -34,12 +64,23 @@ struct VMA {
     uint32_t file_offset;
     uint32_t file_size;
     uint32_t flags;
+    uint8_t  type;
+    vnode*   file_vnode;
     VMA* next;
+};
+
+struct MmioGrant {
+    uint32_t phys_start;
+    uint32_t phys_end;
 };
 
 struct Thread {
     uint32_t tid;
     char name[32];
+    
+    bool is_driver;
+    int num_mmio_grants;
+    MmioGrant allowed_mmio[8];
     
     ThreadState state;
     uint8_t priority;       // 0 = наивысший, 255 = идле
@@ -65,6 +106,13 @@ struct Thread {
     int msg_tail;
     int msg_count;
     bool waiting_for_msg;
+
+    int parent_tid;
+    int exit_code;
+
+    file* fd_table[MAX_OPEN_FILES]; // VFS file descriptors for this thread
+
+    ForkChildState fork_state;
 };
 
 extern Thread threads[MAX_THREADS];

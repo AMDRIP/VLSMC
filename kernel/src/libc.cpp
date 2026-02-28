@@ -237,35 +237,52 @@ void putchar(char c) {
     }
 }
 
-static void print_uint(unsigned int val, int base) {
-    if (val == 0) {
-        putchar('0');
-        return;
-    }
-
+static void print_uint_core(uint32_t val, int base, bool is_signed, bool is_negative, int width, char pad_char, bool left_justify) {
     char buf[32];
     int i = 0;
-    while (val > 0) {
-        uint32_t rem = val % base;
-        if (rem < 10) {
-            buf[i++] = '0' + rem;
-        } else {
-            buf[i++] = 'A' + (rem - 10);
+    
+    if (val == 0) {
+        buf[i++] = '0';
+    } else {
+        while (val > 0) {
+            uint32_t rem = val % base;
+            if (rem < 10) buf[i++] = '0' + rem;
+            else buf[i++] = 'A' + (rem - 10);
+            val /= base;
         }
-        val /= base;
     }
-
+    
+    int prefix_len = (is_signed && is_negative) ? 1 : 0;
+    int pad_len = width - i - prefix_len;
+    if (pad_len < 0) pad_len = 0;
+    
+    if (!left_justify && pad_char == ' ') {
+        for (int p = 0; p < pad_len; p++) putchar(' ');
+    }
+    
+    if (is_signed && is_negative) putchar('-');
+    
+    if (!left_justify && pad_char == '0') {
+        for (int p = 0; p < pad_len; p++) putchar('0');
+    }
+    
     for (int j = i - 1; j >= 0; j--) {
         putchar(buf[j]);
     }
+    
+    if (left_justify) {
+        for (int p = 0; p < pad_len; p++) putchar(' ');
+    }
 }
 
-static void print_int(int val) {
-    if (val < 0) {
-        putchar('-');
-        val = -val;
-    }
-    print_uint(val, 10);
+static void print_uint(unsigned int val, int base, int width, char pad_char, bool left_justify) {
+    print_uint_core(val, base, false, false, width, pad_char, left_justify);
+}
+
+static void print_int(int val, int width, char pad_char, bool left_justify) {
+    bool is_neg = val < 0;
+    uint32_t uval = is_neg ? (uint32_t)-val : (uint32_t)val;
+    print_uint_core(uval, 10, true, is_neg, width, pad_char, left_justify);
 }
 
 void printf(const char* format, ...) {
@@ -275,24 +292,54 @@ void printf(const char* format, ...) {
     while (*format) {
         if (*format == '%') {
             format++;
+            
+            bool left_justify = false;
+            char pad_char = ' ';
+            int width = 0;
+            
+            if (*format == '-') {
+                left_justify = true;
+                format++;
+            }
+            if (*format == '0') {
+                pad_char = '0';
+                format++;
+            }
+            
+            while (*format >= '0' && *format <= '9') {
+                width = width * 10 + (*format - '0');
+                format++;
+            }
+            
             switch (*format) {
                 case 'd':
-                    print_int(va_arg(args, int));
+                    print_int(va_arg(args, int), width, pad_char, left_justify);
                     break;
                 case 'x':
-                    print_uint(va_arg(args, unsigned int), 16);
-                    break;
                 case 'X':
-                    print_uint(va_arg(args, unsigned int), 16);
+                    print_uint(va_arg(args, unsigned int), 16, width, pad_char, left_justify);
                     break;
                 case 'u':
-                    print_uint(va_arg(args, unsigned int), 10);
+                    print_uint(va_arg(args, unsigned int), 10, width, pad_char, left_justify);
                     break;
                 case 's': {
                     const char* str = va_arg(args, const char*);
                     if (!str) str = "(null)";
-                    while (*str) {
-                        putchar(*str++);
+                    
+                    int len = 0;
+                    while (str[len]) len++;
+                    
+                    int pad_len = width - len;
+                    if (pad_len < 0) pad_len = 0;
+                    
+                    if (!left_justify) {
+                        for (int p=0; p<pad_len; p++) putchar(' ');
+                    }
+                    
+                    while (*str) putchar(*str++);
+                    
+                    if (left_justify) {
+                        for (int p=0; p<pad_len; p++) putchar(' ');
                     }
                     break;
                 }
@@ -304,13 +351,13 @@ void printf(const char* format, ...) {
                     break;
                 default:
                     putchar('%');
-                    putchar(*format);
+                    if (*format) putchar(*format);
                     break;
             }
         } else {
             putchar(*format);
         }
-        format++;
+        if (*format) format++;
     }
 
     va_end(args);

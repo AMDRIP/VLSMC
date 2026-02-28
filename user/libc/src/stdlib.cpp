@@ -123,3 +123,21 @@ int rand(void) {
 void srand(unsigned int seed) {
     next_rand = seed;
 }
+
+int fork(void) {
+    return (int)syscall(SYS_FORK);
+}
+
+int execve(const char* path, char* const argv[], char* const envp[]) {
+    return (int)syscall(SYS_EXEC, (long)path, (long)argv, (long)envp);
+}
+
+int exec(const char* path) {
+    char* argv[] = { (char*)path, nullptr };
+    char* envp[] = { nullptr };
+    return execve(path, argv, envp);
+}
+
+int wait(int* status) {
+    return (int)syscall(SYS_WAIT, (long)status);
+}

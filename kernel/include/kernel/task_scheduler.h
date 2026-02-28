@@ -24,9 +24,10 @@ public:
     static int get_current_tid();
     
     static void print_threads();
+    
+    static int pick_next_thread();
 
 private:
-    static int pick_next_thread();
     static bool scheduling_enabled_;
 };
 

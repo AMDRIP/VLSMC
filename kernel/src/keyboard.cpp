@@ -225,9 +225,9 @@ char KeyboardDriver::get_char_nonblocking() {
 char KeyboardDriver::get_char() {
     char c = 0;
     while ((c = get_char_nonblocking()) == 0) {
-        // Halt until next interrupt to save CPU power
-        EventSystem::wait(kbd_channel_id_);
+        asm volatile("sti; hlt; cli");
     }
+    asm volatile("sti");
     return c;
 }
 

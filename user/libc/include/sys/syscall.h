@@ -21,6 +21,9 @@
 #define SYS_FWRITE 31
 #define SYS_FCLOSE 32
 #define SYS_FSIZE 33
+#define SYS_FORK 34
+#define SYS_EXEC 35
+#define SYS_WAIT 36
 
 #ifdef __cplusplus
 extern "C" {

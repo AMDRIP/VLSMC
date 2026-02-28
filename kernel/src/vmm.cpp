@@ -3,7 +3,9 @@
 #include "kernel/spinlock.h"
 #include "kernel/thread.h"
 #include "kernel/task_scheduler.h"
-#include "kernel/fat16.h"
+#include "kernel/cow.h"
+#include "kernel/vfs.h"
+#include "kernel/page_cache.h"
 #include "libc.h"
 
 namespace re36 {
@@ -188,10 +190,8 @@ void VMM::destroy_address_space(uint32_t* page_dir_phys) {
         uint32_t* pt = (uint32_t*)(page_dir_phys[i] & 0xFFFFF000);
         for (int j = 0; j < PT_ENTRIES; j++) {
             if (pt[j] & PAGE_PRESENT) {
-                if (!(pt[j] & PAGE_COW)) {
-                    uint32_t phys_frame = pt[j] & 0xFFFFF000;
-                    PhysicalMemoryManager::free_frame((void*)phys_frame);
-                }
+                uint32_t phys_frame = pt[j] & 0xFFFFF000;
+                PhysicalMemoryManager::dec_ref(phys_frame);
             }
         }
         PhysicalMemoryManager::free_frame((void*)pt);
@@ -206,53 +206,7 @@ void VMM::switch_address_space(uint32_t* page_dir_phys) {
 }
 
 uint32_t* VMM::clone_directory() {
-    InterruptGuard guard;
-
-    uint32_t* new_dir = (uint32_t*)PhysicalMemoryManager::alloc_frame();
-    if (!new_dir) return nullptr;
-
-    for (int i = 0; i < PD_ENTRIES; i++) {
-        new_dir[i] = 0;
-    }
-
-    uint32_t* cur_pd = (uint32_t*)PAGE_DIR_VADDR;
-
-    for (int i = 0; i < PD_ENTRIES; i++) {
-        if (i == RECURSIVE_PD_INDEX) continue;
-        if (!(cur_pd[i] & PAGE_PRESENT)) continue;
-
-        if (!(cur_pd[i] & PAGE_USER)) {
-            new_dir[i] = cur_pd[i];
-            continue;
-        }
-
-        uint32_t* new_pt = (uint32_t*)PhysicalMemoryManager::alloc_frame();
-        if (!new_pt) continue;
-
-        for (int j = 0; j < PT_ENTRIES; j++) {
-            uint32_t* src_pte = get_pte_ptr((i << 22) | (j << 12));
-
-            if (!(*src_pte & PAGE_PRESENT)) {
-                new_pt[j] = 0;
-                continue;
-            }
-
-            new_pt[j] = (*src_pte & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
-            new_pt[j] &= ~PAGE_WRITABLE;
-
-            *src_pte = (*src_pte & 0xFFFFF000) | PAGE_PRESENT | PAGE_USER | PAGE_COW;
-            *src_pte &= ~PAGE_WRITABLE;
-
-            uint32_t virt_addr = (i << 22) | (j << 12);
-            invlpg(virt_addr);
-        }
-
-        new_dir[i] = (uint32_t)new_pt | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-    }
-
-    new_dir[RECURSIVE_PD_INDEX] = (uint32_t)new_dir | PAGE_PRESENT | PAGE_WRITABLE;
-
-    return new_dir;
+    return cow_clone_directory();
 }
 
 bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
@@ -264,33 +218,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
     bool is_user    = (error_code & 0x4) != 0;
 
     if (is_present && is_write) {
-        uint32_t* pde = get_pde_ptr(pd_index);
-        if (*pde & PAGE_PRESENT) {
-            uint32_t* pte = get_pte_ptr(fault_addr);
-            uint32_t pte_val = *pte;
-
-            if (pte_val & PAGE_COW) {
-                uint32_t old_phys = pte_val & 0xFFFFF000;
-
-                void* new_frame = PhysicalMemoryManager::alloc_frame();
-                if (!new_frame) {
-                    printf("\n!!! PAGE FAULT: Out of memory for CoW copy at 0x%x !!!\n", fault_addr);
-                    while(1) asm volatile("cli; hlt");
-                }
-
-                uint8_t* src = (uint8_t*)old_phys;
-                uint8_t* dst = (uint8_t*)new_frame;
-                for (int i = 0; i < (int)PAGE_SIZE; i++) {
-                    dst[i] = src[i];
-                }
-
-                *pte = (uint32_t)new_frame | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-                *pte &= ~PAGE_COW;
-
-                invlpg(fault_addr & 0xFFFFF000);
-                return true;
-            }
-        }
+        if (cow_handle_fault(fault_addr, error_code)) return true;
     } else if (!is_present && is_user) {
         if (current_tid >= 0 && current_tid < MAX_THREADS) {
             Thread& cur = threads[current_tid];
@@ -317,13 +245,29 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             VMA* curr_vma = cur.vma_list;
             while (curr_vma) {
                 if (fault_addr >= curr_vma->start && fault_addr < curr_vma->end) {
+                    uint32_t page_addr = fault_addr & ~0xFFF;
+                    bool is_readonly = !(curr_vma->flags & PAGE_WRITABLE);
+                    bool is_file = (curr_vma->type == VMA_TYPE_FILE && curr_vma->file_vnode);
+
+                    if (is_readonly && is_file) {
+                        uint32_t offset_in_vma = page_addr - curr_vma->start;
+                        uint32_t file_offset = curr_vma->file_offset + offset_in_vma;
+                        uint32_t cache_key = curr_vma->file_vnode->inode_num;
+
+                        uint32_t cached = PageCache::lookup(cache_key, file_offset);
+                        if (cached) {
+                            PhysicalMemoryManager::inc_ref(cached);
+                            VMM::map_page(page_addr, cached, curr_vma->flags);
+                            return true;
+                        }
+                    }
+
                     void* new_frame = PhysicalMemoryManager::alloc_frame();
                     if (!new_frame) {
                         printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x !!!\n", fault_addr);
                         while(1) asm volatile("cli; hlt");
                     }
 
-                    uint32_t page_addr = fault_addr & ~0xFFF;
                     uint8_t* frame_ptr = (uint8_t*)new_frame;
                     for (int b = 0; b < 4096; b++) frame_ptr[b] = 0;
 
@@ -339,7 +283,23 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                         }
 
                         if (read_size > 0) {
-                            Fat16::read_file_offset(cur.name, file_offset, frame_ptr, read_size);
+                            if (is_file) {
+                                vnode* fvn = curr_vma->file_vnode;
+                                if (fvn->ops && fvn->ops->read) {
+                                    fvn->ops->read(fvn, file_offset, frame_ptr, read_size);
+                                }
+                            } else {
+                                vnode* vn = nullptr;
+                                if (vfs_resolve_path(cur.name, &vn) == 0 && vn && vn->ops && vn->ops->read) {
+                                    vn->ops->read(vn, file_offset, frame_ptr, read_size);
+                                    vnode_release(vn);
+                                }
+                            }
+
+                            if (is_readonly && is_file) {
+                                uint32_t cache_key = curr_vma->file_vnode->inode_num;
+                                PageCache::insert(cache_key, file_offset, (uint32_t)new_frame);
+                            }
                         }
                     }
 

@@ -28,6 +28,8 @@
 #include "kernel/bga.h"
 #include "kernel/ata.h"
 #include "kernel/fat16.h"
+#include "kernel/vfs.h"
+#include "kernel/page_cache.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -70,6 +72,7 @@ extern "C" void kernel_main() {
     dbg[5] = 0x4F36; // '6' — VMM
 
     re36::VMM::init();
+    re36::PageCache::init();
     dbg[6] = 0x4F37; // '7' — Scheduler
 
     if (!re36::MemoryValidator::run_all_tests()) {
@@ -123,18 +126,24 @@ extern "C" void kernel_main() {
     // Initialize Video Mode (1024x768x32)
     re36::BgaDriver::init(1024, 768, 32);
 
-    // Mount the disk via unified Disk interface
-    if (re36::Disk::is_present() && re36::Fat16::init()) {
-        printf("-> FAT16 Initialized (data.img mounted)\n");
+    // Initialize Virtual File System
+    re36::vfs_init();
+    re36::vfs_register(&re36::fat16_driver);
+
+    // Mount the disk via VFS driver interface
+    if (re36::Disk::is_present()) {
+        if (re36::vfs_mount("fat16", "/", nullptr) == 0) {
+            printf("-> FAT16 Filesystem Mounted via VFS on /\n");
+        } else {
+            printf("-> VFS FAT16 Mount Failed!\n");
+        }
     } else {
-        printf("-> FAT16 Mount Failed!\n");
+        printf("-> No block device for VFS mount\n");
     }
 
     printf("======================================\n");
     if (re36::Disk::is_present()) {
         printf("-> Primary Disk Detected (%s)\n", re36::AHCIDriver::is_present() ? "AHCI" : "ATA IDE");
-        if (re36::Fat16::is_mounted())
-            printf("-> FAT16 Filesystem Mounted\n");
     } else {
         set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         printf("-> No disk detected (ATA nor AHCI)\n");
@@ -145,7 +154,10 @@ extern "C" void kernel_main() {
     set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     re36::thread_create("idle", idle_thread, 255);
-    re36::thread_create("shell", shell_thread, 1);
+    int shell_tid = re36::thread_create("shell", shell_thread, 1);
+    if (shell_tid >= 0) {
+        re36::threads[shell_tid].is_driver = true;
+    }
 
     set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
     printf("Spawned threads: idle (pri=255), shell (pri=1)\n");
@@ -153,6 +165,6 @@ extern "C" void kernel_main() {
     set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 
     while (true) {
-        asm volatile("hlt");
+        asm volatile("sti; hlt");
     }
 }

@@ -34,49 +34,52 @@ int puts(const char* s) {
     return count + 1;
 }
 
-static void print_int(int val) {
+static void print_uint_core(unsigned int val, int base, int uppercase, bool is_signed, bool is_negative, int width, char pad_char, bool left_justify) {
+    char buf[32];
+    int i = 0;
+    
     if (val == 0) {
-        putchar('0');
-        return;
+        buf[i++] = '0';
+    } else {
+        while (val > 0) {
+            unsigned int rem = val % base;
+            if (rem < 10) buf[i++] = '0' + rem;
+            else buf[i++] = (uppercase ? 'A' : 'a') + (rem - 10);
+            val /= base;
+        }
     }
-    if (val < 0) {
-        putchar('-');
-        val = -val;
+    
+    int prefix_len = (is_signed && is_negative) ? 1 : 0;
+    int pad_len = width - i - prefix_len;
+    if (pad_len < 0) pad_len = 0;
+    
+    if (!left_justify && pad_char == ' ') {
+        for (int p = 0; p < pad_len; p++) putchar(' ');
     }
-    char buf[12];
-    int i = 11;
-    buf[i] = '\0';
-    while (val > 0) {
-        i--;
-        buf[i] = '0' + (val % 10);
-        val /= 10;
+    
+    if (is_signed && is_negative) putchar('-');
+    
+    if (!left_justify && pad_char == '0') {
+        for (int p = 0; p < pad_len; p++) putchar('0');
     }
-    while (buf[i]) {
-        putchar(buf[i++]);
+    
+    for (int j = i - 1; j >= 0; j--) {
+        putchar(buf[j]);
+    }
+    
+    if (left_justify) {
+        for (int p = 0; p < pad_len; p++) putchar(' ');
     }
 }
 
-static void print_hex(unsigned int val, int uppercase) {
-    if (val == 0) {
-        putchar('0');
-        return;
-    }
-    char buf[9];
-    int i = 8;
-    buf[i] = '\0';
-    while (val > 0) {
-        i--;
-        int digit = val % 16;
-        if (digit < 10) {
-            buf[i] = '0' + digit;
-        } else {
-            buf[i] = (uppercase ? 'A' : 'a') + (digit - 10);
-        }
-        val /= 16;
-    }
-    while (buf[i]) {
-        putchar(buf[i++]);
-    }
+static void print_int(int val, int width, char pad_char, bool left_justify) {
+    bool is_neg = val < 0;
+    unsigned int uval = is_neg ? (unsigned int)-val : (unsigned int)val;
+    print_uint_core(uval, 10, 0, true, is_neg, width, pad_char, left_justify);
+}
+
+static void print_hex(unsigned int val, int uppercase, int width, char pad_char, bool left_justify) {
+    print_uint_core(val, 16, uppercase, false, false, width, pad_char, left_justify);
 }
 
 static void print_ptr(void* ptr) {
@@ -158,19 +161,58 @@ int printf(const char* format, ...) {
                 count++;
             }
         } else {
+            bool left_justify = false;
+            char pad_char = ' ';
+            int width = 0;
+            
+            if (*format == '-') {
+                left_justify = true;
+                format++;
+            }
+            if (*format == '0') {
+                pad_char = '0';
+                format++;
+            }
+            
+            while (*format >= '0' && *format <= '9') {
+                width = width * 10 + (*format - '0');
+                format++;
+            }
+            
             switch (*format) {
                 case 's': {
                     const char* str = va_arg(args, const char*);
                     if (!str) str = "(null)";
+                    
+                    int len = 0;
+                    while (str[len]) len++;
+                    
+                    int pad_len = width - len;
+                    if (pad_len < 0) pad_len = 0;
+                    
+                    if (!left_justify) {
+                        for (int p=0; p<pad_len; p++) { putchar(' '); count++; }
+                    }
+                    
                     while (*str) {
                         putchar(*str++);
                         count++;
                     }
+                    
+                    if (left_justify) {
+                        for (int p=0; p<pad_len; p++) { putchar(' '); count++; }
+                    }
                     break;
                 }
-                case 'd': {
+                case 'd':
+                case 'i': {
                     int val = va_arg(args, int);
-                    print_int(val);
+                    print_int(val, width, pad_char, left_justify);
+                    break;
+                }
+                case 'u': {
+                    unsigned int val = va_arg(args, unsigned int);
+                    print_uint_core(val, 10, 0, false, false, width, pad_char, left_justify);
                     break;
                 }
                 case 'c': {
@@ -181,12 +223,12 @@ int printf(const char* format, ...) {
                 }
                 case 'x': {
                     unsigned int val = va_arg(args, unsigned int);
-                    print_hex(val, 0);
+                    print_hex(val, 0, width, pad_char, left_justify);
                     break;
                 }
                 case 'X': {
                     unsigned int val = va_arg(args, unsigned int);
-                    print_hex(val, 1);
+                    print_hex(val, 1, width, pad_char, left_justify);
                     break;
                 }
                 case 'p': {
@@ -201,12 +243,12 @@ int printf(const char* format, ...) {
                 }
                 case 'f': {
                     double val = va_arg(args, double);
-                    print_float(val, 6);
+                    print_float(val, width > 0 ? width : 6); 
                     break;
                 }
                 default: {
                     putchar('%');
-                    putchar(*format);
+                    if (*format) putchar(*format);
                     count += 2;
                     break;
                 }
@@ -275,42 +317,136 @@ FILE* fopen(const char* filename, const char* mode) {
     if (fd == -1) return nullptr;
 
     FILE* f = (FILE*)malloc(sizeof(FILE));
-    if (!f) return nullptr;
+    if (!f) {
+        syscall(SYS_FCLOSE, fd);
+        return nullptr;
+    }
+
+    f->buffer = (char*)malloc(BUFSIZ);
+    if (!f->buffer) {
+        syscall(SYS_FCLOSE, fd);
+        free(f);
+        return nullptr;
+    }
 
     f->fd = (int)fd;
     f->mode = mode_flag;
     f->eof = 0;
     f->error = 0;
+    f->buffer_size = BUFSIZ;
+    f->buffer_pos = 0;
+    f->bytes_in_buf = 0;
     return f;
 }
 
+int fflush(FILE* stream) {
+    if (!stream) return EOF;
+    if (stream->mode == FMODE_WRITE && stream->buffer_pos > 0) {
+        long bytes = syscall(SYS_FWRITE, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_pos);
+        if (bytes <= 0) {
+            stream->error = 1;
+            return EOF;
+        }
+    }
+    stream->buffer_pos = 0;
+    stream->bytes_in_buf = 0;
+    return 0;
+}
+
 int fclose(FILE* stream) {
-    if (!stream) return -1;
-    long ret = syscall(SYS_FCLOSE, (long)stream->fd);
+    if (!stream) return EOF;
+    int ret = fflush(stream);
+    long closed = syscall(SYS_FCLOSE, (long)stream->fd);
+    if (stream->buffer) free(stream->buffer);
     free(stream);
-    return (int)ret;
+    return (ret == 0 && closed == 0) ? 0 : EOF;
+}
+
+int fgetc(FILE* stream) {
+    if (!stream || stream->eof || stream->error || stream->mode != FMODE_READ) return EOF;
+
+    if (stream->buffer_pos >= stream->bytes_in_buf) {
+        long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_size);
+        if (bytes <= 0) {
+            stream->eof = 1;
+            return EOF;
+        }
+        stream->bytes_in_buf = (size_t)bytes;
+        stream->buffer_pos = 0;
+    }
+
+    return (unsigned char)stream->buffer[stream->buffer_pos++];
+}
+
+int fputc(int c, FILE* stream) {
+    if (!stream || stream->error || stream->mode != FMODE_WRITE) return EOF;
+
+    if (stream->buffer_pos >= stream->buffer_size) {
+        if (fflush(stream) != 0) return EOF;
+    }
+
+    stream->buffer[stream->buffer_pos++] = (char)c;
+    return (unsigned char)c;
 }
 
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    if (!ptr || !stream || size == 0 || nmemb == 0 || stream->mode != FMODE_READ) return 0;
+    
     size_t total = size * nmemb;
-    long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)ptr, (long)total);
-    if (bytes <= 0) {
-        stream->eof = 1;
-        return 0;
+    size_t bytes_read = 0;
+    char* dest = (char*)ptr;
+
+    while (bytes_read < total) {
+        size_t available = stream->bytes_in_buf - stream->buffer_pos;
+        if (available > 0) {
+            size_t to_copy = total - bytes_read;
+            if (to_copy > available) to_copy = available;
+            
+            for (size_t i = 0; i < to_copy; i++) {
+                dest[bytes_read + i] = stream->buffer[stream->buffer_pos + i];
+            }
+            
+            bytes_read += to_copy;
+            stream->buffer_pos += to_copy;
+        } else {
+            long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_size);
+            if (bytes <= 0) {
+                stream->eof = 1;
+                break;
+            }
+            stream->bytes_in_buf = (size_t)bytes;
+            stream->buffer_pos = 0;
+        }
     }
-    return (size_t)bytes / size;
+
+    return bytes_read / size;
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    if (!ptr || !stream || size == 0 || nmemb == 0 || stream->mode != FMODE_WRITE) return 0;
+    
     size_t total = size * nmemb;
-    long bytes = syscall(SYS_FWRITE, (long)stream->fd, (long)ptr, (long)total);
-    if (bytes <= 0) {
-        stream->error = 1;
-        return 0;
+    size_t bytes_written = 0;
+    const char* src = (const char*)ptr;
+
+    while (bytes_written < total) {
+        size_t space = stream->buffer_size - stream->buffer_pos;
+        if (space > 0) {
+            size_t to_copy = total - bytes_written;
+            if (to_copy > space) to_copy = space;
+            
+            for (size_t i = 0; i < to_copy; i++) {
+                stream->buffer[stream->buffer_pos + i] = src[bytes_written + i];
+            }
+            
+            bytes_written += to_copy;
+            stream->buffer_pos += to_copy;
+        } else {
+            if (fflush(stream) != 0) break;
+        }
     }
-    return (size_t)bytes / size;
+
+    return bytes_written / size;
 }
 
 int feof(FILE* stream) {

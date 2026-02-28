@@ -36,6 +36,11 @@ ldiv_t ldiv(long int numer, long int denom);
 int rand(void);
 void srand(unsigned int seed);
 
+int fork(void);
+int exec(const char* path);
+int execve(const char* path, char* const argv[], char* const envp[]);
+int wait(int* status);
+
 #ifdef __cplusplus
 }
 #endif

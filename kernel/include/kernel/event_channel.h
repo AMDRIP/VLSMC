@@ -4,7 +4,7 @@
 
 namespace re36 {
 
-#define MAX_CHANNELS 16
+#define MAX_CHANNELS 32
 #define CHANNEL_BUFFER_SIZE 64
 #define MAX_WAITERS 8
 

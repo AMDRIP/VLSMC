@@ -5,6 +5,7 @@ namespace re36 {
 uint32_t* PhysicalMemoryManager::memory_bitmap_ = nullptr;
 uint32_t  PhysicalMemoryManager::max_frames_ = 0;
 uint32_t  PhysicalMemoryManager::used_frames_ = 0;
+uint8_t*  PhysicalMemoryManager::refcounts_ = nullptr;
 
 inline void PhysicalMemoryManager::set_frame(uint32_t frame) {
     memory_bitmap_[PMM_BITMAP_INDEX(frame)] |= (1 << PMM_BITMAP_OFFSET(frame));
@@ -19,16 +20,20 @@ inline bool PhysicalMemoryManager::test_frame(uint32_t frame) {
 }
 
 void PhysicalMemoryManager::init(uint32_t bitmap_addr, uint32_t memory_size) {
-    // 1. Устанавливаем указатель и размеры
     memory_bitmap_ = (uint32_t*)bitmap_addr;
     max_frames_ = memory_size / PMM_FRAME_SIZE;
     
-    // 2. Изначально считаем всю память ЗАНЯТОЙ (биты = 1)
     used_frames_ = max_frames_;
-    uint32_t bitmap_size = max_frames_ / 32; // Размер битмапа в DWORDS
+    uint32_t bitmap_size = max_frames_ / 32;
     
     for (uint32_t i = 0; i < bitmap_size; i++) {
-        memory_bitmap_[i] = 0xFFFFFFFF; // Заполняем единицами
+        memory_bitmap_[i] = 0xFFFFFFFF;
+    }
+
+    uint32_t bitmap_bytes = (max_frames_ + 31) / 32 * 4;
+    refcounts_ = (uint8_t*)(bitmap_addr + bitmap_bytes);
+    for (uint32_t i = 0; i < max_frames_; i++) {
+        refcounts_[i] = 0;
     }
 }
 
@@ -75,8 +80,8 @@ void* PhysicalMemoryManager::alloc_frame() {
 
     set_frame(frame);
     used_frames_++;
+    refcounts_[frame] = 1;
     
-    // Возвращаем физический адрес фрейма: индекс * 4096
     return (void*)(frame * PMM_FRAME_SIZE);
 }
 
@@ -116,9 +121,35 @@ void* PhysicalMemoryManager::alloc_blocks(uint32_t count) {
 void PhysicalMemoryManager::free_frame(void* frame_addr) {
     uint32_t addr = (uint32_t)frame_addr;
     uint32_t frame = addr / PMM_FRAME_SIZE;
+    if (frame >= max_frames_) return;
 
+    if (refcounts_[frame] > 1) {
+        refcounts_[frame]--;
+        return;
+    }
+
+    refcounts_[frame] = 0;
     clear_frame(frame);
     used_frames_--;
+}
+
+void PhysicalMemoryManager::inc_ref(uint32_t phys_addr) {
+    uint32_t frame = phys_addr / PMM_FRAME_SIZE;
+    if (frame < max_frames_ && refcounts_[frame] < 255) {
+        refcounts_[frame]++;
+    }
+}
+
+void PhysicalMemoryManager::dec_ref(uint32_t phys_addr) {
+    uint32_t frame = phys_addr / PMM_FRAME_SIZE;
+    if (frame >= max_frames_) return;
+    free_frame((void*)phys_addr);
+}
+
+uint8_t PhysicalMemoryManager::get_refcount(uint32_t phys_addr) {
+    uint32_t frame = phys_addr / PMM_FRAME_SIZE;
+    if (frame >= max_frames_) return 0;
+    return refcounts_[frame];
 }
 
 uint32_t PhysicalMemoryManager::get_free_memory() {

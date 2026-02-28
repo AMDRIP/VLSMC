@@ -3,7 +3,7 @@
 #include "kernel/shell_autocomplete.h"
 #include "kernel/shell_redirect.h"
 #include "kernel/keyboard.h"
-#include "kernel/fat16.h"
+#include "kernel/vfs.h"
 #include "kernel/ata.h"
 #include "kernel/pmm.h"
 #include "kernel/vmm.h"
@@ -20,6 +20,8 @@
 #include "kernel/bga.h"
 #include "kernel/pic.h"
 #include "kernel/memory_validator.h"
+#include "kernel/kmalloc.h"
+#include "kernel/fat16.h"
 #include "libc.h"
 
 namespace re36 {
@@ -65,6 +67,88 @@ static bool str_starts(const char* str, const char* prefix, int len) {
 
 static const char* str_after(const char* str, int skip) {
     return str + skip;
+}
+
+static void run_interactive_write(const char* fname, bool append) {
+    int max_len = 16380;
+    char* ebuf = (char*)kmalloc(max_len + 4);
+    if (!ebuf) {
+        printf("Out of memory for editor\n");
+        return;
+    }
+    int elen = 0;
+    int orig_len = 0;
+    
+    if (append) {
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(fname, &vn) == 0 && vn && vn->ops && vn->ops->read) {
+            while (elen < max_len) {
+                int r = vn->ops->read(vn, elen, (uint8_t*)&ebuf[elen], max_len - elen > 512 ? 512 : max_len - elen);
+                if (r <= 0) break;
+                elen += r;
+            }
+        }
+        if (vn) vnode_release(vn);
+        orig_len = elen;
+        printf("[Appending to %s, %d existing bytes]\n", fname, orig_len);
+    } else {
+        printf("[Inserting to %s (Interactive)]\n", fname);
+    }
+    
+    printf("TAB=Indent, ENTER=New Line (auto-indents), ESC=Save&Exit\n\n");
+    
+    int current_indent = 0;
+    
+    while (true) {
+        char c = getchar();
+        
+        if (c == 27) { // ESC
+            break;
+        } else if (c == '\n') {
+            printf("\n");
+            if (elen < max_len) ebuf[elen++] = '\n';
+            
+            current_indent = 0;
+            int i = elen - 2; 
+            while (i >= orig_len && ebuf[i] != '\n') i--; 
+            i++; 
+            while (i < elen - 1 && ebuf[i] == ' ') {
+                current_indent++;
+                i++;
+            }
+            
+            for (int k = 0; k < current_indent && elen < max_len; k++) {
+                printf(" ");
+                ebuf[elen++] = ' ';
+            }
+        } else if (c == '\b') {
+            if (elen > orig_len) {
+                if (ebuf[elen - 1] != '\n') { 
+                    elen--;
+                    printf("\b \b");
+                }
+            }
+        } else if (c == '\t') {
+            for (int i = 0; i < 4 && elen < max_len; i++) {
+                ebuf[elen++] = ' ';
+                printf(" ");
+            }
+        } else if (c >= 32 && c <= 126) {
+            if (elen < max_len) {
+                ebuf[elen++] = c;
+                printf("%c", c);
+            }
+        }
+    }
+    
+    printf("\nSaving %d bytes...\n", elen);
+    if (vfs_write_file(fname, (const uint8_t*)ebuf, elen) >= 0) {
+        printf("Written successfully.\n");
+    } else {
+        printf("Write failed!\n");
+    }
+    
+    kfree(ebuf);
 }
 
 static void exec_command(const char* cmd) {
@@ -175,8 +259,8 @@ static void exec_command(const char* cmd) {
             PhysicalMemoryManager::free_frame(test_buf);
         }
     } else if (str_eq(cmd, "help")) {
-        printf("File: ls, cat, write, rm, stat, hexdump, exec\n");
-        printf("System: ps (threads), kill, killall, ticks, uptime, date\n");
+        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link\n");
+        printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
@@ -222,19 +306,190 @@ static void exec_command(const char* cmd) {
         printf("Launching Ring 3 user process...\n");
         void (*entry)() = []() { enter_usermode(); };
         thread_create("user0", entry, 10);
-    } else if (str_eq(cmd, "ls")) {
-        Fat16::list_root();
+    } else if (str_starts(cmd, "ls", 2)) {
+        const char* path = "/";
+        if (cmd[2] == ' ') path = str_after(cmd, 3);
+        
+        vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
+        int count = vfs_readdir(path, dir_entries, VFS_DIR_MAX_ENTRIES);
+        if (count < 0) {
+            printf("Could not read directory %s. Check if filesystem is mounted and path exists.\n", path);
+        } else {
+            printf("\n  Name          Size     Attr\n");
+            printf("  ------------- -------- --------\n");
+            for (int pass = 0; pass < 2; pass++) {
+                for (int i = 0; i < count; i++) {
+                    bool is_dir = (dir_entries[i].type == 'D');
+                    if ((pass == 0 && !is_dir) || (pass == 1 && is_dir)) continue;
+
+                    char attrs[16] = "[    ]";
+                    if (is_dir) attrs[1] = 'D';
+                    if (dir_entries[i].attributes & 0x01) attrs[2] = 'R';
+                    if (dir_entries[i].attributes & 0x02) attrs[3] = 'H';
+                    if (dir_entries[i].attributes & 0x40) { attrs[4] = '-'; attrs[5] = 'g'; attrs[6] = 'c'; attrs[7] = ' '; }
+                    if (dir_entries[i].attributes & 0x80) { attrs[8] = '-'; attrs[9] = 'g'; attrs[10] = 'd'; }
+                    attrs[11] = '\0';
+
+                    if (is_dir) {
+                        printf("  %-13s    <DIR>\t %s\n", dir_entries[i].name, attrs);
+                    } else {
+                        printf("  %-13s %8d B\t %s\n", dir_entries[i].name, dir_entries[i].size, attrs);
+                    }
+                }
+            }
+            printf("\n  Total: %d entries\n\n", count);
+        }
+    } else if (str_starts(cmd, "mkdir ", 6)) {
+        const char* path = str_after(cmd, 6);
+        if (vfs_mkdir(path, 0) == 0) {
+            printf("Directory %s created successfully.\n", path);
+        } else {
+            printf("Failed to create directory %s.\n", path);
+        }
+    } else if (str_starts(cmd, "mv ", 3)) {
+        const char* args = str_after(cmd, 3);
+        char src[256];
+        char dest[256];
+        int i = 0, j = 0;
+        while (args[i] && args[i] != ' ') {
+            src[j++] = args[i++];
+        }
+        src[j] = '\0';
+        while (args[i] == ' ') i++;
+        j = 0;
+        while (args[i]) {
+            dest[j++] = args[i++];
+        }
+        dest[j] = '\0';
+        
+        if (src[0] == '\0' || dest[0] == '\0') {
+            printf("Usage: mv <src> <dest>\n");
+        } else {
+            vfs_stat_t st;
+            if (vfs_stat(dest, &st) == 0 && st.type == re36::VnodeType::Directory) {
+                const char* basename = src;
+                for (int m = 0; src[m]; m++) {
+                    if (src[m] == '/') basename = &src[m + 1];
+                }
+                int dlen = 0; while (dest[dlen]) dlen++;
+                if (dest[dlen - 1] != '/') dest[dlen++] = '/';
+                for (int m = 0; basename[m]; m++) dest[dlen++] = basename[m];
+                dest[dlen] = '\0';
+            }
+            
+            if (vfs_rename(src, dest) == 0) {
+                printf("Moved %s to %s successfully.\n", src, dest);
+            } else {
+                printf("Failed to move %s to %s.\n", src, dest);
+            }
+        }
     } else if (str_starts(cmd, "exec ", 5)) {
         elf_exec(str_after(cmd, 5));
     } else if (str_starts(cmd, "cat ", 4)) {
         static uint8_t file_buf[4096];
-        int bytes = Fat16::read_file(str_after(cmd, 4), file_buf, sizeof(file_buf) - 1);
-        if (bytes < 0) {
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(str_after(cmd, 4), &vn) != 0 || !vn) {
             printf("File not found: %s\n", str_after(cmd, 4));
         } else {
-            file_buf[bytes] = '\0';
-            printf("%s\n", (const char*)file_buf);
+            int bytes = -1;
+            if (vn->ops && vn->ops->read)
+                bytes = vn->ops->read(vn, 0, file_buf, sizeof(file_buf) - 1);
+            vnode_release(vn);
+            if (bytes < 0) {
+                printf("Read failed: %s\n", str_after(cmd, 4));
+            } else {
+                file_buf[bytes] = '\0';
+                printf("%s\n", (const char*)file_buf);
+            }
         }
+    } else if (str_starts(cmd, "less ", 5) || str_starts(cmd, "more ", 5)) {
+        const char* fname = str_after(cmd, 5);
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(fname, &vn) != 0 || !vn) {
+            printf("File not found: %s\n", fname);
+        } else {
+            int max_lines = 23;
+            int lines = 0;
+            uint32_t offset = 0;
+            bool eof = false;
+            while (!eof) {
+                uint8_t buf[64];
+                int bytes = -1;
+                if (vn->ops && vn->ops->read) {
+                    bytes = vn->ops->read(vn, offset, buf, sizeof(buf));
+                }
+                if (bytes <= 0) break;
+                
+                for (int i = 0; i < bytes; i++) {
+                    putchar(buf[i]);
+                    if (buf[i] == '\n') {
+                        lines++;
+                        if (lines >= max_lines) {
+                            set_color(VGA_COLOR_BLACK, VGA_COLOR_LIGHT_GREY);
+                            printf("--More--");
+                            set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+                            char c = getchar();
+                            printf("\r        \r");
+                            if (c == 'q' || c == 'Q') {
+                                eof = true;
+                                break;
+                            }
+                            lines = 0;
+                        }
+                    }
+                }
+                offset += bytes;
+            }
+            if (!eof && lines > 0) printf("\n");
+            vnode_release(vn);
+        }
+    } else if (str_starts(cmd, "chattr ", 7)) {
+        const char* args = str_after(cmd, 7);
+        while (*args == ' ') args++;
+        
+        bool set = false;
+        bool rem = false;
+        uint8_t flag = 0;
+        
+        if (str_starts(args, "+gd ", 4)) { set = true; flag = 0x80; args += 4; }
+        else if (str_starts(args, "-gd ", 4)) { rem = true; flag = 0x80; args += 4; }
+        else if (str_starts(args, "+gc ", 4)) { set = true; flag = 0x40; args += 4; }
+        else if (str_starts(args, "-gc ", 4)) { rem = true; flag = 0x40; args += 4; }
+        
+        while (*args == ' ') args++;
+        if (!*args || (!set && !rem)) {
+            printf("Usage: chattr <+gd|-gd|+gc|-gc> <filename>\n");
+        } else {
+            vnode* vn = nullptr;
+            if (vfs_resolve_path(args, &vn) == 0 && vn) {
+                if (re36::Fat16::change_attributes(vn, flag, set)) {
+                    printf("Attributes updated.\n");
+                } else {
+                    printf("Failed to update attributes.\n");
+                }
+                vnode_release(vn);
+            } else {
+                printf("File not found: %s\n", args);
+            }
+        }
+    } else if (str_eq(cmd, "whoiam") || str_eq(cmd, "whoami")) {
+        printf("root\n");
+    } else if (str_starts(cmd, "mknod ", 6)) {
+        const char* fname = str_after(cmd, 6);
+        if (vfs_write_file(fname, (const uint8_t*)"", 0) >= 0) {
+            printf("Created empty file: %s\n", fname);
+        } else {
+            printf("Failed to create file: %s\n", fname);
+        }
+    } else if (str_starts(cmd, "link ", 5)) {
+        printf("link/symlink is not supported on this filesystem (FAT16)\n");
+    } else if (str_eq(cmd, "fork")) {
+        printf("Forking test thread...\n");
+        auto fork_test_entry = []() {
+            printf("\n[fork] Child thread running! PID = %d\n", TaskScheduler::get_current_tid());
+        };
+        int child = thread_create("fork_test", fork_test_entry, 10);
+        printf("Spawned child with TID %d\n", child);
     } else if (str_starts(cmd, "write ", 6)) {
         const char* args = str_after(cmd, 6);
         const char* space = args;
@@ -247,21 +502,59 @@ static void exec_command(const char* cmd) {
             const char* content = space + 1;
             int clen = 0;
             while (content[clen]) clen++;
-            if (Fat16::write_file(fname, (const uint8_t*)content, clen))
+            if (vfs_write_file(fname, (const uint8_t*)content, clen) >= 0)
                 printf("Written %d bytes to %s\n", clen, fname);
             else
                 printf("Write failed!\n");
         } else {
             printf("Usage: write <filename> <content>\n");
         }
+    } else if (str_starts(cmd, "writeo ", 7)) {
+        const char* fname = str_after(cmd, 7);
+        while (*fname == ' ') fname++;
+        if (*fname) run_interactive_write(fname, true);
+        else printf("Usage: writeo <filename>\n");
+    } else if (str_starts(cmd, "writei ", 7)) {
+        const char* fname = str_after(cmd, 7);
+        while (*fname == ' ') fname++;
+        if (*fname) run_interactive_write(fname, false);
+        else printf("Usage: writei <filename>\n");
     } else if (str_starts(cmd, "rm ", 3)) {
-        if (Fat16::delete_file(str_after(cmd, 3)))
+        if (vfs_unlink(str_after(cmd, 3)) == 0)
             printf("Deleted: %s\n", str_after(cmd, 3));
     } else if (str_starts(cmd, "stat ", 5)) {
-        Fat16::stat_file(str_after(cmd, 5));
+        vfs_stat_t st;
+        if (vfs_stat(str_after(cmd, 5), &st) != 0) {
+            printf("File not found: %s\n", str_after(cmd, 5));
+        } else {
+            printf("\n  File: %s\n", str_after(cmd, 5));
+            printf("  Size: %d bytes\n", st.size);
+            printf("  Cluster: %d\n", st.first_cluster);
+            printf("  Attr: ");
+            if (st.attributes & 0x01) printf("R ");
+            if (st.attributes & 0x02) printf("H ");
+            if (st.attributes & 0x04) printf("S ");
+            if (st.attributes & 0x10) printf("D ");
+            if (st.attributes & 0x20) printf("A ");
+            if (st.attributes & 0x40) printf("-gc(ModifyProtect) ");
+            if (st.attributes & 0x80) printf("-gd(DeleteProtect) ");
+            printf("\n");
+            uint16_t t = st.mod_time;
+            uint16_t d = st.mod_date;
+            printf("  Modified: %d-%d-%d %d:%d:%d\n",
+                1980 + (d >> 9), (d >> 5) & 0xF, d & 0x1F,
+                t >> 11, (t >> 5) & 0x3F, (t & 0x1F) * 2);
+            printf("\n");
+        }
     } else if (str_starts(cmd, "hexdump ", 8)) {
         static uint8_t hbuf[256];
-        int bytes = Fat16::read_file(str_after(cmd, 8), hbuf, sizeof(hbuf));
+        vnode* hvn = nullptr;
+        int bytes = -1;
+        if (vfs_resolve_path(str_after(cmd, 8), &hvn) == 0 && hvn) {
+            if (hvn->ops && hvn->ops->read)
+                bytes = hvn->ops->read(hvn, 0, hbuf, sizeof(hbuf));
+            vnode_release(hvn);
+        }
         if (bytes < 0) {
             printf("File not found: %s\n", str_after(cmd, 8));
         } else {
@@ -301,7 +594,7 @@ static void process_line(const char* line) {
         if (str_starts(cmd2, "write ", 6)) {
             const char* fname = str_after(cmd2, 6);
             int plen = ShellRedirect::get_length();
-            if (Fat16::write_file(fname, (const uint8_t*)pipe_data, plen))
+            if (vfs_write_file(fname, (const uint8_t*)pipe_data, plen) >= 0)
                 printf("Piped %d bytes to %s\n", plen, fname);
             else
                 printf("Pipe write failed!\n");
@@ -318,7 +611,7 @@ static void process_line(const char* line) {
         ShellRedirect::end_capture();
 
         int len = ShellRedirect::get_length();
-        if (Fat16::write_file(redir_file, (const uint8_t*)ShellRedirect::get_buffer(), len))
+        if (vfs_write_file(redir_file, (const uint8_t*)ShellRedirect::get_buffer(), len) >= 0)
             printf("Redirected %d bytes to %s\n", len, redir_file);
         else
             printf("Redirect failed!\n");

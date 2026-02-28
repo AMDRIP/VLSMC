@@ -32,7 +32,10 @@ public:
     // Освобождает фрейм по физическому адресу
     static void free_frame(void* frame_addr);
 
-    // Возвращает кол-во свободной и занятой памяти (для логов/статистики)
+    static void inc_ref(uint32_t phys_addr);
+    static void dec_ref(uint32_t phys_addr);
+    static uint8_t get_refcount(uint32_t phys_addr);
+
     static uint32_t get_free_memory();
     static uint32_t get_used_memory();
 
@@ -51,9 +54,10 @@ private:
     static uint32_t get_free_blocks(uint32_t count);
 
 private:
-    static uint32_t* memory_bitmap_; // Указатель на массив битмапа
-    static uint32_t max_frames_;     // Сколько всего фреймов (memory_size / 4096)
-    static uint32_t used_frames_;    // Сколько фреймов занято сейчас
+    static uint32_t* memory_bitmap_;
+    static uint32_t max_frames_;
+    static uint32_t used_frames_;
+    static uint8_t* refcounts_;
 };
 
 } // namespace re36

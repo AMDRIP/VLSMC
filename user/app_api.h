@@ -1,6 +1,7 @@
 #pragma once
 
 #include "syscalls.h"
+#include <malloc.h>
 
 namespace vlsmc {
 
@@ -58,32 +59,11 @@ public:
     }
 
     static void* malloc(size_t size) {
-        if (size == 0) return nullptr;
-        // Выравнивание размера блока по 4 байтам
-        size = (size + 3) & ~3;
-        size_t total_size = size + sizeof(size_t);
-
-        void* ptr = sys_sbrk(total_size);
-        if ((uint32_t)ptr == (uint32_t)-1) return nullptr;
-
-        size_t* meta = (size_t*)ptr;
-        *meta = total_size;
-
-        return (void*)(meta + 1);
+        return ::malloc(size);
     }
 
     static void free(void* ptr) {
-        if (!ptr) return;
-        
-        size_t* meta = (size_t*)ptr - 1;
-        size_t total_size = *meta;
-
-        void* current_break = sys_sbrk(0);
-        
-        // Если освобождаем блок, который находится ровно в конце кучи, мы можем сузить кучу
-        if ((uint8_t*)meta + total_size == (uint8_t*)current_break) {
-            sys_sbrk(-((int)total_size));
-        }
+        ::free(ptr);
     }
 };
 
