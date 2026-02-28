@@ -909,6 +909,56 @@ int Fat16::fat16_mkdir(vnode* dir, const char* name, int mode) {
     return 0;
 }
 
+int Fat16::fat16_rename(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name) {
+    if (!mounted_ || !old_dir || !new_dir || !old_name || !new_name) return -1;
+
+    uint32_t old_cluster = old_dir->inode_num;
+    uint32_t new_cluster = new_dir->inode_num;
+
+    uint32_t old_sector;
+    int old_index;
+
+    // 1. Check if the source exists
+    if (find_dir_entry(old_cluster, old_name, &old_sector, &old_index) != 0) {
+        return -1; // Source doesn't exist
+    }
+
+    // 2. Check if destination already exists (refuse to overwrite for now)
+    uint32_t dest_sec; int dest_idx;
+    if (find_dir_entry(new_cluster, new_name, &dest_sec, &dest_idx) == 0) {
+        return -1; // Destination exists
+    }
+
+    // 3. Find a free entry in the new location
+    uint32_t new_sector;
+    int new_index;
+    if (find_free_dir_entry(new_cluster, &new_sector, &new_index) != 0) {
+        return -1; // Disk full / Directory full
+    }
+
+    // 4. Read the old entry
+    Disk::read_sectors(old_sector, 1, dma_buffer_);
+    FAT16_DirEntry old_entry = ((FAT16_DirEntry*)dma_buffer_)[old_index];
+
+    // Change its name
+    format_83_name(new_name, old_entry.name);
+
+    // 5. Write to new location
+    Disk::read_sectors(new_sector, 1, dma_buffer_);
+    FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+    entries[new_index] = old_entry;
+    Disk::write_sectors(new_sector, 1, dma_buffer_);
+
+    // 6. Delete old entry (mark 0xE5)
+    Disk::read_sectors(old_sector, 1, dma_buffer_);
+    entries = (FAT16_DirEntry*)dma_buffer_;
+    entries[old_index].name[0] = 0xE5;
+    Disk::write_sectors(old_sector, 1, dma_buffer_);
+    
+    flush_fat();
+    return 0;
+}
+
 vnode_operations Fat16::fat16_vnode_ops = {
     Fat16::fat16_open,
     Fat16::fat16_close,
@@ -918,6 +968,7 @@ vnode_operations Fat16::fat16_vnode_ops = {
     Fat16::fat16_create,
     Fat16::fat16_mkdir,
     Fat16::fat16_unlink,
+    Fat16::fat16_rename,
     Fat16::fat16_readdir,
     Fat16::fat16_stat,
 };

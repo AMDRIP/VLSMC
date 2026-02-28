@@ -31,6 +31,8 @@
   - Prints directory listing (names, sizes, types). If no path is provided, lists `/`.
 - `mkdir <path>`
   - Creates a new directory at the specified absolute path.
+- `mv <src> <dest>`
+  - Moves or renames a file or directory from `<src>` to `<dest>`.
 - `cat <file>`
   - Reads and outputs the entire file content to the console.
 - `less <file>`

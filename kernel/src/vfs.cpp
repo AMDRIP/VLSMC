@@ -285,11 +285,16 @@ int vfs_unlink(const char* path) {
         }
     }
 
-    if (last_slash == -1 || (last_slash == 0 && path[1] == '\0')) {
+    if (last_slash == 0 && path[1] == '\0') {
         return -1; // Cannot unlink root
     }
 
-    if (last_slash == 0) {
+    if (last_slash == -1) {
+        dir_path[0] = '/'; dir_path[1] = '\0';
+        int i;
+        for (i = 0; path[i] && i < 63; i++) filename[i] = path[i];
+        filename[i] = '\0';
+    } else if (last_slash == 0) {
         dir_path[0] = '/'; dir_path[1] = '\0';
     } else {
         int i;
@@ -403,11 +408,16 @@ int vfs_mkdir(const char* path, int mode) {
         }
     }
 
-    if (last_slash == -1 || (last_slash == 0 && path[1] == '\0')) {
+    if (last_slash == 0 && path[1] == '\0') {
         return -1; // Cannot mkdir root
     }
 
-    if (last_slash == 0) {
+    if (last_slash == -1) {
+        dir_path[0] = '/'; dir_path[1] = '\0';
+        int i;
+        for (i = 0; path[i] && i < 63; i++) dirname[i] = path[i];
+        dirname[i] = '\0';
+    } else if (last_slash == 0) {
         dir_path[0] = '/'; dir_path[1] = '\0';
     } else {
         int i;
@@ -430,6 +440,75 @@ int vfs_mkdir(const char* path, int mode) {
 
     int rc = parent->ops->mkdir(parent, dirname, mode);
     vnode_release(parent);
+    return rc;
+}
+
+int vfs_rename(const char* oldpath, const char* newpath) {
+    if (!oldpath || !newpath) return -1;
+    if (num_mount_points == 0) return -1;
+
+    // Parse oldpath
+    char old_dir_path[256];
+    char old_filename[64];
+    int len = 0; while (oldpath[len]) len++;
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (oldpath[i] == '/') { last_slash = i; break; }
+    }
+    if (last_slash == 0 && oldpath[1] == '\0') return -1; // Cannot rename root
+    if (last_slash == -1) {
+        old_dir_path[0] = '/'; old_dir_path[1] = '\0';
+        for (int i=0; oldpath[i] && i<63; i++) old_filename[i] = oldpath[i]; old_filename[63]='\0';
+    } else if (last_slash == 0) {
+        old_dir_path[0] = '/'; old_dir_path[1] = '\0';
+    } else {
+        int i; for (i = 0; i < last_slash && i < 255; i++) old_dir_path[i] = oldpath[i];
+        old_dir_path[i] = '\0';
+    }
+    if (last_slash != -1) {
+        int o = 0; for (int i = last_slash + 1; oldpath[i] && o < 63; i++) old_filename[o++] = oldpath[i];
+        old_filename[o] = '\0';
+    }
+
+    // Parse newpath
+    char new_dir_path[256];
+    char new_filename[64];
+    len = 0; while (newpath[len]) len++;
+    last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (newpath[i] == '/') { last_slash = i; break; }
+    }
+    if (last_slash == 0 && newpath[1] == '\0') return -1;
+    if (last_slash == -1) {
+        new_dir_path[0] = '/'; new_dir_path[1] = '\0';
+        for (int i=0; newpath[i] && i<63; i++) new_filename[i] = newpath[i]; new_filename[63]='\0';
+    } else if (last_slash == 0) {
+        new_dir_path[0] = '/'; new_dir_path[1] = '\0';
+    } else {
+        int i; for (i = 0; i < last_slash && i < 255; i++) new_dir_path[i] = newpath[i];
+        new_dir_path[i] = '\0';
+    }
+    if (last_slash != -1) {
+        int o = 0; for (int i = last_slash + 1; newpath[i] && o < 63; i++) new_filename[o++] = newpath[i];
+        new_filename[o] = '\0';
+    }
+
+    vnode* old_parent = nullptr;
+    if (vfs_resolve_path(old_dir_path, &old_parent) != 0 || !old_parent) return -1;
+
+    vnode* new_parent = nullptr;
+    if (vfs_resolve_path(new_dir_path, &new_parent) != 0 || !new_parent) {
+        vnode_release(old_parent);
+        return -1;
+    }
+
+    int rc = -1;
+    if (old_parent->ops && old_parent->ops->rename) {
+        rc = old_parent->ops->rename(old_parent, old_filename, new_parent, new_filename);
+    }
+
+    vnode_release(old_parent);
+    vnode_release(new_parent);
     return rc;
 }
 

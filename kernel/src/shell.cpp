@@ -175,7 +175,7 @@ static void exec_command(const char* cmd) {
             PhysicalMemoryManager::free_frame(test_buf);
         }
     } else if (str_eq(cmd, "help")) {
-        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, stat, hexdump, exec, mknod, link\n");
+        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
@@ -244,6 +244,31 @@ static void exec_command(const char* cmd) {
             printf("Directory %s created successfully.\n", path);
         } else {
             printf("Failed to create directory %s.\n", path);
+        }
+    } else if (str_starts(cmd, "mv ", 3)) {
+        const char* args = str_after(cmd, 3);
+        char src[256];
+        char dest[256];
+        int i = 0, j = 0;
+        while (args[i] && args[i] != ' ') {
+            src[j++] = args[i++];
+        }
+        src[j] = '\0';
+        while (args[i] == ' ') i++;
+        j = 0;
+        while (args[i]) {
+            dest[j++] = args[i++];
+        }
+        dest[j] = '\0';
+        
+        if (src[0] == '\0' || dest[0] == '\0') {
+            printf("Usage: mv <src> <dest>\n");
+        } else {
+            if (vfs_rename(src, dest) == 0) {
+                printf("Moved %s to %s successfully.\n", src, dest);
+            } else {
+                printf("Failed to move %s to %s.\n", src, dest);
+            }
         }
     } else if (str_starts(cmd, "exec ", 5)) {
         elf_exec(str_after(cmd, 5));

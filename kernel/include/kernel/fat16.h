@@ -65,6 +65,7 @@ public:
     static int fat16_stat(vnode* dir, const char* name, vfs_stat_t* out);
     static int fat16_unlink(vnode* dir, const char* name);
     static int fat16_mkdir(vnode* dir, const char* name, int mode);
+    static int fat16_rename(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name);
 
     // Old API (kept for internal use/transition)
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
