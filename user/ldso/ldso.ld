@@ -3,13 +3,13 @@ OUTPUT_FORMAT(elf32-i386)
 
 SECTIONS
 {
-    . = 0x00000000;
+    . = SIZEOF_HEADERS;
 
-    .text : ALIGN(4K) {
+    .text : ALIGN(16) {
         *(.text*)
     }
 
-    .rodata : ALIGN(4K) {
+    .rodata : ALIGN(4) {
         *(.rodata*)
     }
 
@@ -19,6 +19,10 @@ SECTIONS
 
     .dynamic : {
         *(.dynamic)
+    }
+
+    .got : {
+        *(.got*)
     }
 
     .rel.dyn : {

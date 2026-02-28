@@ -165,7 +165,7 @@ mcopy -i data.img PS2TEST.ELF ::/PS2TEST.ELF
 # === Dynamic Linker (ld.so) ===
 nasm -f elf32 user/ldso/ldso_entry.asm -o ldso_entry.o
 x86_64-linux-gnu-g++ -m32 -fPIC -ffreestanding -fno-exceptions -fno-rtti -nostdlib -c user/ldso/ldso.cpp -o ldso_main.o
-x86_64-linux-gnu-ld -m elf_i386 -shared -T user/ldso/ldso.ld ldso_entry.o ldso_main.o -o LD.SO
+x86_64-linux-gnu-ld -m elf_i386 -pie -e _start --no-dynamic-linker -T user/ldso/ldso.ld ldso_entry.o ldso_main.o -o LD.SO
 mcopy -i data.img LD.SO ::/LD.SO
 
 # === Test Shared Library (libtest.so) ===
