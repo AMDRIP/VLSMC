@@ -1,0 +1,1 @@
+mkdir DIR\nmv FILEIO.ELF DIR/FILEIO.ELF\n

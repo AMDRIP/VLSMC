@@ -443,55 +443,48 @@ int vfs_mkdir(const char* path, int mode) {
     return rc;
 }
 
+static void split_parent_and_name(const char* path, char* dir_out, int dir_max, char* name_out, int name_max) {
+    int len = 0;
+    while (path[len]) len++;
+    
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/') { last_slash = i; break; }
+    }
+
+    if (last_slash == -1) {
+        dir_out[0] = '/'; dir_out[1] = '\0';
+        int i = 0;
+        while (path[i] && i < name_max - 1) { name_out[i] = path[i]; i++; }
+        name_out[i] = '\0';
+    } else if (last_slash == 0) {
+        dir_out[0] = '/'; dir_out[1] = '\0';
+        int o = 0;
+        for (int i = 1; path[i] && o < name_max - 1; i++) name_out[o++] = path[i];
+        name_out[o] = '\0';
+    } else {
+        int i = 0;
+        while (i < last_slash && i < dir_max - 1) { dir_out[i] = path[i]; i++; }
+        dir_out[i] = '\0';
+        int o = 0;
+        for (int j = last_slash + 1; path[j] && o < name_max - 1; j++) name_out[o++] = path[j];
+        name_out[o] = '\0';
+    }
+}
+
 int vfs_rename(const char* oldpath, const char* newpath) {
     if (!oldpath || !newpath) return -1;
     if (num_mount_points == 0) return -1;
 
-    // Parse oldpath
     char old_dir_path[256];
     char old_filename[64];
-    int len = 0; while (oldpath[len]) len++;
-    int last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (oldpath[i] == '/') { last_slash = i; break; }
-    }
-    if (last_slash == 0 && oldpath[1] == '\0') return -1; // Cannot rename root
-    if (last_slash == -1) {
-        old_dir_path[0] = '/'; old_dir_path[1] = '\0';
-        for (int i=0; oldpath[i] && i<63; i++) old_filename[i] = oldpath[i]; old_filename[63]='\0';
-    } else if (last_slash == 0) {
-        old_dir_path[0] = '/'; old_dir_path[1] = '\0';
-    } else {
-        int i; for (i = 0; i < last_slash && i < 255; i++) old_dir_path[i] = oldpath[i];
-        old_dir_path[i] = '\0';
-    }
-    if (last_slash != -1) {
-        int o = 0; for (int i = last_slash + 1; oldpath[i] && o < 63; i++) old_filename[o++] = oldpath[i];
-        old_filename[o] = '\0';
-    }
+    split_parent_and_name(oldpath, old_dir_path, 256, old_filename, 64);
 
-    // Parse newpath
     char new_dir_path[256];
     char new_filename[64];
-    len = 0; while (newpath[len]) len++;
-    last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (newpath[i] == '/') { last_slash = i; break; }
-    }
-    if (last_slash == 0 && newpath[1] == '\0') return -1;
-    if (last_slash == -1) {
-        new_dir_path[0] = '/'; new_dir_path[1] = '\0';
-        for (int i=0; newpath[i] && i<63; i++) new_filename[i] = newpath[i]; new_filename[63]='\0';
-    } else if (last_slash == 0) {
-        new_dir_path[0] = '/'; new_dir_path[1] = '\0';
-    } else {
-        int i; for (i = 0; i < last_slash && i < 255; i++) new_dir_path[i] = newpath[i];
-        new_dir_path[i] = '\0';
-    }
-    if (last_slash != -1) {
-        int o = 0; for (int i = last_slash + 1; newpath[i] && o < 63; i++) new_filename[o++] = newpath[i];
-        new_filename[o] = '\0';
-    }
+    split_parent_and_name(newpath, new_dir_path, 256, new_filename, 64);
+
+    if (old_filename[0] == '\0' || new_filename[0] == '\0') return -1;
 
     vnode* old_parent = nullptr;
     if (vfs_resolve_path(old_dir_path, &old_parent) != 0 || !old_parent) return -1;
