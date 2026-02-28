@@ -53,9 +53,18 @@ struct VMA {
     VMA* next;
 };
 
+struct MmioGrant {
+    uint32_t phys_start;
+    uint32_t phys_end;
+};
+
 struct Thread {
     uint32_t tid;
     char name[32];
+    
+    bool is_driver;
+    int num_mmio_grants;
+    MmioGrant allowed_mmio[8];
     
     ThreadState state;
     uint8_t priority;       // 0 = наивысший, 255 = идле

@@ -22,6 +22,9 @@ namespace re36 {
 #define SYS_RECV     15
 #define SYS_TIME     16
 
+#define SYS_GRANT_MMIO 37
+#define SYS_SET_DRIVER 38
+
 struct SyscallRegs {
     uint32_t eax; // Номер syscall
     uint32_t ebx; // Аргумент 1

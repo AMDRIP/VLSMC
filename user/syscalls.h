@@ -44,6 +44,8 @@ static inline uint32_t syscall3(uint32_t num, uint32_t arg1, uint32_t arg2, uint
 #define SYS_MAP_MMIO 26
 #define SYS_FIND_THREAD 27
 #define SYS_SBRK 28
+#define SYS_GRANT_MMIO 37
+#define SYS_SET_DRIVER 38
 
 static inline void sys_exit(void) {
     syscall0(SYS_EXIT);
@@ -95,6 +97,14 @@ static inline int sys_find_thread(const char* name) {
 
 static inline void* sys_sbrk(int increment) {
     return (void*)syscall1(SYS_SBRK, (uint32_t)increment);
+}
+
+static inline int sys_grant_mmio(int target_tid, uint32_t phys_start, uint32_t phys_end) {
+    return (int)syscall3(SYS_GRANT_MMIO, (uint32_t)target_tid, phys_start, phys_end);
+}
+
+static inline int sys_set_driver(int target_tid) {
+    return (int)syscall1(SYS_SET_DRIVER, (uint32_t)target_tid);
 }
 
 static inline void print(const char* s) {

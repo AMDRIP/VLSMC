@@ -154,11 +154,13 @@ static uint32_t sys_munmap(SyscallRegs* regs) {
 }
 
 static uint32_t sys_inb(SyscallRegs* regs) {
+    if (!threads[current_tid].is_driver) return (uint32_t)-1;
     uint16_t port = (uint16_t)regs->ebx;
     return inb(port);
 }
 
 static uint32_t sys_outb(SyscallRegs* regs) {
+    if (!threads[current_tid].is_driver) return 0;
     uint16_t port = (uint16_t)regs->ebx;
     uint8_t data = (uint8_t)regs->ecx;
     outb(port, data);
@@ -166,11 +168,13 @@ static uint32_t sys_outb(SyscallRegs* regs) {
 }
 
 static uint32_t sys_inw(SyscallRegs* regs) {
+    if (!threads[current_tid].is_driver) return (uint32_t)-1;
     uint16_t port = (uint16_t)regs->ebx;
     return inw(port);
 }
 
 static uint32_t sys_outw(SyscallRegs* regs) {
+    if (!threads[current_tid].is_driver) return 0;
     uint16_t port = (uint16_t)regs->ebx;
     uint16_t data = (uint16_t)regs->ecx;
     outw(port, data);
@@ -183,6 +187,26 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
     uint32_t size_pages = regs->edx;
     
     printf("[SYSCALL] map_mmio: virt=0x%x, phys=0x%x, pages=%d\n", virt, phys, size_pages);
+
+    Thread& cur = threads[current_tid];
+    if (!cur.is_driver && cur.tid != 0) {
+        printf("[SYSCALL] map_mmio failed: TID %d is not a driver\n", current_tid);
+        return 0;
+    }
+
+    bool allowed = false;
+    for (int i = 0; i < cur.num_mmio_grants; i++) {
+        if (phys >= cur.allowed_mmio[i].phys_start && 
+            (phys + size_pages * 4096 - 1) <= cur.allowed_mmio[i].phys_end) {
+            allowed = true;
+            break;
+        }
+    }
+
+    if (!allowed && cur.tid != 0) {
+        printf("[SYSCALL] map_mmio failed: phys 0x%x not in MmioGrants for TID %d\n", phys, current_tid);
+        return 0;
+    }
 
     // Простейшая проверка безопасности: не даем маппить в адресное пространство ядра
     if (virt < KERNEL_SPACE_END) {
@@ -562,6 +586,8 @@ static uint32_t sys_fork(SyscallRegs* regs) {
     child.heap_start = parent.heap_start;
     child.heap_end = parent.heap_end;
     child.heap_lock = false;
+    child.is_driver = false;
+    child.num_mmio_grants = 0;
 
     child.vma_list = nullptr;
     VMA* src_vma = parent.vma_list;
@@ -909,6 +935,41 @@ static uint32_t sys_wait(SyscallRegs* regs) {
     }
 }
 
+static uint32_t sys_grant_mmio(SyscallRegs* regs) {
+    int target_tid = (int)regs->ebx;
+    uint32_t phys_start = regs->ecx;
+    uint32_t phys_end = regs->edx;
+
+    Thread& cur = threads[current_tid];
+    if (!cur.is_driver) return (uint32_t)-1;
+
+    if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
+    Thread& target = threads[target_tid];
+    if (target.state == ThreadState::Unused) return (uint32_t)-1;
+
+    if (target.num_mmio_grants >= 8) return (uint32_t)-1;
+
+    target.allowed_mmio[target.num_mmio_grants].phys_start = phys_start;
+    target.allowed_mmio[target.num_mmio_grants].phys_end = phys_end;
+    target.num_mmio_grants++;
+
+    return 0;
+}
+
+static uint32_t sys_set_driver(SyscallRegs* regs) {
+    int target_tid = (int)regs->ebx;
+
+    Thread& cur = threads[current_tid];
+    if (!cur.is_driver) return (uint32_t)-1;
+
+    if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
+    Thread& target = threads[target_tid];
+    if (target.state == ThreadState::Unused) return (uint32_t)-1;
+
+    target.is_driver = true;
+    return 0;
+}
+
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
 static SyscallHandler syscall_table[] = {
@@ -949,6 +1010,8 @@ static SyscallHandler syscall_table[] = {
     sys_fork,        // 34
     sys_exec,        // 35
     sys_wait,        // 36
+    sys_grant_mmio,  // 37
+    sys_set_driver,  // 38
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

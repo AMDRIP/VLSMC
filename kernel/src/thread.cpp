@@ -36,6 +36,8 @@ void thread_init() {
         threads[i].page_directory_phys = (uint32_t*)0; // Инициализируется ниже
         threads[i].vma_list = nullptr;
         for (int f = 0; f < MAX_OPEN_FILES; f++) threads[i].fd_table[f] = nullptr;
+        threads[i].is_driver = false;
+        threads[i].num_mmio_grants = 0;
     }
 
     threads[0].state = ThreadState::Running;
@@ -48,6 +50,9 @@ void thread_init() {
     threads[0].msg_head = 0;
     threads[0].msg_tail = 0;
     threads[0].waiting_for_msg = false;
+    // System boot thread is a driver root
+    threads[0].is_driver = true;
+    threads[0].num_mmio_grants = 0;
     
     current_tid = 0;
     thread_count = 1;
@@ -89,6 +94,8 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.vma_list = nullptr;
     t.parent_tid = -1;
     t.exit_code = 0;
+    t.is_driver = false;
+    t.num_mmio_grants = 0;
     for (int f = 0; f < MAX_OPEN_FILES; f++) t.fd_table[f] = nullptr;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);
