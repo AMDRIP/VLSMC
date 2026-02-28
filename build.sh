@@ -81,20 +81,25 @@ echo "This is a test file for the RE36 OS." | mcopy -i data.img - ::/TEST.TXT
 echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
 
 echo "=== Building Libc ==="
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/syscall.cpp -o user_libc_syscall.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/errno.cpp -o user_libc_errno.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/string.cpp -o user_libc_string.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/malloc.cpp -o user_libc_malloc.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdio.cpp -o user_libc_stdio.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/stdlib.cpp -o user_libc_stdlib.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/math.cpp -o user_libc_math.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/cxx.cpp -o user_libc_cxx.o
-x86_64-linux-gnu-ar rcs user_libc.a user_libc_syscall.o user_libc_errno.o user_libc_string.o user_libc_malloc.o user_libc_stdio.o user_libc_stdlib.o user_libc_math.o user_libc_cxx.o
+echo "=== Building Libc ==="
+LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx"
+LIBC_OBJS=""
+LIBC_PIC_OBJS=""
+
+for src in $LIBC_SRCS; do
+    x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/${src}.cpp -o user_libc_${src}.o
+    x86_64-linux-gnu-g++ -m32 -ffreestanding -fPIC -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/libc/src/${src}.cpp -o user_libc_${src}_pic.o
+    LIBC_OBJS="$LIBC_OBJS user_libc_${src}.o"
+    LIBC_PIC_OBJS="$LIBC_PIC_OBJS user_libc_${src}_pic.o"
+done
+
+x86_64-linux-gnu-ar rcs user_libc.a $LIBC_OBJS
+x86_64-linux-gnu-ld -m elf_i386 -shared -T user/libc/libc.ld $LIBC_PIC_OBJS -o LIBC.SO
 
 echo "=== Building User Programs ==="
 nasm -f elf32 user/crt0.asm -o user_crt0.o
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/hello.cpp -o user_hello.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_hello.o -o HELLO.ELF
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -Iuser/libc/include -c user/hello.cpp -o user_hello.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_hello.o LIBC.SO -o HELLO.ELF
 mcopy -i data.img HELLO.ELF ::/HELLO.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/vesa_test.cpp -o user_vesa_test.o
@@ -167,16 +172,25 @@ nasm -f elf32 user/ldso/ldso_entry.asm -o ldso_entry.o
 x86_64-linux-gnu-g++ -m32 -fPIC -ffreestanding -fno-exceptions -fno-rtti -nostdlib -c user/ldso/ldso.cpp -o ldso_main.o
 x86_64-linux-gnu-ld -m elf_i386 -pie -e _start --no-dynamic-linker -T user/ldso/ldso.ld ldso_entry.o ldso_main.o -o LD.SO
 mcopy -i data.img LD.SO ::/LD.SO
+mmd -i data.img ::/lib
+mcopy -i data.img LD.SO ::/lib/ld.so
+mcopy -i data.img LIBC.SO ::/lib/libc.so
 
 # === Test Shared Library (libtest.so) ===
 x86_64-linux-gnu-g++ -m32 -fPIC -ffreestanding -fno-exceptions -fno-rtti -nostdlib -c user/libtest/libtest.cpp -o libtest.o
 x86_64-linux-gnu-ld -m elf_i386 -shared -T user/libtest/libtest.ld libtest.o -o LIBTEST.SO
 mcopy -i data.img LIBTEST.SO ::/LIBTEST.SO
+mcopy -i data.img LIBTEST.SO ::/lib/libtest.so
 
 # === Dynamic Test App ===
-x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/dyntest.cpp -o user_dyntest.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/LD.SO user_crt0.o user_dyntest.o LIBTEST.SO -o DYNTEST.ELF
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -Iuser/libc/include -c user/dyntest.cpp -o user_dyntest.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_dyntest.o LIBTEST.SO -o DYNTEST.ELF
 mcopy -i data.img DYNTEST.ELF ::/DYNTEST.ELF
+
+# === DynHello (LIBC.SO test) ===
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser/libc/include -c user/dynhello.cpp -o user_dynhello.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/lib/ld.so user_crt0.o user_dynhello.o LIBC.SO -o DYNHELLO.ELF
+mcopy -i data.img DYNHELLO.ELF ::/DYNHELLO.ELF
 
 echo "=== Building ISO Image ==="
 mkdir -p iso_root

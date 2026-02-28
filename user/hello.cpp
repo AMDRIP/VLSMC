@@ -1,26 +1,36 @@
-#include "app_api.h"
+#include <stdio.h>
+#include <stdlib.h>
 
-using namespace vlsmc;
+int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
 
-int main() {
-    App::print("=========================\n");
-    App::print("  Hello from C++ AppAPI!\n");
-    App::print("  Running in Ring 3\n");
-    App::print("=========================\n");
+    printf("======================================\n");
+    printf("  Hello from HELLO.ELF (Dynamically linked)!\n");
+    printf("  This app uses libc.so loaded by ld.so\n");
+    printf("======================================\n");
 
-    uint32_t pid = App::get_pid();
-    char buf[] = "  PID: X\n";
-    buf[7] = '0' + (pid % 10);
-    App::print(buf);
-
-    App::print("\n  Counting: ");
-    for (int i = 0; i < 5; i++) {
-        char c[] = "X ";
-        c[0] = '0' + i;
-        App::print(c);
-        App::sleep(500);
+    printf("\nTesting malloc...\n");
+    int* array = (int*)malloc(5 * sizeof(int));
+    if (array) {
+        printf("Malloc returned: %p\n", (void*)array);
+        for (int i = 0; i < 5; i++) {
+            array[i] = i * 10;
+        }
+        for (int i = 0; i < 5; i++) {
+            printf("array[%d] = %d\n", i, array[i]);
+        }
+        printf("Freeing array...\n");
+        free(array);
+        printf("Free successful.\n");
+    } else {
+        printf("Malloc failed!\n");
     }
-    App::print("\n  Done!\n");
 
+    printf("\nTesting exit(42)...\n");
+    exit(42);
+    
+    // Should never reach here
+    printf("ERROR: exit() returned!\n");
     return 0;
 }

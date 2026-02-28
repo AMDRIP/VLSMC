@@ -2,37 +2,51 @@
 #include "sys/syscall.h"
 #include "errno.h"
 #include "malloc.h"
+#include <sys/mutex.h>
 
 static char stdout_buf[1024];
 static size_t stdout_pos = 0;
+static mutex_t stdout_lock = 0;
 
-static void fflush_stdout() {
+static void _fflush_stdout_unlocked() {
     if (stdout_pos > 0) {
         syscall(SYS_PRINT, (long)stdout_buf, (long)stdout_pos);
         stdout_pos = 0;
     }
 }
 
-int putchar(int c) {
+static int _putchar_unlocked(int c) {
     if (stdout_pos >= sizeof(stdout_buf)) {
-        fflush_stdout();
+        _fflush_stdout_unlocked();
     }
     stdout_buf[stdout_pos++] = (char)c;
     if (c == '\n') {
-        fflush_stdout();
+        _fflush_stdout_unlocked();
     }
     return (unsigned char)c;
 }
 
+int putchar(int c) {
+    mutex_lock(&stdout_lock);
+    int ret = _putchar_unlocked(c);
+    mutex_unlock(&stdout_lock);
+    return ret;
+}
+
 int puts(const char* s) {
+    mutex_lock(&stdout_lock);
     int count = 0;
     while (*s) {
-        putchar(*s++);
+        _putchar_unlocked(*s++);
         count++;
     }
-    putchar('\n');
+    _putchar_unlocked('\n');
+    mutex_unlock(&stdout_lock);
     return count + 1;
 }
+
+#define putchar _putchar_unlocked
+#define fflush_stdout _fflush_stdout_unlocked
 
 static void print_uint_core(unsigned int val, int base, int uppercase, bool is_signed, bool is_negative, int width, char pad_char, bool left_justify) {
     char buf[32];
@@ -147,6 +161,7 @@ static void print_float(double val, int precision) {
 }
 
 int printf(const char* format, ...) {
+    mutex_lock(&stdout_lock);
     va_list args;
     va_start(args, format);
     int count = 0;
@@ -260,8 +275,11 @@ int printf(const char* format, ...) {
 
     va_end(args);
     fflush_stdout();
+    mutex_unlock(&stdout_lock);
     return count;
 }
+#undef putchar
+#undef fflush_stdout
 
 int getchar(void) {
     long ret = syscall(SYS_GETCHAR);
@@ -305,6 +323,14 @@ char* gets_s(char* buffer, size_t size) {
     return buffer;
 }
 
+void flockfile(FILE* stream) {
+    if (stream) mutex_lock((mutex_t*)&stream->lock);
+}
+
+void funlockfile(FILE* stream) {
+    if (stream) mutex_unlock((mutex_t*)&stream->lock);
+}
+
 FILE* fopen(const char* filename, const char* mode) {
     if (!filename || !mode) return nullptr;
 
@@ -336,10 +362,11 @@ FILE* fopen(const char* filename, const char* mode) {
     f->buffer_size = BUFSIZ;
     f->buffer_pos = 0;
     f->bytes_in_buf = 0;
+    f->lock = 0;
     return f;
 }
 
-int fflush(FILE* stream) {
+static int _fflush_unlocked(FILE* stream) {
     if (!stream) return EOF;
     if (stream->mode == FMODE_WRITE && stream->buffer_pos > 0) {
         long bytes = syscall(SYS_FWRITE, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_pos);
@@ -353,44 +380,76 @@ int fflush(FILE* stream) {
     return 0;
 }
 
+int fflush(FILE* stream) {
+    if (!stream) return EOF;
+    flockfile(stream);
+    int ret = _fflush_unlocked(stream);
+    funlockfile(stream);
+    return ret;
+}
+
 int fclose(FILE* stream) {
     if (!stream) return EOF;
-    int ret = fflush(stream);
+    flockfile(stream);
+    int ret = _fflush_unlocked(stream);
     long closed = syscall(SYS_FCLOSE, (long)stream->fd);
     if (stream->buffer) free(stream->buffer);
+    funlockfile(stream);
     free(stream);
     return (ret == 0 && closed == 0) ? 0 : EOF;
 }
 
 int fgetc(FILE* stream) {
-    if (!stream || stream->eof || stream->error || stream->mode != FMODE_READ) return EOF;
+    if (!stream) return EOF;
+    flockfile(stream);
+    if (stream->eof || stream->error || stream->mode != FMODE_READ) {
+        funlockfile(stream);
+        return EOF;
+    }
 
     if (stream->buffer_pos >= stream->bytes_in_buf) {
         long bytes = syscall(SYS_FREAD, (long)stream->fd, (long)stream->buffer, (long)stream->buffer_size);
         if (bytes <= 0) {
             stream->eof = 1;
+            funlockfile(stream);
             return EOF;
         }
         stream->bytes_in_buf = (size_t)bytes;
         stream->buffer_pos = 0;
     }
 
-    return (unsigned char)stream->buffer[stream->buffer_pos++];
+    int ret = (unsigned char)stream->buffer[stream->buffer_pos++];
+    funlockfile(stream);
+    return ret;
 }
 
 int fputc(int c, FILE* stream) {
-    if (!stream || stream->error || stream->mode != FMODE_WRITE) return EOF;
+    if (!stream) return EOF;
+    flockfile(stream);
+    if (stream->error || stream->mode != FMODE_WRITE) {
+        funlockfile(stream);
+        return EOF;
+    }
 
     if (stream->buffer_pos >= stream->buffer_size) {
-        if (fflush(stream) != 0) return EOF;
+        if (_fflush_unlocked(stream) != 0) {
+            funlockfile(stream);
+            return EOF;
+        }
     }
 
     stream->buffer[stream->buffer_pos++] = (char)c;
+    funlockfile(stream);
     return (unsigned char)c;
 }
 
 size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    if (!ptr || !stream || size == 0 || nmemb == 0 || stream->mode != FMODE_READ) return 0;
+    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    flockfile(stream);
+    if (stream->mode != FMODE_READ) {
+        funlockfile(stream);
+        return 0;
+    }
     
     size_t total = size * nmemb;
     size_t bytes_read = 0;
@@ -419,11 +478,17 @@ size_t fread(void* ptr, size_t size, size_t nmemb, FILE* stream) {
         }
     }
 
+    funlockfile(stream);
     return bytes_read / size;
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream) {
-    if (!ptr || !stream || size == 0 || nmemb == 0 || stream->mode != FMODE_WRITE) return 0;
+    if (!ptr || !stream || size == 0 || nmemb == 0) return 0;
+    flockfile(stream);
+    if (stream->mode != FMODE_WRITE) {
+        funlockfile(stream);
+        return 0;
+    }
     
     size_t total = size * nmemb;
     size_t bytes_written = 0;
@@ -442,19 +507,26 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream) {
             bytes_written += to_copy;
             stream->buffer_pos += to_copy;
         } else {
-            if (fflush(stream) != 0) break;
+            if (_fflush_unlocked(stream) != 0) break;
         }
     }
 
+    funlockfile(stream);
     return bytes_written / size;
 }
 
 int feof(FILE* stream) {
     if (!stream) return 1;
-    return stream->eof;
+    flockfile(stream);
+    int ret = stream->eof;
+    funlockfile(stream);
+    return ret;
 }
 
 int ferror(FILE* stream) {
     if (!stream) return 1;
-    return stream->error;
+    flockfile(stream);
+    int ret = stream->error;
+    funlockfile(stream);
+    return ret;
 }

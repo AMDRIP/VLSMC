@@ -1,0 +1,100 @@
+
+LD.SO:     file format elf32-i386
+
+
+Disassembly of section .text:
+
+000000c0 <_start>:
+      c0:	89 e5                	mov    %esp,%ebp
+      c2:	55                   	push   %ebp
+      c3:	e8 be 0c 00 00       	call   d86 <_ld_main>
+      c8:	b8 00 00 00 00       	mov    $0x0,%eax
+      cd:	bb 7f 00 00 00       	mov    $0x7f,%ebx
+      d2:	cd 80                	int    $0x80
+
+000000d4 <_start.hang>:
+      d4:	eb fe                	jmp    d4 <_start.hang>
+
+000000d6 <_ZL9sys_printPKc>:
+      d6:	55                   	push   %ebp
+      d7:	89 e5                	mov    %esp,%ebp
+      d9:	53                   	push   %ebx
+      da:	83 ec 10             	sub    $0x10,%esp
+      dd:	e8 f1 0f 00 00       	call   10d3 <__x86.get_pc_thunk.ax>
+      e2:	05 92 1f 00 00       	add    $0x1f92,%eax
+      e7:	c7 45 f8 00 00 00 00 	movl   $0x0,-0x8(%ebp)
+      ee:	eb 04                	jmp    f4 <_ZL9sys_printPKc+0x1e>
+      f0:	83 45 f8 01          	addl   $0x1,-0x8(%ebp)
+      f4:	8b 55 08             	mov    0x8(%ebp),%edx
+      f7:	8b 45 f8             	mov    -0x8(%ebp),%eax
+      fa:	01 d0                	add    %edx,%eax
+      fc:	0f b6 00             	movzbl (%eax),%eax
+      ff:	84 c0                	test   %al,%al
+     101:	75 ed                	jne    f0 <_ZL9sys_printPKc+0x1a>
+     103:	8b 55 08             	mov    0x8(%ebp),%edx
+     106:	b8 01 00 00 00       	mov    $0x1,%eax
+     10b:	8b 4d f8             	mov    -0x8(%ebp),%ecx
+     10e:	89 d3                	mov    %edx,%ebx
+     110:	cd 80                	int    $0x80
+     112:	90                   	nop
+     113:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     116:	c9                   	leave
+     117:	c3                   	ret
+
+00000118 <_ZL8sys_exiti>:
+     118:	55                   	push   %ebp
+     119:	89 e5                	mov    %esp,%ebp
+     11b:	53                   	push   %ebx
+     11c:	e8 b2 0f 00 00       	call   10d3 <__x86.get_pc_thunk.ax>
+     121:	05 53 1f 00 00       	add    $0x1f53,%eax
+     126:	8b 55 08             	mov    0x8(%ebp),%edx
+     129:	b8 00 00 00 00       	mov    $0x0,%eax
+     12e:	89 d3                	mov    %edx,%ebx
+     130:	cd 80                	int    $0x80
+     132:	90                   	nop
+     133:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     136:	c9                   	leave
+     137:	c3                   	ret
+
+00000138 <_ZL9sys_fopenPKci>:
+     138:	55                   	push   %ebp
+     139:	89 e5                	mov    %esp,%ebp
+     13b:	53                   	push   %ebx
+     13c:	83 ec 10             	sub    $0x10,%esp
+     13f:	e8 8f 0f 00 00       	call   10d3 <__x86.get_pc_thunk.ax>
+     144:	05 30 1f 00 00       	add    $0x1f30,%eax
+     149:	8b 55 08             	mov    0x8(%ebp),%edx
+     14c:	8b 4d 0c             	mov    0xc(%ebp),%ecx
+     14f:	b8 1d 00 00 00       	mov    $0x1d,%eax
+     154:	89 d3                	mov    %edx,%ebx
+     156:	cd 80                	int    $0x80
+     158:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     15b:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     15e:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     161:	c9                   	leave
+     162:	c3                   	ret
+
+00000163 <_ZL9sys_freadiPvj>:
+     163:	55                   	push   %ebp
+     164:	89 e5                	mov    %esp,%ebp
+     166:	53                   	push   %ebx
+     167:	83 ec 10             	sub    $0x10,%esp
+     16a:	e8 64 0f 00 00       	call   10d3 <__x86.get_pc_thunk.ax>
+     16f:	05 05 1f 00 00       	add    $0x1f05,%eax
+     174:	8b 5d 08             	mov    0x8(%ebp),%ebx
+     177:	8b 4d 0c             	mov    0xc(%ebp),%ecx
+     17a:	b8 1e 00 00 00       	mov    $0x1e,%eax
+     17f:	8b 55 10             	mov    0x10(%ebp),%edx
+     182:	cd 80                	int    $0x80
+     184:	89 45 f8             	mov    %eax,-0x8(%ebp)
+     187:	8b 45 f8             	mov    -0x8(%ebp),%eax
+     18a:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+     18d:	c9                   	leave
+     18e:	c3                   	ret
+
+0000018f <_ZL10sys_fclosei>:
+     18f:	55                   	push   %ebp
+     190:	89 e5                	mov    %esp,%ebp
+     192:	53                   	push   %ebx
+     193:	e8 3b 0f 00 00       	call   10d3 <__x86.get_pc_thunk.ax>
+     198:	05 dc 1e 00 00       	add    $0x1edc,%eax

@@ -1,0 +1,124 @@
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Position-Independent Executable file)
+  Machine:                           Intel 80386
+  Version:                           0x1
+  Entry point address:               0xc0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          9732 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         4
+  Size of section headers:           40 (bytes)
+  Number of section headers:         16
+  Section header string table index: 15
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .text             PROGBITS        000000c0 0000c0 00101b 00  AX  0   0 16
+  [ 2] .rodata           PROGBITS        000010dc 0010dc 000134 00   A  0   0  4
+  [ 3] .dynsym           DYNSYM          00001210 001210 000010 10   A  4   1  4
+  [ 4] .dynstr           STRTAB          00001220 001220 000001 00   A  0   0  1
+  [ 5] .hash             HASH            00001224 001224 000010 04   A  3   0  4
+  [ 6] .gnu.hash         GNU_HASH        00001234 001234 000018 04   A  3   0  4
+  [ 7] .eh_frame         PROGBITS        0000124c 00124c 000270 00   A  0   0  4
+  [ 8] .data             PROGBITS        00002000 002000 000004 00  WA  0   0 4096
+  [ 9] .dynamic          DYNAMIC         00002004 002004 000070 08  WA  4   0  4
+  [10] .got              PROGBITS        00002074 002074 00000c 04  WA  0   0  4
+  [11] .bss              NOBITS          00003000 002080 000104 00  WA  0   0 4096
+  [12] .comment          PROGBITS        00000000 002080 00002d 01  MS  0   0  1
+  [13] .symtab           SYMTAB          00000000 0020b0 000240 10     14  32  4
+  [14] .strtab           STRTAB          00000000 0022f0 0002a2 00      0   0  1
+  [15] .shstrtab         STRTAB          00000000 002592 00006f 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  D (mbind), p (processor specific)
+
+There are no section groups in this file.
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  LOAD           0x000000 0x00000000 0x00000000 0x014bc 0x014bc R E 0x1000
+  LOAD           0x002000 0x00002000 0x00002000 0x00080 0x01104 RW  0x1000
+  DYNAMIC        0x002004 0x00002004 0x00002004 0x00070 0x00070 RW  0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RWE 0x10
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .text .rodata .dynsym .dynstr .hash .gnu.hash .eh_frame 
+   01     .data .dynamic .got .bss 
+   02     .dynamic 
+   03     
+
+Dynamic section at offset 0x2004 contains 9 entries:
+  Tag        Type                         Name/Value
+ 0x00000004 (HASH)                       0x1224
+ 0x6ffffef5 (GNU_HASH)                   0x1234
+ 0x00000005 (STRTAB)                     0x1220
+ 0x00000006 (SYMTAB)                     0x1210
+ 0x0000000a (STRSZ)                      1 (bytes)
+ 0x0000000b (SYMENT)                     16 (bytes)
+ 0x00000015 (DEBUG)                      0x0
+ 0x6ffffffb (FLAGS_1)                    Flags: PIE
+ 0x00000000 (NULL)                       0x0
+
+There are no relocations in this file.
+No processor specific unwind information to decode
+
+Symbol table '.dynsym' contains 1 entry:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+
+Symbol table '.symtab' contains 36 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 00000000     0 FILE    LOCAL  DEFAULT  ABS user/ldso/ldso_e[...]
+     2: 000000d4     0 NOTYPE  LOCAL  DEFAULT    1 _start.hang
+     3: 00000000     0 FILE    LOCAL  DEFAULT  ABS ldso.cpp
+     4: 000000d6    66 FUNC    LOCAL  DEFAULT    1 _ZL9sys_printPKc
+     5: 00000118    32 FUNC    LOCAL  DEFAULT    1 _ZL8sys_exiti
+     6: 00000138    43 FUNC    LOCAL  DEFAULT    1 _ZL9sys_fopenPKci
+     7: 00000163    44 FUNC    LOCAL  DEFAULT    1 _ZL9sys_freadiPvj
+     8: 0000018f    32 FUNC    LOCAL  DEFAULT    1 _ZL10sys_fclosei
+     9: 000001af    55 FUNC    LOCAL  DEFAULT    1 _ZL8sys_mmapjjjji
+    10: 000001e6    85 FUNC    LOCAL  DEFAULT    1 _ZL6str_eqPKcS0_
+    11: 0000023b   111 FUNC    LOCAL  DEFAULT    1 _ZL9print_hexj
+    12: 00003000   256 OBJECT  LOCAL  DEFAULT   11 _ZL9g_objects
+    13: 00003100     4 OBJECT  LOCAL  DEFAULT   11 _ZL13g_num_objects
+    14: 00002000     4 OBJECT  LOCAL  DEFAULT    8 _ZL16g_next_load_addr
+    15: 000002aa   318 FUNC    LOCAL  DEFAULT    1 _ZL15register_ob[...]
+    16: 000003e8   195 FUNC    LOCAL  DEFAULT    1 _ZL23lookup_symb[...]
+    17: 000004ab   119 FUNC    LOCAL  DEFAULT    1 _ZL20lookup_symb[...]
+    18: 00000522    95 FUNC    LOCAL  DEFAULT    1 _ZL25parse_dynam[...]
+    19: 00000581  1359 FUNC    LOCAL  DEFAULT    1 _ZL18load_shared[...]
+    20: 00000ad0   471 FUNC    LOCAL  DEFAULT    1 _ZZL19process_re[...]
+    21: 00000ca7   223 FUNC    LOCAL  DEFAULT    1 _ZL19process_rel[...]
+    22: 00000e60     0 NOTYPE  LOCAL  DEFAULT    1 .L138
+    23: 00000e31     0 NOTYPE  LOCAL  DEFAULT    1 .L145
+    24: 00000e41     0 NOTYPE  LOCAL  DEFAULT    1 .L144
+    25: 00000e39     0 NOTYPE  LOCAL  DEFAULT    1 .L143
+    26: 00000e59     0 NOTYPE  LOCAL  DEFAULT    1 .L142
+    27: 00000e51     0 NOTYPE  LOCAL  DEFAULT    1 .L141
+    28: 00000e49     0 NOTYPE  LOCAL  DEFAULT    1 .L139
+    29: 00000000     0 FILE    LOCAL  DEFAULT  ABS 
+    30: 00002004     0 OBJECT  LOCAL  DEFAULT    9 _DYNAMIC
+    31: 00002074     0 OBJECT  LOCAL  DEFAULT   10 _GLOBAL_OFFSET_TABLE_
+    32: 000010d3     0 FUNC    GLOBAL HIDDEN     1 __x86.get_pc_thunk.ax
+    33: 000000c0     0 NOTYPE  GLOBAL DEFAULT    1 _start
+    34: 000010d7     0 FUNC    GLOBAL HIDDEN     1 __x86.get_pc_thunk.bx
+    35: 00000d86   845 FUNC    GLOBAL DEFAULT    1 _ld_main
+
+Histogram for bucket list length (total of 1 bucket):
+ Length  Number     % of total  Coverage
+      0  1          (100.0%)
+
+No version information found in this file.

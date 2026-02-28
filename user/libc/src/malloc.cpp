@@ -1,6 +1,9 @@
 #include <malloc.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <sys/mutex.h>
+
+static mutex_t malloc_lock = 0;
 
 #define ALIGNMENT 8
 // Выравнивание размера до кратного ALIGNMENT
@@ -72,7 +75,7 @@ static void split_block(MemBlock* block, size_t size) {
     }
 }
 
-extern "C" void* malloc(size_t size) {
+static void* _malloc_unlocked(size_t size) {
     if (size == 0) return nullptr;
 
     MemBlock* block;
@@ -103,7 +106,14 @@ extern "C" void* malloc(size_t size) {
     return (void*)(block + 1); // Возвращаем указатель за заголовком
 }
 
-extern "C" void free(void* ptr) {
+extern "C" void* malloc(size_t size) {
+    mutex_lock(&malloc_lock);
+    void* res = _malloc_unlocked(size);
+    mutex_unlock(&malloc_lock);
+    return res;
+}
+
+static void _free_unlocked(void* ptr) {
     if (!ptr) return;
 
     MemBlock* block = (MemBlock*)ptr - 1;
@@ -154,6 +164,12 @@ extern "C" void free(void* ptr) {
         // Возвращаем память через отрицательный инкремент в sys_sbrk
         syscall(SYS_SBRK, -(long)block->size);
     }
+}
+
+extern "C" void free(void* ptr) {
+    mutex_lock(&malloc_lock);
+    _free_unlocked(ptr);
+    mutex_unlock(&malloc_lock);
 }
 
 extern "C" void* calloc(size_t nmemb, size_t size) {
