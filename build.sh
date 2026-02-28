@@ -175,7 +175,7 @@ mcopy -i data.img LIBTEST.SO ::/LIBTEST.SO
 
 # === Dynamic Test App ===
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/dyntest.cpp -o user_dyntest.o
-x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_dyntest.o LIBTEST.SO -o DYNTEST.ELF
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld --dynamic-linker=/LD.SO user_crt0.o user_dyntest.o LIBTEST.SO -o DYNTEST.ELF
 mcopy -i data.img DYNTEST.ELF ::/DYNTEST.ELF
 
 echo "=== Building ISO Image ==="
