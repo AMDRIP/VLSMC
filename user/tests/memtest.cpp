@@ -1,4 +1,4 @@
-#include "libc/include/string.h"
+#include <string.h>
 #include <sys/syscall.h>
 
 void print(const char* str) {
