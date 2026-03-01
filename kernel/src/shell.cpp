@@ -113,10 +113,21 @@ static void resolve_path(const char* input, char* output) {
     while (curr < temp_len) {
         while (curr < temp_len && temp[curr] == '/') curr++;
         if (curr >= temp_len) break;
+
+        if (num_parts >= 32) {
+            // Path is deeper than we can represent in the shell resolver.
+            // Skip the rest to avoid stack corruption.
+            while (curr < temp_len && temp[curr] != '/') curr++;
+            continue;
+        }
+
         int p = 0;
         while (curr < temp_len && temp[curr] != '/' && p < 31) {
             parts[num_parts][p++] = temp[curr++];
         }
+        // Consume overly long segment tail so parser stays in sync.
+        while (curr < temp_len && temp[curr] != '/') curr++;
+
         parts[num_parts][p] = '\0';
         if (str_eq(parts[num_parts], ".")) {
             // Nothing
@@ -135,9 +146,10 @@ static void resolve_path(const char* input, char* output) {
 
     int out_len = 0;
     for (int i = 0; i < num_parts; i++) {
+        if (out_len >= 255) break;
         output[out_len++] = '/';
         int p = 0;
-        while (parts[i][p]) output[out_len++] = parts[i][p++];
+        while (parts[i][p] && out_len < 255) output[out_len++] = parts[i][p++];
     }
     output[out_len] = '\0';
 }
