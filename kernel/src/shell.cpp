@@ -29,13 +29,14 @@ namespace re36 {
 static char input_buf[SHELL_MAX_CMD_LEN];
 static int input_len = 0;
 static int cursor_x = 0;
+static char current_working_dir[256] = "/";
 
 static volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
 
 static void clear_input_line() {
     term_cursor_set_x(0);
-    // Overwrite the existing prompt length (> + space + input)
-    int len_to_clear = input_len + 2;
+    int cwd_len = 0; while (current_working_dir[cwd_len]) cwd_len++;
+    int len_to_clear = input_len + cwd_len + 2;
     for (int i = 0; i < len_to_clear; i++) {
         putchar(' ');
     }
@@ -44,7 +45,7 @@ static void clear_input_line() {
 
 static void redraw_input() {
     clear_input_line();
-    printf("\r> %s", input_buf);
+    printf("\r%s> %s", current_working_dir, input_buf);
 }
 
 static void set_input(const char* str) {
@@ -71,6 +72,61 @@ static bool str_starts(const char* str, const char* prefix, int len) {
 
 static const char* str_after(const char* str, int skip) {
     return str + skip;
+}
+
+static void resolve_path(const char* input, char* output) {
+    if (!input || !input[0]) {
+        int i = 0; while (current_working_dir[i]) { output[i] = current_working_dir[i]; i++; }
+        output[i] = '\0';
+        return;
+    }
+    char temp[256];
+    int temp_len = 0;
+    if (input[0] == '/') {
+        int i = 0; while (input[i] && i < 255) { temp[i] = input[i]; i++; }
+        temp[i] = '\0';
+        temp_len = i;
+    } else {
+        int i = 0; while (current_working_dir[i] && i < 255) { temp[i] = current_working_dir[i]; i++; }
+        if (i > 0 && temp[i - 1] != '/' && i < 255) temp[i++] = '/';
+        int j = 0; while (input[j] && i < 255) { temp[i++] = input[j++]; }
+        temp[i] = '\0';
+        temp_len = i;
+    }
+
+    char parts[32][32];
+    int num_parts = 0;
+    int curr = 0;
+    while (curr < temp_len) {
+        while (curr < temp_len && temp[curr] == '/') curr++;
+        if (curr >= temp_len) break;
+        int p = 0;
+        while (curr < temp_len && temp[curr] != '/' && p < 31) {
+            parts[num_parts][p++] = temp[curr++];
+        }
+        parts[num_parts][p] = '\0';
+        if (str_eq(parts[num_parts], ".")) {
+            // Nothing
+        } else if (str_eq(parts[num_parts], "..")) {
+            if (num_parts > 0) num_parts--;
+        } else {
+            num_parts++;
+        }
+    }
+
+    if (num_parts == 0) {
+        output[0] = '/';
+        output[1] = '\0';
+        return;
+    }
+
+    int out_len = 0;
+    for (int i = 0; i < num_parts; i++) {
+        output[out_len++] = '/';
+        int p = 0;
+        while (parts[i][p]) output[out_len++] = parts[i][p++];
+    }
+    output[out_len] = '\0';
 }
 
 static void run_interactive_write(const char* fname, bool append) {
@@ -168,9 +224,19 @@ static void exec_command(const char* cmd) {
                 vga[i] = (uint16_t(' ') | (0x0F << 8));
         }
         printf("\n");
-    } else if (str_eq(cmd, "up")) {
+    } else if (str_starts(cmd, "cd ", 3)) {
+        char resolved[256];
+        resolve_path(str_after(cmd, 3), resolved);
+        vfs_stat_t st;
+        if (vfs_stat(resolved, &st) == 0 && st.type == re36::VnodeType::Directory) {
+            int i = 0; while (resolved[i]) { current_working_dir[i] = resolved[i]; i++; }
+            current_working_dir[i] = '\0';
+        } else {
+            printf("cd: no such directory: %s\n", resolved);
+        }
+    } else if (str_eq(cmd, "up") || str_eq(cmd, "dw")) {
         term_scroll(term_get_max_y() / 2);
-    } else if (str_eq(cmd, "upa")) {
+    } else if (str_eq(cmd, "upa") || str_eq(cmd, "dwa")) {
         term_scroll(term_get_max_y());
     } else if (str_eq(cmd, "ticks")) {
         printf("Timer ticks: %u\n", Timer::get_ticks());
@@ -267,13 +333,13 @@ static void exec_command(const char* cmd) {
             PhysicalMemoryManager::free_frame(test_buf);
         }
     } else if (str_eq(cmd, "help")) {
-        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link\n");
+        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link, cd <path>\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear, runall <dir>\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
-        printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
+        printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe, dw, dwa\n");
     } else if (str_eq(cmd, "gfx")) {
         if (BgaDriver::is_initialized()) {
             uint16_t w = BgaDriver::get_width();
@@ -335,13 +401,14 @@ static void exec_command(const char* cmd) {
         void (*entry)() = []() { enter_usermode(); };
         thread_create("user0", entry, 10);
     } else if (str_starts(cmd, "ls", 2)) {
-        const char* path = "/";
-        if (cmd[2] == ' ') path = str_after(cmd, 3);
+        char resolved[256];
+        if (cmd[2] == ' ' && cmd[3]) resolve_path(str_after(cmd, 3), resolved);
+        else resolve_path("", resolved);
         
         vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
-        int count = vfs_readdir(path, dir_entries, VFS_DIR_MAX_ENTRIES);
+        int count = vfs_readdir(resolved, dir_entries, VFS_DIR_MAX_ENTRIES);
         if (count < 0) {
-            printf("Could not read directory %s. Check if filesystem is mounted and path exists.\n", path);
+            printf("Could not read directory %s. Check if filesystem is mounted and path exists.\n", resolved);
         } else {
             printf("\n  Name          Size     Attr\n");
             printf("  ------------- -------- --------\n");
@@ -368,11 +435,12 @@ static void exec_command(const char* cmd) {
             printf("\n  Total: %d entries\n\n", count);
         }
     } else if (str_starts(cmd, "mkdir ", 6)) {
-        const char* path = str_after(cmd, 6);
-        if (vfs_mkdir(path, 0) == 0) {
-            printf("Directory %s created successfully.\n", path);
+        char resolved[256];
+        resolve_path(str_after(cmd, 6), resolved);
+        if (vfs_mkdir(resolved, 0) == 0) {
+            printf("Directory %s created successfully.\n", resolved);
         } else {
-            printf("Failed to create directory %s.\n", path);
+            printf("Failed to create directory %s.\n", resolved);
         }
     } else if (str_starts(cmd, "mv ", 3)) {
         const char* args = str_after(cmd, 3);
@@ -412,29 +480,34 @@ static void exec_command(const char* cmd) {
             }
         }
     } else if (str_starts(cmd, "exec ", 5)) {
-        elf_exec(str_after(cmd, 5));
+        char resolved[256];
+        resolve_path(str_after(cmd, 5), resolved);
+        elf_exec(resolved);
     } else if (str_starts(cmd, "cat ", 4)) {
         static uint8_t file_buf[4096];
         vnode* vn = nullptr;
-        if (vfs_resolve_path(str_after(cmd, 4), &vn) != 0 || !vn) {
-            printf("File not found: %s\n", str_after(cmd, 4));
+        char resolved[256];
+        resolve_path(str_after(cmd, 4), resolved);
+        if (vfs_resolve_path(resolved, &vn) != 0 || !vn) {
+            printf("File not found: %s\n", resolved);
         } else {
             int bytes = -1;
             if (vn->ops && vn->ops->read)
                 bytes = vn->ops->read(vn, 0, file_buf, sizeof(file_buf) - 1);
             vnode_release(vn);
             if (bytes < 0) {
-                printf("Read failed: %s\n", str_after(cmd, 4));
+                printf("Read failed: %s\n", resolved);
             } else {
                 file_buf[bytes] = '\0';
                 printf("%s\n", (const char*)file_buf);
             }
         }
     } else if (str_starts(cmd, "less ", 5) || str_starts(cmd, "more ", 5)) {
-        const char* fname = str_after(cmd, 5);
+        char resolved[256];
+        resolve_path(str_after(cmd, 5), resolved);
         vnode* vn = nullptr;
-        if (vfs_resolve_path(fname, &vn) != 0 || !vn) {
-            printf("File not found: %s\n", fname);
+        if (vfs_resolve_path(resolved, &vn) != 0 || !vn) {
+            printf("File not found: %s\n", resolved);
         } else {
             int max_lines = 23;
             int lines = 0;
@@ -488,8 +561,10 @@ static void exec_command(const char* cmd) {
         if (!*args || (!set && !rem)) {
             printf("Usage: chattr <+gd|-gd|+gc|-gc> <filename>\n");
         } else {
+            char resolved[256];
+            resolve_path(args, resolved);
             vnode* vn = nullptr;
-            if (vfs_resolve_path(args, &vn) == 0 && vn) {
+            if (vfs_resolve_path(resolved, &vn) == 0 && vn) {
                 if (re36::Fat16::change_attributes(vn, flag, set)) {
                     printf("Attributes updated.\n");
                 } else {
@@ -497,17 +572,18 @@ static void exec_command(const char* cmd) {
                 }
                 vnode_release(vn);
             } else {
-                printf("File not found: %s\n", args);
+                printf("File not found: %s\n", resolved);
             }
         }
     } else if (str_eq(cmd, "whoiam") || str_eq(cmd, "whoami")) {
         printf("root\n");
     } else if (str_starts(cmd, "mknod ", 6)) {
-        const char* fname = str_after(cmd, 6);
-        if (vfs_write_file(fname, (const uint8_t*)"", 0) >= 0) {
-            printf("Created empty file: %s\n", fname);
+        char resolved[256];
+        resolve_path(str_after(cmd, 6), resolved);
+        if (vfs_write_file(resolved, (const uint8_t*)"", 0) >= 0) {
+            printf("Created empty file: %s\n", resolved);
         } else {
-            printf("Failed to create file: %s\n", fname);
+            printf("Failed to create file: %s\n", resolved);
         }
     } else if (str_starts(cmd, "link ", 5)) {
         printf("link/symlink is not supported on this filesystem (FAT16)\n");
@@ -527,11 +603,13 @@ static void exec_command(const char* cmd) {
             char fname[32];
             for (int k = 0; k < name_len && k < 31; k++) fname[k] = args[k];
             fname[name_len < 31 ? name_len : 31] = '\0';
+            char resolved[256];
+            resolve_path(fname, resolved);
             const char* content = space + 1;
             int clen = 0;
             while (content[clen]) clen++;
-            if (vfs_write_file(fname, (const uint8_t*)content, clen) >= 0)
-                printf("Written %d bytes to %s\n", clen, fname);
+            if (vfs_write_file(resolved, (const uint8_t*)content, clen) >= 0)
+                printf("Written %d bytes to %s\n", clen, resolved);
             else
                 printf("Write failed!\n");
         } else {
@@ -544,7 +622,9 @@ static void exec_command(const char* cmd) {
         int wi = 0;
         while (args[wi] && args[wi] != ' ' && wi < 31) { wfname[wi] = args[wi]; wi++; }
         wfname[wi] = '\0';
-        if (wfname[0]) run_interactive_write(wfname, true);
+        char resolved[256];
+        resolve_path(wfname, resolved);
+        if (wfname[0]) run_interactive_write(resolved, true);
         else printf("Usage: writeo <filename>\n");
     } else if (str_starts(cmd, "writei ", 7)) {
         const char* args = str_after(cmd, 7);
@@ -553,17 +633,23 @@ static void exec_command(const char* cmd) {
         int wi = 0;
         while (args[wi] && args[wi] != ' ' && wi < 31) { wfname[wi] = args[wi]; wi++; }
         wfname[wi] = '\0';
-        if (wfname[0]) run_interactive_write(wfname, false);
+        char resolved[256];
+        resolve_path(wfname, resolved);
+        if (wfname[0]) run_interactive_write(resolved, false);
         else printf("Usage: writei <filename>\n");
     } else if (str_starts(cmd, "rm ", 3)) {
-        if (vfs_unlink(str_after(cmd, 3)) == 0)
-            printf("Deleted: %s\n", str_after(cmd, 3));
+        char resolved[256];
+        resolve_path(str_after(cmd, 3), resolved);
+        if (vfs_unlink(resolved) == 0)
+            printf("Deleted: %s\n", resolved);
     } else if (str_starts(cmd, "stat ", 5)) {
+        char resolved[256];
+        resolve_path(str_after(cmd, 5), resolved);
         vfs_stat_t st;
-        if (vfs_stat(str_after(cmd, 5), &st) != 0) {
-            printf("File not found: %s\n", str_after(cmd, 5));
+        if (vfs_stat(resolved, &st) != 0) {
+            printf("File not found: %s\n", resolved);
         } else {
-            printf("\n  File: %s\n", str_after(cmd, 5));
+            printf("\n  File: %s\n", resolved);
             printf("  Size: %d bytes\n", st.size);
             printf("  Cluster: %d\n", st.first_cluster);
             printf("  Attr: ");
@@ -586,13 +672,15 @@ static void exec_command(const char* cmd) {
         static uint8_t hbuf[256];
         vnode* hvn = nullptr;
         int bytes = -1;
-        if (vfs_resolve_path(str_after(cmd, 8), &hvn) == 0 && hvn) {
+        char resolved[256];
+        resolve_path(str_after(cmd, 8), resolved);
+        if (vfs_resolve_path(resolved, &hvn) == 0 && hvn) {
             if (hvn->ops && hvn->ops->read)
                 bytes = hvn->ops->read(hvn, 0, hbuf, sizeof(hbuf));
             vnode_release(hvn);
         }
         if (bytes < 0) {
-            printf("File not found: %s\n", str_after(cmd, 8));
+            printf("File not found: %s\n", resolved);
         } else {
             for (int off = 0; off < bytes; off += 16) {
                 printf("%x: ", off);
@@ -607,17 +695,18 @@ static void exec_command(const char* cmd) {
             }
         }
     } else if (str_starts(cmd, "runall ", 7)) {
-        const char* path = str_after(cmd, 7);
+        char resolved[256];
+        resolve_path(str_after(cmd, 7), resolved);
         vfs_dir_entry dir_entries[VFS_DIR_MAX_ENTRIES];
-        int count = vfs_readdir(path, dir_entries, VFS_DIR_MAX_ENTRIES);
+        int count = vfs_readdir(resolved, dir_entries, VFS_DIR_MAX_ENTRIES);
         if (count < 0) {
-            printf("Could not read directory %s.\n", path);
+            printf("Could not read directory %s.\n", resolved);
         } else {
             for (int i = 0; i < count; i++) {
                 if (dir_entries[i].type != 'D') {
                     char fullpath[256];
                     int len = 0;
-                    while (path[len] && len < 200) { fullpath[len] = path[len]; len++; }
+                    while (resolved[len] && len < 200) { fullpath[len] = resolved[len]; len++; }
                     if (len > 0 && fullpath[len-1] != '/') fullpath[len++] = '/';
                     int nlen = 0;
                     while (dir_entries[i].name[nlen] && len < 255) { fullpath[len++] = dir_entries[i].name[nlen++]; }

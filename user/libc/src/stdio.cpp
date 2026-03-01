@@ -345,7 +345,18 @@ static void _fputc_cb(char c, void* ctx) {
     fputc((int)c, (FILE*)ctx);
 }
 
+int vfprintf(FILE* stream, const char* format, va_list ap) {
+    if (!stream) return -1;
+    return _vcbprintf(_fputc_cb, stream, format, ap);
+}
 
+int fprintf(FILE* stream, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = vfprintf(stream, format, args);
+    va_end(args);
+    return ret;
+}
 
 // === Parser Variants ===
 
