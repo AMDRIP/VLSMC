@@ -1,8 +1,6 @@
 #include "app_api.h"
 #include "vesa_driver.h"
 
-void operator delete(void*, unsigned int) {}
-void operator delete(void*) {}
 extern "C" void __cxa_pure_virtual() {
     vlsmc::App::print("Pure virtual function call!\n");
     vlsmc::App::exit(1);
@@ -87,7 +85,7 @@ static const int TEXT_W = (SCREEN_W - 16) / CHAR_W;
 static const int TEXT_H = (SCREEN_H - TOP_BAR_H - STATUS_H - 8) / CHAR_H;
 
 static const int MAX_TEXT = 128 * 1024;
-static char text_buf[MAX_TEXT];
+static char* text_buf = nullptr;
 static int text_len = 0;
 static int cursor = 0;
 static int view_line = 0;
@@ -95,7 +93,7 @@ static bool modified = false;
 static const char* FILE_PATH = "/EDIT.TXT";
 
 void mem_move(char* dst, const char* src, int n) {
-    if (n <= 0 || dst == src) return;
+    if (!dst || !src || n <= 0 || dst == src) return;
     if (dst < src) {
         for (int i = 0; i < n; i++) dst[i] = src[i];
     } else {
@@ -212,6 +210,8 @@ void delete_char() {
 }
 
 bool load_file() {
+    if (!text_buf) return false;
+
     int fd = App::open(FILE_PATH, FMODE_READ);
     if (fd < 0) {
         text_len = 0;
@@ -319,9 +319,17 @@ void draw_editor(VesaDriver& drv, bool save_ok, bool loaded_ok) {
 } // namespace
 
 int main() {
+    text_buf = (char*)App::malloc(MAX_TEXT);
+    if (!text_buf) {
+        App::print("GFXEDIT: OOM for text buffer\n");
+        return 1;
+    }
+
     VesaDriver drv;
     DriverContext ctx{};
     if (drv.init(&ctx) != 0) {
+        App::free(text_buf);
+        text_buf = nullptr;
         App::print("GFXEDIT: VESA init failed\n");
         return 1;
     }
@@ -372,6 +380,8 @@ int main() {
 
             if (code == 0x01) { // ESC
                 drv.stop(&ctx);
+                App::free(text_buf);
+                text_buf = nullptr;
                 App::print("GFXEDIT: exit\n");
                 return 0;
             }
@@ -399,5 +409,7 @@ int main() {
         App::sleep(12);
     }
 
+    App::free(text_buf);
+    text_buf = nullptr;
     return 0;
 }
