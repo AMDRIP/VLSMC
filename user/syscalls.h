@@ -49,6 +49,7 @@ struct vfs_dir_entry {
 #define SYS_GET_VGA_INFO 40
 #define SYS_UPTIME      41
 #define SYS_READDIR     42
+#define SYS_FSEEK       43
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -211,4 +212,8 @@ static inline void print(const char* s) {
 
 static inline int sys_readdir(const char* path, struct vfs_dir_entry* entries, int max_entries) {
     return (int)syscall3(SYS_READDIR, (uint32_t)path, (uint32_t)entries, (uint32_t)max_entries);
+}
+
+static inline int sys_fseek(int fd, int offset, int whence) {
+    return (int)syscall3(SYS_FSEEK, (uint32_t)fd, (uint32_t)offset, (uint32_t)whence);
 }

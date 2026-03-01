@@ -645,6 +645,39 @@ static uint32_t sys_fsize(SyscallRegs* regs) {
 
     return f->vn->size;
 }
+
+static uint32_t sys_fseek(SyscallRegs* regs) {
+    int fd = (int)regs->ebx - 3;
+    int32_t offset = (int32_t)regs->ecx;
+    int whence = (int)regs->edx;
+
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
+    
+    Thread& cur = threads[current_tid];
+    file* f = cur.fd_table[fd];
+    if (!f || !f->vn) return (uint32_t)-1;
+
+    if (whence == 0) { // SEEK_SET
+        if (offset < 0) return (uint32_t)-1;
+        f->offset = offset;
+    } else if (whence == 1) { // SEEK_CUR
+        if ((int32_t)f->offset + offset < 0) return (uint32_t)-1;
+        f->offset += offset;
+    } else if (whence == 2) { // SEEK_END
+        if (f->vn->ops && f->vn->ops->stat) {
+             // stat might be implemented, but we know vn->size directly.
+             // Actually, some drivers don't fill vn->size synchronously.
+             // For VLSMC, FAT16 fills vn->size in resolve_path/open.
+        }
+        if ((int32_t)f->vn->size + offset < 0) return (uint32_t)-1;
+        f->offset = f->vn->size + offset;
+    } else {
+        return (uint32_t)-1;
+    }
+
+    return f->offset;
+}
+
 static uint32_t sys_readdir(SyscallRegs* regs) {
     const char* path = (const char*)regs->ebx;
     vfs_dir_entry* entries = (vfs_dir_entry*)regs->ecx;
@@ -1211,6 +1244,7 @@ static SyscallHandler syscall_table[] = {
     sys_get_vga_info,// 40
     sys_uptime,      // 41
     sys_readdir,     // 42
+    sys_fseek,       // 43
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

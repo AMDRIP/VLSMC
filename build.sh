@@ -159,6 +159,10 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_dirent_test.o user_libc.a -o DIRENT_T.ELF
 mcopy -i data.img DIRENT_T.ELF ::/tests/DIRENT_T.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -Iuser/include -c user/tests/stdio_adv_test.cpp -o user_stdio_adv_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_stdio_adv_test.o user_libc.a -o STDIO_T.ELF
+mcopy -i data.img STDIO_T.ELF ::/tests/STDIO_T.ELF
+
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/tests/forktest.cpp -o user_forktest.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_forktest.o user_libc.a -o FORKTST.ELF
 mcopy -i data.img FORKTST.ELF ::/tests/FORKTST.ELF

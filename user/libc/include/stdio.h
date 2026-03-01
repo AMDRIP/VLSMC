@@ -15,7 +15,20 @@ typedef volatile int _mutex_t;
 
 int putchar(int c);
 int puts(const char* s);
+
 int printf(const char* format, ...);
+int sprintf(char* str, const char* format, ...);
+int snprintf(char* str, size_t size, const char* format, ...);
+
+int vprintf(const char* format, va_list ap);
+int vsprintf(char* str, const char* format, va_list ap);
+int vsnprintf(char* str, size_t size, const char* format, va_list ap);
+
+int scanf(const char* format, ...);
+int sscanf(const char* str, const char* format, ...);
+
+int vscanf(const char* format, va_list ap);
+int vsscanf(const char* str, const char* format, va_list ap);
 
 int getchar(void);
 char* gets_s(char* buffer, size_t size);
@@ -41,6 +54,12 @@ typedef struct {
 #define FMODE_READ 1
 #define FMODE_WRITE 2
 
+int fprintf(FILE* stream, const char* format, ...);
+int vfprintf(FILE* stream, const char* format, va_list ap);
+
+int fscanf(FILE* stream, const char* format, ...);
+int vfscanf(FILE* stream, const char* format, va_list ap);
+
 FILE* fopen(const char* filename, const char* mode);
 int fclose(FILE* stream);
 int fflush(FILE* stream);
@@ -50,6 +69,10 @@ int fgetc(FILE* stream);
 int fputc(int c, FILE* stream);
 int feof(FILE* stream);
 int ferror(FILE* stream);
+
+int fseek(FILE* stream, long offset, int whence);
+long ftell(FILE* stream);
+void rewind(FILE* stream);
 void flockfile(FILE* stream);
 void funlockfile(FILE* stream);
 
