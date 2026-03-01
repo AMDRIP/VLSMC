@@ -27,6 +27,15 @@ bool Fat16::read_cached_sector(uint32_t lba) {
     return true;
 }
 
+bool Fat16::is_valid_cluster_index(uint16_t cluster) {
+    return cluster < fat_entries_count_ && cluster < FAT16_MAX_FAT_ENTRIES;
+}
+
+uint16_t Fat16::next_cluster(uint16_t cluster) {
+    if (!is_valid_cluster_index(cluster)) return 0xFFFF;
+    return fat_table_[cluster];
+}
+
 uint32_t Fat16::cluster_to_lba(uint16_t cluster) {
     return data_start_lba_ + ((uint32_t)(cluster - 2) * bpb_.sectors_per_cluster);
 }
@@ -224,6 +233,7 @@ read_data:
     uint16_t cluster = found_entry.first_cluster;
 
     while (cluster >= 2 && cluster < 0xFFF8 && bytes_read < max_size) {
+        if (!is_valid_cluster_index(cluster)) break;
         uint32_t lba = cluster_to_lba(cluster);
 
         for (uint8_t s = 0; s < bpb_.sectors_per_cluster; s++) {
@@ -244,7 +254,7 @@ read_data:
             bytes_read += to_copy;
         }
 
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
 
     return bytes_read;
@@ -272,13 +282,14 @@ int Fat16::read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, 
     uint32_t clusters_to_skip = offset / cluster_size;
     for (uint32_t i = 0; i < clusters_to_skip; i++) {
         if (cluster < 2 || cluster >= 0xFFF8) return -1; // Цепочка неожиданно оборвалась
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
 
     uint32_t offset_in_cluster = offset % cluster_size;
     uint32_t bytes_read = 0;
 
     while (cluster >= 2 && cluster < 0xFFF8 && bytes_read < size) {
+        if (!is_valid_cluster_index(cluster)) break;
         uint32_t lba = cluster_to_lba(cluster);
         uint32_t sector_offset = offset_in_cluster / 512;
         uint32_t offset_in_sector = offset_in_cluster % 512;
@@ -304,7 +315,7 @@ int Fat16::read_file_offset(const char* name, uint32_t offset, uint8_t* buffer, 
         }
         
         offset_in_cluster = 0; // Смещение применяется только к первому кластеру
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
 
     return bytes_read;
@@ -369,6 +380,7 @@ int Fat16::find_dir_entry(uint32_t dir_cluster, const char* name, uint32_t* sect
     uint32_t prev_cluster = 0;
 
     while (cluster >= 2 && cluster < 0xFFF8) {
+        if (!is_valid_cluster_index(cluster)) break;
         uint32_t lba = cluster_to_lba(cluster);
         for (uint8_t s = 0; s < bpb_.sectors_per_cluster; s++) {
             if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) continue;
@@ -390,7 +402,7 @@ int Fat16::find_dir_entry(uint32_t dir_cluster, const char* name, uint32_t* sect
             }
         }
         prev_cluster = cluster;
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
 
     return -1;
@@ -420,6 +432,7 @@ int Fat16::find_free_dir_entry(uint32_t dir_cluster, uint32_t* sector_out, int* 
     uint16_t prev_cluster = cluster;
 
     while (cluster >= 2 && cluster < 0xFFF8) {
+        if (!is_valid_cluster_index(cluster)) break;
         uint32_t lba = cluster_to_lba(cluster);
         for (uint8_t s = 0; s < bpb_.sectors_per_cluster; s++) {
             if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) continue;
@@ -434,13 +447,14 @@ int Fat16::find_free_dir_entry(uint32_t dir_cluster, uint32_t* sector_out, int* 
             }
         }
         prev_cluster = cluster;
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
 
     // Subdirectory is full, allocate a new cluster for it
     uint16_t new_cluster = alloc_cluster();
     if (new_cluster == 0) return -1; // Disk full
 
+    if (!is_valid_cluster_index(prev_cluster)) return -1;
     fat_table_[prev_cluster] = new_cluster;
     flush_fat();
     
@@ -479,6 +493,7 @@ uint16_t Fat16::alloc_cluster() {
 void Fat16::free_chain(uint16_t start_cluster) {
     uint16_t cluster = start_cluster;
     while (cluster >= 2 && cluster < 0xFFF8) {
+        if (!is_valid_cluster_index(cluster)) break;
         uint16_t next = fat_table_[cluster];
         fat_table_[cluster] = 0x0000;
         cluster = next;
@@ -537,7 +552,14 @@ bool Fat16::write_file_in_dir(uint32_t dir_cluster, const char* name, const uint
         }
         
         if (first_cluster == 0) first_cluster = cluster;
-        if (prev_cluster != 0) fat_table_[prev_cluster] = cluster;
+        if (prev_cluster != 0) {
+            if (!is_valid_cluster_index(prev_cluster)) {
+                if (first_cluster) free_chain(first_cluster);
+                flush_fat();
+                return false;
+            }
+            fat_table_[prev_cluster] = cluster;
+        }
         
         uint32_t lba = cluster_to_lba(cluster);
         
@@ -660,8 +682,9 @@ void Fat16::stat_file(const char* name) {
     uint16_t cluster = entry->first_cluster;
     int chain_len = 0;
     while (cluster >= 2 && cluster < 0xFFF8) {
+        if (!is_valid_cluster_index(cluster)) break;
         chain_len++;
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
     printf("  Clusters: %d (%d bytes)\n\n", chain_len, chain_len * bpb_.sectors_per_cluster * 512);
 }
@@ -714,7 +737,7 @@ int Fat16::fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size
     uint16_t cluster = entry->first_cluster;
     uint32_t current_offset = 0;
     while (cluster >= 2 && cluster < 0xFFF8 && current_offset + (bpb_.sectors_per_cluster * 512) <= offset) {
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
         current_offset += bpb_.sectors_per_cluster * 512;
     }
     
@@ -722,6 +745,7 @@ int Fat16::fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size
     
     uint32_t bytes_read = 0;
     while (bytes_read < bytes_to_read && cluster >= 2 && cluster < 0xFFF8) {
+        if (!is_valid_cluster_index(cluster)) break;
         uint32_t lba = cluster_to_lba(cluster);
         for (uint8_t s = 0; s < bpb_.sectors_per_cluster && bytes_read < bytes_to_read; s++) {
             if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) return -1;
@@ -746,7 +770,7 @@ int Fat16::fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size
             bytes_read += to_copy;
             current_offset += 512;
         }
-        cluster = fat_table_[cluster];
+        cluster = next_cluster(cluster);
     }
     
     return bytes_read;
@@ -876,6 +900,7 @@ int Fat16::fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries) {
     } else {
         uint16_t cluster = (uint16_t)dir_cluster;
         while (cluster >= 2 && cluster < 0xFFF8 && count < max_entries) {
+            if (!is_valid_cluster_index(cluster)) break;
             uint32_t lba = cluster_to_lba(cluster);
             for (uint8_t s = 0; s < bpb_.sectors_per_cluster && count < max_entries; s++) {
                 if (!Disk::read_sectors(lba + s, 1, dma_buffer_)) continue;
@@ -904,7 +929,7 @@ int Fat16::fat16_readdir(vnode* dir, vfs_dir_entry* entries, int max_entries) {
                     count++;
                 }
             }
-            cluster = fat_table_[cluster];
+            cluster = next_cluster(cluster);
         }
     }
 done:
