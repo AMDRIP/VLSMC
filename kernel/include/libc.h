@@ -33,6 +33,11 @@ char getchar();
 
 void set_color(uint8_t fg, uint8_t bg);
 
+void term_scroll(int lines);
+void term_cursor_up();
+void term_cursor_set_x(int x);
+int term_get_max_y();
+
 void printf(const char* format, ...);
 void serial_init();
 

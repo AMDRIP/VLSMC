@@ -33,9 +33,13 @@ static int cursor_x = 0;
 static volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
 
 static void clear_input_line() {
-    int row = 24;
-    for (int x = 2; x < 80; x++)
-        vga[row * 80 + x] = (uint16_t)(' ') | (0x1F << 8);
+    term_cursor_set_x(0);
+    // Overwrite the existing prompt length (> + space + input)
+    int len_to_clear = input_len + 2;
+    for (int i = 0; i < len_to_clear; i++) {
+        putchar(' ');
+    }
+    term_cursor_set_x(0);
 }
 
 static void redraw_input() {
@@ -164,6 +168,10 @@ static void exec_command(const char* cmd) {
                 vga[i] = (uint16_t(' ') | (0x0F << 8));
         }
         printf("\n");
+    } else if (str_eq(cmd, "up")) {
+        term_scroll(term_get_max_y() / 2);
+    } else if (str_eq(cmd, "upa")) {
+        term_scroll(term_get_max_y());
     } else if (str_eq(cmd, "ticks")) {
         printf("Timer ticks: %u\n", Timer::get_ticks());
     } else if (str_eq(cmd, "date")) {
@@ -267,7 +275,27 @@ static void exec_command(const char* cmd) {
         printf("Display: mode text, mode gfx, gfx, bga\n");
         printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe\n");
     } else if (str_eq(cmd, "gfx")) {
-        VGA::demo();
+        if (BgaDriver::is_initialized()) {
+            uint16_t w = BgaDriver::get_width();
+            uint16_t h = BgaDriver::get_height();
+            
+            // Draw a colorful gradient pattern natively via BGA
+            for (uint16_t y = 0; y < h; y++) {
+                for (uint16_t x = 0; x < w; x++) {
+                    uint8_t r = (x * 255) / w;
+                    uint8_t g = (y * 255) / h;
+                    uint8_t b = 128 + ((x+y) % 128);
+                    BgaDriver::put_pixel(x, y, (r << 16) | (g << 8) | b);
+                }
+            }
+            
+            const char* title = "BGA 1024x768 DEMO - Native Graphics Mode";
+            for (int i = 0; title[i] != '\0'; i++) {
+                BgaDriver::draw_char(20 + i*8, 20, title[i], 0xFFFFFF, 0x000000);
+            }
+        } else {
+            VGA::demo();
+        }
     } else if (str_eq(cmd, "bga")) {
         // Alias to 'mode gfx' which handles BGA if initialized (or you can use BgaDriver::init logic here, but mode gfx is safer)
         if (!BgaDriver::is_initialized()) {

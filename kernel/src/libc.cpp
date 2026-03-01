@@ -109,6 +109,91 @@ void set_color(uint8_t fg, uint8_t bg) {
     bga_bg = vga_to_hex(bg);
 }
 
+static void update_vga_cursor(int x, int y);
+static void draw_bga_cursor(int x, int y, bool draw);
+
+int term_get_max_y() {
+    if (re36::BgaDriver::is_initialized()) {
+        return re36::BgaDriver::get_height() / 8;
+    } else if (re36::VGA::is_graphics()) {
+        return 25; // Mode 13h text is 40x25
+    }
+    return 25; // Standard VGA text mode
+}
+
+void term_scroll(int lines) {
+    if (lines <= 0) return;
+    
+    bool is_bga = re36::BgaDriver::is_initialized();
+    bool is_gfx = re36::VGA::is_graphics();
+    int max_y = term_get_max_y();
+    
+    if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
+    
+    if (is_bga) {
+        re36::BgaDriver::scroll(lines, bga_bg);
+    } else if (is_gfx) {
+        // Limited scrolling in raw VGA gfx mode for now, just clear
+        re36::VGA::clear(term_bg);
+    } else {
+        int max_x = 80;
+        int lines_to_keep = max_y - lines;
+        
+        if (lines_to_keep > 0) {
+            for (int y = 0; y < lines_to_keep; y++) {
+                for (int x = 0; x < max_x; x++) {
+                    vga_buffer[y * max_x + x] = vga_buffer[(y + lines) * max_x + x];
+                }
+            }
+        }
+        
+        int lines_to_clear = (lines > max_y) ? max_y : lines;
+        int clear_start_y = (lines_to_keep > 0) ? lines_to_keep : 0;
+        
+        for (int y = clear_start_y; y < max_y; y++) {
+            for (int x = 0; x < max_x; x++) {
+                vga_buffer[y * max_x + x] = (uint16_t(' ') | (term_color << 8));
+            }
+        }
+    }
+    
+    cursor_y -= lines;
+    if (cursor_y < 0) cursor_y = 0;
+    
+    if (is_bga) draw_bga_cursor(cursor_x, cursor_y, true);
+    else if (!is_gfx) update_vga_cursor(cursor_x, cursor_y);
+}
+
+void term_cursor_up() {
+    if (cursor_y > 0) {
+        bool is_bga = re36::BgaDriver::is_initialized();
+        bool is_gfx = re36::VGA::is_graphics();
+        
+        if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
+        cursor_y--;
+        if (is_bga) draw_bga_cursor(cursor_x, cursor_y, true);
+        else if (!is_gfx) update_vga_cursor(cursor_x, cursor_y);
+    }
+}
+
+void term_cursor_set_x(int x) {
+    bool is_bga = re36::BgaDriver::is_initialized();
+    bool is_gfx = re36::VGA::is_graphics();
+    
+    if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
+    
+    cursor_x = x;
+    int max_x = 80;
+    if (is_bga) max_x = re36::BgaDriver::get_width() / 8;
+    else if (is_gfx) max_x = 40;
+    
+    if (cursor_x < 0) cursor_x = 0;
+    if (cursor_x >= max_x) cursor_x = max_x - 1;
+    
+    if (is_bga) draw_bga_cursor(cursor_x, cursor_y, true);
+    else if (!is_gfx) update_vga_cursor(cursor_x, cursor_y);
+}
+
 static void update_vga_cursor(int x, int y) {
     uint16_t pos = y * 80 + x;
     re36::outb(0x3D4, 0x0F);
@@ -170,6 +255,9 @@ void putchar(char c) {
         if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
         cursor_x = 0;
         cursor_y++;
+    } else if (c == '\r') {
+        if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
+        cursor_x = 0;
     } else if (c == '\b') {
         if (cursor_x > 0) {
             if (is_bga) draw_bga_cursor(cursor_x, cursor_y, false);
