@@ -20,6 +20,7 @@ public:
     static uint16_t fat_time();
     static uint16_t fat_date();
     static uint32_t uptime_seconds();
+    static uint32_t to_unix_timestamp();
     static void on_irq();
 
 private:

@@ -165,6 +165,27 @@ uint32_t RTC::uptime_seconds() {
     return irq_ticks_ / 2;
 }
 
+uint32_t RTC::to_unix_timestamp() {
+    DateTime dt;
+    read(dt);
+
+    uint32_t days = 0;
+    for (int y = 1970; y < dt.year; y++) {
+        days += 365 + ((y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 1 : 0);
+    }
+    
+    static const uint8_t days_per_month[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    for (int m = 1; m < dt.month; m++) {
+        days += days_per_month[m - 1];
+        if (m == 2 && ((dt.year % 4 == 0 && (dt.year % 100 != 0 || dt.year % 400 == 0)))) {
+            days += 1;
+        }
+    }
+    days += (dt.day - 1);
+    
+    return (days * 86400) + (dt.hours * 3600) + (dt.minutes * 60) + dt.seconds;
+}
+
 uint16_t RTC::fat_time() {
     DateTime dt;
     read(dt);

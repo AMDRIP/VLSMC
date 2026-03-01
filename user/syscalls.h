@@ -40,6 +40,7 @@ typedef uint32_t size_t;
 #define SYS_SET_DRIVER  38
 #define SYS_UNMAP_MMIO  39
 #define SYS_GET_VGA_INFO 40
+#define SYS_UPTIME      41
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -96,6 +97,10 @@ static inline uint32_t sys_getpid(void) {
 
 static inline uint32_t sys_time(void) {
     return syscall0(SYS_TIME);
+}
+
+static inline uint32_t sys_uptime(void) {
+    return syscall0(SYS_UPTIME);
 }
 
 static inline uint8_t sys_inb(uint16_t port) {

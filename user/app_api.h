@@ -41,6 +41,10 @@ public:
         return sys_time();
     }
 
+    static uint32_t uptime() {
+        return sys_uptime();
+    }
+
     static int open(const char* path, int mode) {
         return sys_fopen(path, mode);
     }

@@ -16,6 +16,7 @@
 #include "kernel/kmalloc.h"
 #include "kernel/bga.h"
 #include "kernel/vga.h"
+#include "kernel/rtc.h"
 #include "libc.h"
 
 namespace re36 {
@@ -123,6 +124,11 @@ static uint32_t sys_getpid(SyscallRegs* regs) {
 }
 
 static uint32_t sys_time(SyscallRegs* regs) {
+    (void)regs;
+    return RTC::to_unix_timestamp();
+}
+
+static uint32_t sys_uptime(SyscallRegs* regs) {
     (void)regs;
     return Timer::get_ticks();
 }
@@ -1194,6 +1200,7 @@ static SyscallHandler syscall_table[] = {
     sys_set_driver,  // 38
     sys_unmap_mmio,  // 39
     sys_get_vga_info,// 40
+    sys_uptime,      // 41
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))
