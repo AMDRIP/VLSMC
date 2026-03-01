@@ -95,6 +95,8 @@ private:
     static uint32_t root_dir_lba_;
     static uint32_t data_start_lba_;
     static uint32_t root_dir_sectors_;
+    static uint32_t fat_entries_count_;
+    static uint16_t max_data_cluster_;
     static bool mounted_;
     
     static uint8_t sector_cache_[FAT16_SECTOR_BUF_SIZE];

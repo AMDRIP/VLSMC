@@ -13,6 +13,8 @@ uint32_t Fat16::fat_start_lba_ = 0;
 uint32_t Fat16::root_dir_lba_ = 0;
 uint32_t Fat16::data_start_lba_ = 0;
 uint32_t Fat16::root_dir_sectors_ = 0;
+uint32_t Fat16::fat_entries_count_ = 0;
+uint16_t Fat16::max_data_cluster_ = 0;
 bool Fat16::mounted_ = false;
 uint8_t Fat16::sector_cache_[FAT16_SECTOR_BUF_SIZE] __attribute__((aligned(4096)));
 uint32_t Fat16::cached_sector_ = 0xFFFFFFFF;
@@ -98,14 +100,15 @@ bool Fat16::init() {
     uint32_t fat_sectors = bpb_.fat_size_16;
     uint32_t fat_entries = (fat_sectors * 512) / 2;
     if (fat_entries > FAT16_MAX_FAT_ENTRIES) fat_entries = FAT16_MAX_FAT_ENTRIES;
+    fat_entries_count_ = fat_entries;
 
     uint32_t entry_idx = 0;
-    for (uint32_t s = 0; s < fat_sectors && entry_idx < fat_entries; s++) {
+    for (uint32_t s = 0; s < fat_sectors && entry_idx < fat_entries_count_; s++) {
         if (!Disk::read_sectors(fat_start_lba_ + s, 1, dma_buffer_)) {
             printf("[FAT16] Failed to read FAT sector %d\n", s);
             return false;
         }
-        for (uint32_t i = 0; i < 256 && entry_idx < fat_entries; i++) {
+        for (uint32_t i = 0; i < 256 && entry_idx < fat_entries_count_; i++) {
             fat_table_[entry_idx++] = ((uint16_t*)dma_buffer_)[i];
         }
     }
@@ -113,7 +116,12 @@ bool Fat16::init() {
     uint32_t total_sectors = bpb_.total_sectors_16 ? bpb_.total_sectors_16 : bpb_.total_sectors_32;
     uint32_t data_sectors = total_sectors - data_start_lba_;
     uint32_t total_clusters = data_sectors / bpb_.sectors_per_cluster;
-    (void)total_clusters;
+    if (total_clusters > 0xFFFD) total_clusters = 0xFFFD;
+    if (total_clusters > 0) {
+        max_data_cluster_ = (uint16_t)(total_clusters + 1);
+    } else {
+        max_data_cluster_ = 0;
+    }
 
     mounted_ = true;
 
@@ -439,10 +447,16 @@ int Fat16::find_free_dir_entry(uint32_t dir_cluster, uint32_t* sector_out, int* 
 }
 
 uint16_t Fat16::alloc_cluster() {
-    uint32_t total = (bpb_.fat_size_16 * 512) / 2;
+    if (fat_entries_count_ <= 2 || max_data_cluster_ < 2) return 0;
+
+    uint32_t total = fat_entries_count_;
     if (total > FAT16_MAX_FAT_ENTRIES) total = FAT16_MAX_FAT_ENTRIES;
-    
-    for (uint32_t i = 2; i < total; i++) {
+
+    uint32_t upper = total;
+    uint32_t max_cluster_limit = (uint32_t)max_data_cluster_ + 1;
+    if (upper > max_cluster_limit) upper = max_cluster_limit;
+
+    for (uint32_t i = 2; i < upper; i++) {
         if (fat_table_[i] == 0x0000) {
             fat_table_[i] = 0xFFFF;
             return (uint16_t)i;
@@ -462,12 +476,12 @@ void Fat16::free_chain(uint16_t start_cluster) {
 
 void Fat16::flush_fat() {
     uint32_t fat_sectors = bpb_.fat_size_16;
-    
+
     for (uint32_t s = 0; s < fat_sectors; s++) {
         uint16_t* entries = (uint16_t*)dma_buffer_;
         for (int i = 0; i < 256; i++) {
             uint32_t idx = s * 256 + i;
-            entries[i] = (idx < FAT16_MAX_FAT_ENTRIES) ? fat_table_[idx] : 0;
+            entries[i] = (idx < fat_entries_count_ && idx < FAT16_MAX_FAT_ENTRIES) ? fat_table_[idx] : 0;
         }
         
         for (uint8_t f = 0; f < bpb_.num_fats; f++) {
