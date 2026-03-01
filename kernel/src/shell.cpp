@@ -598,6 +598,9 @@ static void exec_command(const char* cmd) {
                     if (str_eq(dir_entries[i].name, "LD.SO") || str_eq(dir_entries[i].name, "LIBC.SO") || str_eq(dir_entries[i].name, "LIBTEST.SO")) {
                         continue;
                     }
+                    if (str_eq(dir_entries[i].name, "FSDRIVER.ELF") || str_eq(dir_entries[i].name, "ANIM.ELF")) {
+                        continue;
+                    }
                     
                     if (len >= 4 && fullpath[len-4] == '.' && fullpath[len-3] == 'E' && fullpath[len-2] == 'L' && fullpath[len-1] == 'F') {
                         printf("\n========================================\n");

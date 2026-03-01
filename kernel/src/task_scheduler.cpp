@@ -192,15 +192,20 @@ void TaskScheduler::join(int tid) {
     // Блокируем исполнение до тех пор, пока целевой поток не завершится
     while (true) {
         bool finished = false;
+        int exit_state = 0;
         {
             InterruptGuard guard;
             if (threads[tid].state == ThreadState::Unused || 
                 threads[tid].state == ThreadState::Terminated ||
                 threads[tid].state == ThreadState::Zombie) {
                 finished = true;
+                exit_state = (int)threads[tid].state;
             }
         }
-        if (finished) break;
+        if (finished) {
+            printf("[JOIN] Unblocking from %d because state=%d\n", tid, exit_state);
+            break;
+        }
         
         sleep_current(20); // Спим короткий промежуток
     }
