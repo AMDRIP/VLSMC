@@ -14,6 +14,8 @@
 #include "kernel/elf_loader.h"
 #include "kernel/tss.h"
 #include "kernel/kmalloc.h"
+#include "kernel/bga.h"
+#include "kernel/vga.h"
 #include "libc.h"
 
 namespace re36 {
@@ -318,11 +320,15 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
     }
 
     bool allowed = false;
-    for (int i = 0; i < cur.num_mmio_grants; i++) {
-        if (phys >= cur.allowed_mmio[i].phys_start && 
-            (phys + size_pages * 4096 - 1) <= cur.allowed_mmio[i].phys_end) {
-            allowed = true;
-            break;
+    if (cur.is_driver) {
+        allowed = true;
+    } else {
+        for (int i = 0; i < cur.num_mmio_grants; i++) {
+            if (phys >= cur.allowed_mmio[i].phys_start && 
+                (phys + size_pages * 4096 - 1) <= cur.allowed_mmio[i].phys_end) {
+                allowed = true;
+                break;
+            }
         }
     }
 
@@ -1104,6 +1110,46 @@ static uint32_t sys_set_driver(SyscallRegs* regs) {
     return 0;
 }
 
+static uint32_t sys_unmap_mmio(SyscallRegs* regs) {
+    uint32_t virt_addr = regs->ebx;
+    uint32_t size_pages = regs->ecx;
+    Thread& cur = threads[current_tid];
+
+    if (!cur.is_driver) return (uint32_t)-1;
+    if (virt_addr < 0x20000000 || virt_addr >= 0xC0000000) return (uint32_t)-1;
+
+    for (uint32_t i = 0; i < size_pages; i++) {
+        VMM::unmap_page(virt_addr + i * 4096);
+    }
+    
+    // Remove from VMA list
+    VMA** pp = &cur.vma_list;
+    while (*pp) {
+        if ((*pp)->start == virt_addr) {
+            VMA* to_del = *pp;
+            *pp = to_del->next;
+            kfree(to_del);
+            break;
+        }
+        pp = &(*pp)->next;
+    }
+    return 0;
+}
+
+static uint32_t sys_get_vga_info(SyscallRegs* regs) {
+    uint32_t* width_out = (uint32_t*)regs->ebx;
+    uint32_t* height_out = (uint32_t*)regs->ecx;
+    uint32_t* bpp_out = (uint32_t*)regs->edx;
+    uint32_t* phys_addr_out = (uint32_t*)regs->esi;
+
+    if (width_out) *width_out = BgaDriver::is_initialized() ? BgaDriver::get_width() : 320;
+    if (height_out) *height_out = BgaDriver::is_initialized() ? BgaDriver::get_height() : 200;
+    if (bpp_out) *bpp_out = BgaDriver::is_initialized() ? BgaDriver::get_bpp() : 8;
+    if (phys_addr_out) *phys_addr_out = BgaDriver::is_initialized() ? BgaDriver::get_lfb() : 0xA0000;
+
+    return 0;
+}
+
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
 static SyscallHandler syscall_table[] = {
@@ -1146,6 +1192,8 @@ static SyscallHandler syscall_table[] = {
     sys_wait,        // 36
     sys_grant_mmio,  // 37
     sys_set_driver,  // 38
+    sys_unmap_mmio,  // 39
+    sys_get_vga_info,// 40
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

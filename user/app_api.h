@@ -97,6 +97,14 @@ public:
         return sys_map_mmio(virt_addr, phys_addr, size_pages);
     }
 
+    static int unmap_mmio(uint32_t virt_addr, uint32_t size_pages) {
+        return sys_unmap_mmio(virt_addr, size_pages);
+    }
+
+    static int get_vga_info(uint32_t* width, uint32_t* height, uint32_t* bpp, uint32_t* phys_addr) {
+        return sys_get_vga_info(width, height, bpp, phys_addr);
+    }
+
     static int grant_mmio(int tid, uint32_t phys_start, uint32_t phys_end) {
         return sys_grant_mmio(tid, phys_start, phys_end);
     }

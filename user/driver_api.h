@@ -18,6 +18,7 @@ public:
     virtual int init(DriverContext* ctx) = 0;
     virtual int read(DriverContext* ctx, void* buffer, size_t size) = 0;
     virtual int write(DriverContext* ctx, const void* buffer, size_t size) = 0;
+    virtual int seek(DriverContext* ctx, uint32_t offset) = 0;
     virtual int ioctl(DriverContext* ctx, uint32_t cmd, void* arg) = 0;
     virtual void stop(DriverContext* ctx) = 0;
 };

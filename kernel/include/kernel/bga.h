@@ -21,6 +21,7 @@ public:
     static uint16_t get_height() { return height_; }
     static uint16_t get_bpp() { return bpp_; }
     static uint32_t get_pitch() { return pitch_; }
+    static uint32_t get_lfb() { return framebuffer_phys_; }
 
 private:
     static void write_register(uint16_t index, uint16_t val);

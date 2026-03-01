@@ -14,6 +14,7 @@ public:
     int init(DriverContext* ctx) override;
     int read(DriverContext* ctx, void* buffer, size_t size) override;
     int write(DriverContext* ctx, const void* buffer, size_t size) override;
+    int seek(DriverContext* ctx, uint32_t offset) override;
     int ioctl(DriverContext* ctx, uint32_t cmd, void* arg) override;
     void stop(DriverContext* ctx) override;
 

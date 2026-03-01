@@ -127,6 +127,10 @@ int PS2Driver::ioctl(DriverContext* ctx, uint32_t cmd, void* arg) {
     return -1; // Not implemented yet
 }
 
+int PS2Driver::seek(DriverContext* ctx, uint32_t offset) {
+    return -1; // Not seekable
+}
+
 void PS2Driver::stop(DriverContext* ctx) {
     write_command_port(0xAD);
     if (is_mouse_) {

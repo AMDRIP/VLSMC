@@ -38,7 +38,8 @@ typedef uint32_t size_t;
 #define SYS_WAIT        36
 #define SYS_GRANT_MMIO  37
 #define SYS_SET_DRIVER  38
-
+#define SYS_UNMAP_MMIO  39
+#define SYS_GET_VGA_INFO 40
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -60,6 +61,12 @@ static inline uint32_t syscall2(uint32_t num, uint32_t arg1, uint32_t arg2) {
 static inline uint32_t syscall3(uint32_t num, uint32_t arg1, uint32_t arg2, uint32_t arg3) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num), "b"(arg1), "c"(arg2), "d"(arg3));
+    return ret;
+}
+
+static inline uint32_t syscall4(uint32_t num, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4) {
+    uint32_t ret;
+    asm volatile("int $0x80" : "=a"(ret) : "a"(num), "b"(arg1), "c"(arg2), "d"(arg3), "S"(arg4));
     return ret;
 }
 
@@ -173,6 +180,14 @@ static inline int sys_grant_mmio(int target_tid, uint32_t phys_start, uint32_t p
 
 static inline int sys_set_driver(int target_tid) {
     return (int)syscall1(SYS_SET_DRIVER, (uint32_t)target_tid);
+}
+
+static inline int sys_unmap_mmio(uint32_t virt_addr, uint32_t size_pages) {
+    return (int)syscall2(SYS_UNMAP_MMIO, virt_addr, size_pages);
+}
+
+static inline int sys_get_vga_info(uint32_t* width, uint32_t* height, uint32_t* bpp, uint32_t* phys_addr) {
+    return (int)syscall4(SYS_GET_VGA_INFO, (uint32_t)width, (uint32_t)height, (uint32_t)bpp, (uint32_t)phys_addr);
 }
 
 static inline void print(const char* s) {
