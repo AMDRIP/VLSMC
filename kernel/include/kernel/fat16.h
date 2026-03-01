@@ -104,6 +104,8 @@ private:
     static uint8_t* dma_buffer_;
     
     static bool read_cached_sector(uint32_t lba);
+    static bool is_valid_cluster_index(uint16_t cluster);
+    static uint16_t next_cluster(uint16_t cluster);
     static uint32_t cluster_to_lba(uint16_t cluster);
     static bool match_filename(const FAT16_DirEntry* entry, const char* name);
     static uint16_t alloc_cluster();
