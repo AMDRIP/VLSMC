@@ -83,7 +83,7 @@ void enter_usermode() {
 
         "push $0x23\n\t"        // SS  = USER_DS
         "push %0\n\t"           // ESP = user stack top
-        "pushf\n\t"             // EFLAGS
+        "pushfl\n\t"            // EFLAGS
         "pop %%eax\n\t"
         "or $0x200, %%eax\n\t"  // Включить IF (прерывания)
         "push %%eax\n\t"        // EFLAGS с IF=1

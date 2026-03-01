@@ -184,6 +184,10 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_ps2_test.o user_ps2_driver.o user_libc.a -o PS2TEST.ELF
 mcopy -i data.img PS2TEST.ELF ::/tests/PS2TEST.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/uart_driver.cpp -o user_uart_driver.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_uart_driver.o user_libc.a -o UARTDRV.SYS
+mcopy -i data.img UARTDRV.SYS ::/tests/UARTDRV.SYS
+
 # === Dynamic Linker (ld.so) ===
 nasm -f elf32 user/ldso/ldso_entry.asm -o ldso_entry.o
 x86_64-linux-gnu-g++ -m32 -fPIC -ffreestanding -fno-exceptions -fno-rtti -nostdlib -c user/ldso/ldso.cpp -o ldso_main.o

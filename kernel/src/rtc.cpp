@@ -80,7 +80,7 @@ void RTC::on_irq() {
 
 void RTC::read(DateTime& dt) {
     uint32_t flags;
-    asm volatile("pushf; pop %0; cli" : "=r"(flags));
+    asm volatile("pushfl; pop %0; cli" : "=r"(flags));
 
     uint8_t sec, min, hour, day, mon, year, century = 0;
     uint8_t last_sec, last_min, last_hour, last_day, last_mon, last_year, last_century = 0;
@@ -122,7 +122,7 @@ void RTC::read(DateTime& dt) {
     outb(CMOS_ADDR, 0x0D);
     inb(CMOS_DATA);
 
-    asm volatile("push %0; popf" :: "r"(flags));
+    asm volatile("push %0; popfl" :: "r"(flags));
 
     bool is_bcd = !(regB & 0x04);
     bool is_12h = !(regB & 0x02);

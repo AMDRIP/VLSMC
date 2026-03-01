@@ -1108,7 +1108,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     TSS::set_kernel_stack((uint32_t)(cur.stack_base + THREAD_STACK_SIZE));
 
     uint32_t eflags;
-    asm volatile("pushf; pop %0" : "=r"(eflags));
+    asm volatile("pushfl; pop %0" : "=r"(eflags));
     eflags |= 0x200;
 
     asm volatile(

@@ -562,7 +562,7 @@ static void exec_command(const char* cmd) {
                     threads[tid].num_port_grants = 1;
                     threads[tid].allowed_irqs[0] = 1;
                     threads[tid].num_irq_grants = 1;
-                } else if (len >= 11 && str_ieq(&resolved[len-11], "UARTDRV.ELF")) {
+                } else if (len >= 11 && str_ieq(&resolved[len-11], "UARTDRV.SYS")) {
                     threads[tid].is_driver = true;
                     threads[tid].allowed_ports[0].port_start = 0x3F8;
                     threads[tid].allowed_ports[0].port_end = 0x3FF;
@@ -812,7 +812,7 @@ static void exec_command(const char* cmd) {
                         continue;
                     }
                     
-                    if (len >= 4 && str_ieq(&fullpath[len-4], ".ELF")) {
+                    if (len >= 4 && (str_ieq(&fullpath[len-4], ".ELF") || str_ieq(&fullpath[len-4], ".SYS"))) {
                         printf("\n========================================\n");
                         printf("=== Running %s \n", fullpath);
                         printf("========================================\n");
@@ -829,7 +829,7 @@ static void exec_command(const char* cmd) {
                                     threads[tid].num_port_grants = 1;
                                     threads[tid].allowed_irqs[0] = 1;
                                     threads[tid].num_irq_grants = 1;
-                                } else if (str_ieq(dir_entries[i].name, "UARTDRV.ELF")) {
+                                } else if (str_ieq(dir_entries[i].name, "UARTDRV.SYS")) {
                                     threads[tid].is_driver = true;
                                     threads[tid].allowed_ports[0].port_start = 0x3F8;
                                     threads[tid].allowed_ports[0].port_end = 0x3FF;
