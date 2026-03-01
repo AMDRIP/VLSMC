@@ -82,7 +82,7 @@ echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
 
 echo "=== Building Libc ==="
 echo "=== Building Libc ==="
-LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx init"
+LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx init ctype time dirent"
 LIBC_OBJS=""
 LIBC_PIC_OBJS=""
 
@@ -150,6 +150,14 @@ mcopy -i data.img MATHTEST.ELF ::/tests/MATHTEST.ELF
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/tests/filetest.cpp -o user_filetest.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_filetest.o user_libc.a -o FILETST.ELF
 mcopy -i data.img FILETST.ELF ::/tests/FILETST.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/tests/time_ctype_test.cpp -o user_timect_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_timect_test.o user_libc.a -o TIME_CT.ELF
+mcopy -i data.img TIME_CT.ELF ::/tests/TIME_CT.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/tests/dirent_test.cpp -o user_dirent_test.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_dirent_test.o user_libc.a -o DIRENT_T.ELF
+mcopy -i data.img DIRENT_T.ELF ::/tests/DIRENT_T.ELF
 
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -c user/tests/forktest.cpp -o user_forktest.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_forktest.o user_libc.a -o FORKTST.ELF

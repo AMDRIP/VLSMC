@@ -645,6 +645,15 @@ static uint32_t sys_fsize(SyscallRegs* regs) {
 
     return f->vn->size;
 }
+static uint32_t sys_readdir(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    vfs_dir_entry* entries = (vfs_dir_entry*)regs->ecx;
+    int max_entries = (int)regs->edx;
+
+    if (!path || !entries || max_entries <= 0) return (uint32_t)-1;
+    return (uint32_t)vfs_readdir(path, entries, max_entries);
+}
+
 static void fork_child_entry() {
     TSS::set_kernel_stack((uint32_t)(threads[current_tid].stack_base + THREAD_STACK_SIZE));
 
@@ -1201,6 +1210,7 @@ static SyscallHandler syscall_table[] = {
     sys_unmap_mmio,  // 39
     sys_get_vga_info,// 40
     sys_uptime,      // 41
+    sys_readdir,     // 42
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

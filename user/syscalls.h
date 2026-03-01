@@ -6,6 +6,13 @@ typedef unsigned int uint32_t;
 typedef unsigned long long uint64_t;
 typedef uint32_t size_t;
 
+struct vfs_dir_entry {
+    char name[13];
+    uint32_t size;
+    uint8_t type;
+    uint8_t attributes;
+};
+
 #define SYS_EXIT        0
 #define SYS_PRINT       1
 #define SYS_GETCHAR     2
@@ -41,6 +48,7 @@ typedef uint32_t size_t;
 #define SYS_UNMAP_MMIO  39
 #define SYS_GET_VGA_INFO 40
 #define SYS_UPTIME      41
+#define SYS_READDIR     42
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -199,4 +207,8 @@ static inline void print(const char* s) {
     uint32_t len = 0;
     while (s[len]) len++;
     sys_print(s, len);
+}
+
+static inline int sys_readdir(const char* path, struct vfs_dir_entry* entries, int max_entries) {
+    return (int)syscall3(SYS_READDIR, (uint32_t)path, (uint32_t)entries, (uint32_t)max_entries);
 }

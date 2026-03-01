@@ -17,7 +17,7 @@ int main() {
     printf("tolower('B'): %c (expected b)\n", tolower('B'));
     
     printf("\n--- Time Test ---\n");
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
     printf("Unix Time: %d\n", now);
     
     struct tm* t = localtime(&now);

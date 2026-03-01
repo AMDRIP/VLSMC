@@ -137,6 +137,10 @@ public:
         return sys_sbrk(increment);
     }
 
+    static int readdir(const char* path, struct vfs_dir_entry* entries, int max_entries) {
+        return sys_readdir(path, entries, max_entries);
+    }
+
     static void* malloc(size_t size) {
         return ::malloc(size);
     }
