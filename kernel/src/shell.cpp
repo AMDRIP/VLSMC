@@ -12,6 +12,7 @@
 #include "kernel/task_scheduler.h"
 #include "kernel/thread.h"
 #include "kernel/elf_loader.h"
+#include "kernel/spinlock.h"
 #include "kernel/usermode.h"
 #include "kernel/boot_info.h"
 #include "kernel/pci.h"
@@ -61,6 +62,18 @@ static void set_input(const char* str) {
 static bool str_eq(const char* a, const char* b) {
     while (*a && *b) { if (*a++ != *b++) return false; }
     return *a == *b;
+}
+
+static bool str_ieq(const char* a, const char* b) {
+    while (*a && *b) {
+        char ca = *a >= 'a' && *a <= 'z' ? *a - 32 : *a;
+        char cb = *b >= 'a' && *b <= 'z' ? *b - 32 : *b;
+        if (ca != cb) return false;
+        a++; b++;
+    }
+    char ca = *a >= 'a' && *a <= 'z' ? *a - 32 : *a;
+    char cb = *b >= 'a' && *b <= 'z' ? *b - 32 : *b;
+    return ca == cb;
 }
 
 static bool str_starts(const char* str, const char* prefix, int len) {
@@ -535,7 +548,34 @@ static void exec_command(const char* cmd) {
     } else if (str_starts(cmd, "exec ", 5)) {
         char resolved[256];
         resolve_path(str_after(cmd, 5), resolved);
-        elf_exec(resolved);
+        
+        int tid = -1;
+        {
+            InterruptGuard guard;
+            tid = elf_exec(resolved);
+            if (tid >= 0) {
+                int len = 0; while (resolved[len]) len++;
+                if (len >= 11 && str_ieq(&resolved[len-11], "PS2TEST.ELF")) {
+                    threads[tid].is_driver = true;
+                    threads[tid].allowed_ports[0].port_start = 0x60;
+                    threads[tid].allowed_ports[0].port_end = 0x64;
+                    threads[tid].num_port_grants = 1;
+                    threads[tid].allowed_irqs[0] = 1;
+                    threads[tid].num_irq_grants = 1;
+                } else if (len >= 11 && str_ieq(&resolved[len-11], "UARTDRV.ELF")) {
+                    threads[tid].is_driver = true;
+                    threads[tid].allowed_ports[0].port_start = 0x3F8;
+                    threads[tid].allowed_ports[0].port_end = 0x3FF;
+                    threads[tid].num_port_grants = 1;
+                    threads[tid].allowed_irqs[0] = 4;
+                    threads[tid].num_irq_grants = 1;
+                }
+            }
+        }
+        
+        if (tid >= 0) {
+            TaskScheduler::join(tid);
+        }
     } else if (str_starts(cmd, "cat ", 4)) {
         static uint8_t file_buf[4096];
         vnode* vn = nullptr;
@@ -772,11 +812,34 @@ static void exec_command(const char* cmd) {
                         continue;
                     }
                     
-                    if (len >= 4 && fullpath[len-4] == '.' && fullpath[len-3] == 'E' && fullpath[len-2] == 'L' && fullpath[len-1] == 'F') {
+                    if (len >= 4 && str_ieq(&fullpath[len-4], ".ELF")) {
                         printf("\n========================================\n");
                         printf("=== Running %s \n", fullpath);
                         printf("========================================\n");
-                        int tid = elf_exec(fullpath);
+                        
+                        int tid = -1;
+                        {
+                            InterruptGuard guard;
+                            tid = elf_exec(fullpath);
+                            if (tid >= 0) {
+                                if (str_ieq(dir_entries[i].name, "PS2TEST.ELF")) {
+                                    threads[tid].is_driver = true;
+                                    threads[tid].allowed_ports[0].port_start = 0x60;
+                                    threads[tid].allowed_ports[0].port_end = 0x64;
+                                    threads[tid].num_port_grants = 1;
+                                    threads[tid].allowed_irqs[0] = 1;
+                                    threads[tid].num_irq_grants = 1;
+                                } else if (str_ieq(dir_entries[i].name, "UARTDRV.ELF")) {
+                                    threads[tid].is_driver = true;
+                                    threads[tid].allowed_ports[0].port_start = 0x3F8;
+                                    threads[tid].allowed_ports[0].port_end = 0x3FF;
+                                    threads[tid].num_port_grants = 1;
+                                    threads[tid].allowed_irqs[0] = 4;
+                                    threads[tid].num_irq_grants = 1;
+                                }
+                            }
+                        }
+                        
                         if (tid >= 0) {
                             TaskScheduler::join(tid);
                         }

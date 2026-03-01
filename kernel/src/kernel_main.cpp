@@ -62,6 +62,13 @@ extern "C" void kernel_main() {
     uint32_t pmm_bitmap_addr = ((uint32_t)&_kernel_end + 0xFFF) & ~0xFFF;
     re36::PhysicalMemoryManager::init(pmm_bitmap_addr, 32 * 1024 * 1024);
     re36::PhysicalMemoryManager::set_region_free(0x100000, 31 * 1024 * 1024);
+
+    uint32_t max_frames = (32 * 1024 * 1024) / 4096;
+    uint32_t bitmap_bytes = (max_frames + 31) / 32 * 4;
+    uint32_t refcounts_bytes = max_frames;
+    uint32_t pmm_end_addr = (pmm_bitmap_addr + bitmap_bytes + refcounts_bytes + 0xFFF) & ~0xFFF;
+
+    re36::PhysicalMemoryManager::set_region_used(0x10000, pmm_end_addr - 0x10000);
     dbg[3] = 0x4F34; // '4' — kmalloc
 
     re36::EventSystem::init();

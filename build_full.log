@@ -1,0 +1,30 @@
+=== VLSMC Bare-Metal Build Script ===
+[1/5] Assembling bootloader (Stage 1 + Stage 2)...
+[2/5] Assembling kernel entry and interrupts...
+[3/5] Compiling C++ kernel sources...
+kernel/src/libc.cpp: In function ‘void term_scroll(int)’:
+kernel/src/libc.cpp:150:13: warning: unused variable ‘lines_to_clear’ [-Wunused-variable]
+  150 |         int lines_to_clear = (lines > max_y) ? max_y : lines;
+      |             ^~~~~~~~~~~~~~
+kernel/src/vmm.cpp: In static member function ‘static bool re36::VMM::handle_page_fault(uint32_t, uint32_t)’:
+kernel/src/vmm.cpp:213:14: warning: unused variable ‘pd_index’ [-Wunused-variable]
+  213 |     uint32_t pd_index = fault_addr >> 22;
+      |              ^~~~~~~~
+kernel/src/vmm.cpp:214:14: warning: unused variable ‘pt_index’ [-Wunused-variable]
+  214 |     uint32_t pt_index = (fault_addr >> 12) & 0x3FF;
+      |              ^~~~~~~~
+kernel/src/fat16.cpp: In static member function ‘static int re36::Fat16::fat16_create(re36::vnode*, const char*, int, re36::vnode**)’:
+kernel/src/fat16.cpp:787:59: warning: unused parameter ‘mode’ [-Wunused-parameter]
+  787 | int Fat16::fat16_create(vnode* dir, const char* name, int mode, vnode** out) {
+      |                                                       ~~~~^~~~
+kernel/src/shell.cpp: In function ‘void re36::exec_command(const char*)’:
+kernel/src/shell.cpp:553:13: error: ‘InterruptGuard’ was not declared in this scope
+  553 |             InterruptGuard guard;
+      |             ^~~~~~~~~~~~~~
+kernel/src/shell.cpp:814:29: error: ‘InterruptGuard’ was not declared in this scope
+  814 |                             InterruptGuard guard;
+      |                             ^~~~~~~~~~~~~~
+kernel/src/shell.cpp: At global scope:
+kernel/src/shell.cpp:31:12: warning: ‘re36::cursor_x’ defined but not used [-Wunused-variable]
+   31 | static int cursor_x = 0;
+      |            ^~~~~~~~

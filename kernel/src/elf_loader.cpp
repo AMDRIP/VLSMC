@@ -454,15 +454,14 @@ static void elf_thread_entry() {
     );
 }
 
-int elf_exec(const char* filename) {
+int elf_exec(const char* filename, bool is_driver) {
     int tid = thread_create(filename, elf_thread_entry, 5);
     if (tid < 0) {
         printf("[ELF] Failed to create thread\n");
         return -1;
     }
     
-    // For now, give driver privileges to all ELFs loaded via elf_exec so tests work
-    threads[tid].is_driver = true;
+    threads[tid].is_driver = is_driver;
     
     printf("[ELF] Spawned '%s' as TID %d\n", filename, tid);
     return tid;

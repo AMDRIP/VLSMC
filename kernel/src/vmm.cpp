@@ -219,7 +219,10 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
 
     if (is_present && is_write) {
         if (cow_handle_fault(fault_addr, error_code)) return true;
-    } else if (!is_present && is_user) {
+    } else if (!is_present) {
+        if (!is_user && (fault_addr < 0x20000000 || fault_addr >= 0xC0000000)) {
+            return false; // True kernel page fault
+        }
         if (current_tid >= 0 && current_tid < MAX_THREADS) {
             Thread& cur = threads[current_tid];
 
@@ -233,8 +236,9 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             if (fault_addr >= start && fault_addr < end) {
                 void* new_frame = PhysicalMemoryManager::alloc_frame();
                 if (!new_frame) {
-                    printf("\n!!! PAGE FAULT: Out of memory for heap at 0x%x !!!\n", fault_addr);
-                    while(1) asm volatile("cli; hlt");
+                    printf("\n!!! PAGE FAULT: Out of memory for heap at 0x%x. Terminating TID %d !!!\n", fault_addr, current_tid);
+                    TaskScheduler::terminate_current();
+                    return true;
                 }
 
                 uint32_t page_addr = fault_addr & 0xFFFFF000;
@@ -264,8 +268,9 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
 
                     void* new_frame = PhysicalMemoryManager::alloc_frame();
                     if (!new_frame) {
-                        printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x !!!\n", fault_addr);
-                        while(1) asm volatile("cli; hlt");
+                        printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x. Terminating TID %d !!!\n", fault_addr, current_tid);
+                        TaskScheduler::terminate_current();
+                        return true;
                     }
 
                     uint8_t* frame_ptr = (uint8_t*)new_frame;

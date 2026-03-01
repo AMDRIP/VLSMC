@@ -1,4 +1,5 @@
 #include "kernel/pmm.h"
+#include "kernel/spinlock.h"
 
 namespace re36 {
 
@@ -38,22 +39,28 @@ void PhysicalMemoryManager::init(uint32_t bitmap_addr, uint32_t memory_size) {
 }
 
 void PhysicalMemoryManager::set_region_free(uint32_t base, uint32_t size) {
+    InterruptGuard guard;
     uint32_t align = base / PMM_FRAME_SIZE;
     uint32_t frames = size / PMM_FRAME_SIZE;
 
     for (; frames > 0; frames--, align++) {
-        clear_frame(align);
-        used_frames_--;
+        if (test_frame(align)) {
+            clear_frame(align);
+            used_frames_--;
+        }
     }
 }
 
 void PhysicalMemoryManager::set_region_used(uint32_t base, uint32_t size) {
+    InterruptGuard guard;
     uint32_t align = base / PMM_FRAME_SIZE;
     uint32_t frames = size / PMM_FRAME_SIZE;
 
     for (; frames > 0; frames--, align++) {
-        set_frame(align);
-        used_frames_++;
+        if (!test_frame(align)) {
+            set_frame(align);
+            used_frames_++;
+        }
     }
 }
 
@@ -73,6 +80,7 @@ uint32_t PhysicalMemoryManager::get_first_free_frame() {
 }
 
 void* PhysicalMemoryManager::alloc_frame() {
+    InterruptGuard guard;
     if (get_free_memory() == 0) return nullptr;
 
     uint32_t frame = get_first_free_frame();
@@ -105,6 +113,7 @@ uint32_t PhysicalMemoryManager::get_free_blocks(uint32_t count) {
 }
 
 void* PhysicalMemoryManager::alloc_blocks(uint32_t count) {
+    InterruptGuard guard;
     if (get_free_memory() < count * PMM_FRAME_SIZE) return nullptr;
 
     uint32_t start_frame = get_free_blocks(count);
@@ -119,6 +128,7 @@ void* PhysicalMemoryManager::alloc_blocks(uint32_t count) {
 }
 
 void PhysicalMemoryManager::free_frame(void* frame_addr) {
+    InterruptGuard guard;
     uint32_t addr = (uint32_t)frame_addr;
     uint32_t frame = addr / PMM_FRAME_SIZE;
     if (frame >= max_frames_) return;
@@ -129,11 +139,14 @@ void PhysicalMemoryManager::free_frame(void* frame_addr) {
     }
 
     refcounts_[frame] = 0;
-    clear_frame(frame);
-    used_frames_--;
+    if (test_frame(frame)) {
+        clear_frame(frame);
+        used_frames_--;
+    }
 }
 
 void PhysicalMemoryManager::inc_ref(uint32_t phys_addr) {
+    InterruptGuard guard;
     uint32_t frame = phys_addr / PMM_FRAME_SIZE;
     if (frame < max_frames_ && refcounts_[frame] < 255) {
         refcounts_[frame]++;
@@ -141,6 +154,7 @@ void PhysicalMemoryManager::inc_ref(uint32_t phys_addr) {
 }
 
 void PhysicalMemoryManager::dec_ref(uint32_t phys_addr) {
+    InterruptGuard guard;
     uint32_t frame = phys_addr / PMM_FRAME_SIZE;
     if (frame >= max_frames_) return;
     free_frame((void*)phys_addr);

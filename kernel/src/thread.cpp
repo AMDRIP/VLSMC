@@ -38,6 +38,8 @@ void thread_init() {
         for (int f = 0; f < MAX_OPEN_FILES; f++) threads[i].fd_table[f] = nullptr;
         threads[i].is_driver = false;
         threads[i].num_mmio_grants = 0;
+        threads[i].num_port_grants = 0;
+        threads[i].num_irq_grants = 0;
     }
 
     threads[0].state = ThreadState::Running;
@@ -96,6 +98,8 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.exit_code = 0;
     t.is_driver = false;
     t.num_mmio_grants = 0;
+    t.num_port_grants = 0;
+    t.num_irq_grants = 0;
     for (int f = 0; f < MAX_OPEN_FILES; f++) t.fd_table[f] = nullptr;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);

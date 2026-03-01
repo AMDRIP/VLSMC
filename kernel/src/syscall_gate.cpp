@@ -284,29 +284,39 @@ static uint32_t sys_munmap(SyscallRegs* regs) {
     return 0;
 }
 
+static bool check_port_access(Thread& cur, uint16_t port) {
+    if (cur.tid == 0) return true;
+    for (int i = 0; i < cur.num_port_grants; i++) {
+        if (port >= cur.allowed_ports[i].port_start && port <= cur.allowed_ports[i].port_end) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static uint32_t sys_inb(SyscallRegs* regs) {
-    if (!threads[current_tid].is_driver) return (uint32_t)-1;
     uint16_t port = (uint16_t)regs->ebx;
+    if (!check_port_access(threads[current_tid], port)) return (uint32_t)-1;
     return inb(port);
 }
 
 static uint32_t sys_outb(SyscallRegs* regs) {
-    if (!threads[current_tid].is_driver) return 0;
     uint16_t port = (uint16_t)regs->ebx;
+    if (!check_port_access(threads[current_tid], port)) return 0;
     uint8_t data = (uint8_t)regs->ecx;
     outb(port, data);
     return 0;
 }
 
 static uint32_t sys_inw(SyscallRegs* regs) {
-    if (!threads[current_tid].is_driver) return (uint32_t)-1;
     uint16_t port = (uint16_t)regs->ebx;
+    if (!check_port_access(threads[current_tid], port)) return (uint32_t)-1;
     return inw(port);
 }
 
 static uint32_t sys_outw(SyscallRegs* regs) {
-    if (!threads[current_tid].is_driver) return 0;
     uint16_t port = (uint16_t)regs->ebx;
+    if (!check_port_access(threads[current_tid], port)) return 0;
     uint16_t data = (uint16_t)regs->ecx;
     outw(port, data);
     return 0;
@@ -326,7 +336,7 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
     }
 
     bool allowed = false;
-    if (cur.is_driver) {
+    if (cur.tid == 0) {
         allowed = true;
     } else {
         for (int i = 0; i < cur.num_mmio_grants; i++) {
@@ -361,6 +371,24 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
 
 static uint32_t sys_wait_irq(SyscallRegs* regs) {
     uint8_t irq = (uint8_t)regs->ebx;
+    Thread& cur = threads[current_tid];
+    bool allowed = false;
+    
+    if (cur.tid == 0) {
+        allowed = true;
+    } else {
+        for (int i = 0; i < cur.num_irq_grants; i++) {
+            if (cur.allowed_irqs[i] == irq) {
+                allowed = true;
+                break;
+            }
+        }
+    }
+    
+    if (!allowed) {
+        printf("[SYSCALL] wait_irq failed: IRQ %d not allowed for TID %d\n", irq, current_tid);
+        return (uint32_t)-1;
+    }
     EventSystem::wait((int)irq);
     return 0;
 }
@@ -763,8 +791,16 @@ static uint32_t sys_fork(SyscallRegs* regs) {
     child.heap_start = parent.heap_start;
     child.heap_end = parent.heap_end;
     child.heap_lock = false;
-    child.is_driver = false;
-    child.num_mmio_grants = 0;
+    child.is_driver = parent.is_driver;
+    
+    child.num_mmio_grants = parent.num_mmio_grants;
+    for (int k = 0; k < parent.num_mmio_grants; k++) child.allowed_mmio[k] = parent.allowed_mmio[k];
+    
+    child.num_port_grants = parent.num_port_grants;
+    for (int k = 0; k < parent.num_port_grants; k++) child.allowed_ports[k] = parent.allowed_ports[k];
+    
+    child.num_irq_grants = parent.num_irq_grants;
+    for (int k = 0; k < parent.num_irq_grants; k++) child.allowed_irqs[k] = parent.allowed_irqs[k];
 
     child.vma_list = nullptr;
     VMA* src_vma = parent.vma_list;
@@ -1144,6 +1180,46 @@ static uint32_t sys_grant_mmio(SyscallRegs* regs) {
     return 0;
 }
 
+static uint32_t sys_grant_port(SyscallRegs* regs) {
+    int target_tid = (int)regs->ebx;
+    uint16_t port_start = (uint16_t)regs->ecx;
+    uint16_t port_end = (uint16_t)regs->edx;
+
+    Thread& cur = threads[current_tid];
+    if (!cur.is_driver && cur.tid != 0) return (uint32_t)-1;
+
+    if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
+    Thread& target = threads[target_tid];
+    if (target.state == ThreadState::Unused) return (uint32_t)-1;
+
+    if (target.num_port_grants >= 16) return (uint32_t)-1;
+
+    target.allowed_ports[target.num_port_grants].port_start = port_start;
+    target.allowed_ports[target.num_port_grants].port_end = port_end;
+    target.num_port_grants++;
+
+    return 0;
+}
+
+static uint32_t sys_grant_irq(SyscallRegs* regs) {
+    int target_tid = (int)regs->ebx;
+    uint8_t irq = (uint8_t)regs->ecx;
+
+    Thread& cur = threads[current_tid];
+    if (!cur.is_driver && cur.tid != 0) return (uint32_t)-1;
+
+    if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
+    Thread& target = threads[target_tid];
+    if (target.state == ThreadState::Unused) return (uint32_t)-1;
+
+    if (target.num_irq_grants >= 4) return (uint32_t)-1;
+
+    target.allowed_irqs[target.num_irq_grants] = irq;
+    target.num_irq_grants++;
+
+    return 0;
+}
+
 static uint32_t sys_set_driver(SyscallRegs* regs) {
     int target_tid = (int)regs->ebx;
 
@@ -1193,7 +1269,23 @@ static uint32_t sys_get_vga_info(SyscallRegs* regs) {
     if (width_out) *width_out = BgaDriver::is_initialized() ? BgaDriver::get_width() : 320;
     if (height_out) *height_out = BgaDriver::is_initialized() ? BgaDriver::get_height() : 200;
     if (bpp_out) *bpp_out = BgaDriver::is_initialized() ? BgaDriver::get_bpp() : 8;
-    if (phys_addr_out) *phys_addr_out = BgaDriver::is_initialized() ? BgaDriver::get_lfb() : 0xA0000;
+    if (phys_addr_out) {
+        uint32_t lfb = BgaDriver::is_initialized() ? BgaDriver::get_lfb() : 0xA0000;
+        *phys_addr_out = lfb;
+        
+        Thread& cur = threads[current_tid];
+        if (cur.num_mmio_grants < 8) {
+            bool already = false;
+            for (int i=0; i<cur.num_mmio_grants; i++) {
+                if (cur.allowed_mmio[i].phys_start == lfb) already = true;
+            }
+            if (!already) {
+                cur.allowed_mmio[cur.num_mmio_grants].phys_start = lfb;
+                cur.allowed_mmio[cur.num_mmio_grants].phys_end = lfb + 4*1024*1024;
+                cur.num_mmio_grants++;
+            }
+        }
+    }
 
     return 0;
 }
@@ -1245,6 +1337,8 @@ static SyscallHandler syscall_table[] = {
     sys_uptime,      // 41
     sys_readdir,     // 42
     sys_fseek,       // 43
+    sys_grant_port,  // 44
+    sys_grant_irq,   // 45
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

@@ -74,6 +74,11 @@ struct MmioGrant {
     uint32_t phys_end;
 };
 
+struct PortGrant {
+    uint16_t port_start;
+    uint16_t port_end;
+};
+
 struct Thread {
     uint32_t tid;
     char name[32];
@@ -81,6 +86,12 @@ struct Thread {
     bool is_driver;
     int num_mmio_grants;
     MmioGrant allowed_mmio[8];
+
+    int num_port_grants;
+    PortGrant allowed_ports[16];
+
+    int num_irq_grants;
+    uint8_t allowed_irqs[4];
     
     ThreadState state;
     uint8_t priority;       // 0 = наивысший, 255 = идле
