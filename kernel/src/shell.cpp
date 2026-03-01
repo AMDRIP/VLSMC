@@ -681,9 +681,6 @@ void shell_main() {
     input_len = 0;
     input_buf[0] = '\0';
     
-    printf("\n[AUTO] Running ALL tests to trigger crash...\n");
-    exec_command("runall /tests");
-
     while (true) {
         char c = getchar();
 
