@@ -114,6 +114,17 @@ bool Fat16::init() {
     }
 
     uint32_t total_sectors = bpb_.total_sectors_16 ? bpb_.total_sectors_16 : bpb_.total_sectors_32;
+    if (bpb_.sectors_per_cluster == 0) {
+        printf("[FAT16] Invalid geometry: sectors/cluster is zero\n");
+        return false;
+    }
+    if (total_sectors <= data_start_lba_) {
+        printf("[FAT16] Invalid geometry: data area starts beyond total sectors (%d <= %d)\n",
+            total_sectors,
+            data_start_lba_);
+        return false;
+    }
+
     uint32_t data_sectors = total_sectors - data_start_lba_;
     uint32_t total_clusters = data_sectors / bpb_.sectors_per_cluster;
     if (total_clusters > 0xFFFD) total_clusters = 0xFFFD;
