@@ -179,6 +179,14 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_anim.o user_libc.a -o ANIM.ELF
 mcopy -i data.img ANIM.ELF ::/tests/ANIM.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/tests/tetris.cpp -o user_tetris.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_tetris.o user_libc.a -o TETRIS.ELF
+mcopy -i data.img TETRIS.ELF ::/tests/TETRIS.ELF
+
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/tests/gfxedit.cpp -o user_gfxedit.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_gfxedit.o user_libc.a -o GFXEDIT.ELF
+mcopy -i data.img GFXEDIT.ELF ::/tests/GFXEDIT.ELF
+
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/ps2_driver.cpp -o user_ps2_driver.o
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser -Iuser/libc/include -c user/tests/ps2_test.cpp -o user_ps2_test.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_ps2_test.o user_ps2_driver.o user_libc.a -o PS2TEST.ELF

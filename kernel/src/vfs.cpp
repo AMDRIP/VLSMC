@@ -103,6 +103,47 @@ static int extract_path_component(const char* path, int start_idx, char* out_buf
     return i - start_idx;
 }
 
+static bool split_parent_and_name(const char* path, char* dir_out, int dir_max, char* name_out, int name_max) {
+    if (!path || !dir_out || !name_out || dir_max < 2 || name_max < 2) return false;
+
+    int len = 0;
+    while (path[len]) len++;
+
+    // Trim trailing slashes but preserve root ("/").
+    while (len > 1 && path[len - 1] == '/') len--;
+
+    if (len <= 0) return false;
+    if (len == 1 && path[0] == '/') return false; // root has no name component
+
+    int last_slash = -1;
+    for (int i = len - 1; i >= 0; i--) {
+        if (path[i] == '/') {
+            last_slash = i;
+            break;
+        }
+    }
+
+    if (last_slash <= 0) {
+        dir_out[0] = '/';
+        dir_out[1] = '\0';
+    } else {
+        int di = 0;
+        while (di < last_slash && di < dir_max - 1) {
+            dir_out[di] = path[di];
+            di++;
+        }
+        dir_out[di] = '\0';
+    }
+
+    int ni = 0;
+    for (int i = last_slash + 1; i < len && ni < name_max - 1; i++) {
+        name_out[ni++] = path[i];
+    }
+    name_out[ni] = '\0';
+
+    return name_out[0] != '\0';
+}
+
 // Parses paths like /A/B/C and resolves them recursively.
 int vfs_resolve_path(const char* path, vnode** out) {
     if (!path || !out) return -1;
@@ -158,15 +199,23 @@ int vfs_open(const char* path, int flags, int mode) {
     // Если файла нет и есть флаг O_CREAT, надо попытаться создать файл
     if (resolve_res != 0) {
         if (flags & O_CREAT) {
-            // Берем корневой узел
-            if (num_mount_points == 0) return -1;
-            vnode* root = mount_points[0]->root_vnode;
-            if (root && root->ops && root->ops->create) {
-                int i = 0;
-                if (path[0] == '/') i++;
-                int cr = root->ops->create(root, path + i, mode, &vn);
+            char parent_path[256];
+            char filename[64];
+            if (!split_parent_and_name(path, parent_path, sizeof(parent_path), filename, sizeof(filename))) {
+                return -1;
+            }
+
+            vnode* parent = nullptr;
+            if (vfs_resolve_path(parent_path, &parent) != 0 || !parent) {
+                return -1;
+            }
+
+            if (parent->ops && parent->ops->create) {
+                int cr = parent->ops->create(parent, filename, mode, &vn);
+                vnode_release(parent);
                 if (cr != 0) return -1;
             } else {
+                vnode_release(parent);
                 return -1;
             }
         } else {
@@ -178,7 +227,10 @@ int vfs_open(const char* path, int flags, int mode) {
 
     if (vn->ops && vn->ops->open) {
         int op_res = vn->ops->open(vn);
-        if (op_res != 0) return -1;
+        if (op_res != 0) {
+            vnode_release(vn);
+            return -1;
+        }
     }
 
     // Вместо возвращения FD тут, мы должны вернуть указатель на абстрактную структуру file*, 
@@ -226,33 +278,8 @@ int vfs_stat(const char* path, vfs_stat_t* out) {
     // Resolve parent directory and filename
     char dir_path[256];
     char filename[64];
-    int len = 0;
-    while (path[len]) len++;
-    
-    int last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/') {
-            last_slash = i;
-            break;
-        }
-    }
-
-    if (last_slash == -1) {
-        dir_path[0] = '/'; dir_path[1] = '\0';
-        int i;
-        for (i = 0; path[i] && i < 63; i++) filename[i] = path[i];
-        filename[i] = '\0';
-    } else {
-        if (last_slash == 0) {
-            dir_path[0] = '/'; dir_path[1] = '\0';
-        } else {
-            int i;
-            for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
-            dir_path[i] = '\0';
-        }
-        int o = 0;
-        for (int i = last_slash + 1; path[i] && o < 63; i++) filename[o++] = path[i];
-        filename[o] = '\0';
+    if (!split_parent_and_name(path, dir_path, sizeof(dir_path), filename, sizeof(filename))) {
+        return -1;
     }
 
     vnode* parent = nullptr;
@@ -271,39 +298,11 @@ int vfs_stat(const char* path, vfs_stat_t* out) {
 int vfs_unlink(const char* path) {
     if (!path) return -1;
 
-    // Resolve parent directory and filename
     char dir_path[256];
     char filename[64];
-    int len = 0;
-    while (path[len]) len++;
-    
-    int last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/') {
-            last_slash = i;
-            break;
-        }
+    if (!split_parent_and_name(path, dir_path, sizeof(dir_path), filename, sizeof(filename))) {
+        return -1;
     }
-
-    if (last_slash == 0 && path[1] == '\0') {
-        return -1; // Cannot unlink root
-    }
-
-    if (last_slash == -1) {
-        dir_path[0] = '/'; dir_path[1] = '\0';
-        int i;
-        for (i = 0; path[i] && i < 63; i++) filename[i] = path[i];
-        filename[i] = '\0';
-    } else if (last_slash == 0) {
-        dir_path[0] = '/'; dir_path[1] = '\0';
-    } else {
-        int i;
-        for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
-        dir_path[i] = '\0';
-    }
-    int o = 0;
-    for (int i = last_slash + 1; path[i] && o < 63; i++) filename[o++] = path[i];
-    filename[o] = '\0';
 
     vnode* parent = nullptr;
     if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) return -1;
@@ -322,38 +321,10 @@ int vfs_write_file(const char* path, const uint8_t* data, uint32_t size) {
     if (!path) return -1;
     if (num_mount_points == 0) return -1;
 
-    // Extract directory path and filename
     char dir_path[256];
     char filename[64];
-    int len = 0;
-    while (path[len]) len++;
-    
-    int last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/') {
-            last_slash = i;
-            break;
-        }
-    }
-
-    if (last_slash == -1) {
-        dir_path[0] = '/'; dir_path[1] = '\0';
-        int i;
-        for (i = 0; path[i] && i < 63; i++) filename[i] = path[i];
-        filename[i] = '\0';
-    } else {
-        if (last_slash == 0) {
-            dir_path[0] = '/'; dir_path[1] = '\0';
-        } else {
-            int i;
-            for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
-            dir_path[i] = '\0';
-        }
-        int o = 0;
-        for (int i = last_slash + 1; path[i] && o < 63; i++) {
-            filename[o++] = path[i];
-        }
-        filename[o] = '\0';
+    if (!split_parent_and_name(path, dir_path, sizeof(dir_path), filename, sizeof(filename))) {
+        return -1;
     }
 
     vnode* parent = nullptr;
@@ -394,39 +365,11 @@ int vfs_mkdir(const char* path, int mode) {
     if (!path) return -1;
     if (num_mount_points == 0) return -1;
 
-    // Extract directory path and new dir name
     char dir_path[256];
     char dirname[64];
-    int len = 0;
-    while (path[len]) len++;
-    
-    int last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/') {
-            last_slash = i;
-            break;
-        }
+    if (!split_parent_and_name(path, dir_path, sizeof(dir_path), dirname, sizeof(dirname))) {
+        return -1;
     }
-
-    if (last_slash == 0 && path[1] == '\0') {
-        return -1; // Cannot mkdir root
-    }
-
-    if (last_slash == -1) {
-        dir_path[0] = '/'; dir_path[1] = '\0';
-        int i;
-        for (i = 0; path[i] && i < 63; i++) dirname[i] = path[i];
-        dirname[i] = '\0';
-    } else if (last_slash == 0) {
-        dir_path[0] = '/'; dir_path[1] = '\0';
-    } else {
-        int i;
-        for (i = 0; i < last_slash && i < 255; i++) dir_path[i] = path[i];
-        dir_path[i] = '\0';
-    }
-    int o = 0;
-    for (int i = last_slash + 1; path[i] && o < 63; i++) dirname[o++] = path[i];
-    dirname[o] = '\0';
 
     vnode* parent = nullptr;
     if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) {
@@ -443,46 +386,17 @@ int vfs_mkdir(const char* path, int mode) {
     return rc;
 }
 
-static void split_parent_and_name(const char* path, char* dir_out, int dir_max, char* name_out, int name_max) {
-    int len = 0;
-    while (path[len]) len++;
-    
-    int last_slash = -1;
-    for (int i = len - 1; i >= 0; i--) {
-        if (path[i] == '/') { last_slash = i; break; }
-    }
-
-    if (last_slash == -1) {
-        dir_out[0] = '/'; dir_out[1] = '\0';
-        int i = 0;
-        while (path[i] && i < name_max - 1) { name_out[i] = path[i]; i++; }
-        name_out[i] = '\0';
-    } else if (last_slash == 0) {
-        dir_out[0] = '/'; dir_out[1] = '\0';
-        int o = 0;
-        for (int i = 1; path[i] && o < name_max - 1; i++) name_out[o++] = path[i];
-        name_out[o] = '\0';
-    } else {
-        int i = 0;
-        while (i < last_slash && i < dir_max - 1) { dir_out[i] = path[i]; i++; }
-        dir_out[i] = '\0';
-        int o = 0;
-        for (int j = last_slash + 1; path[j] && o < name_max - 1; j++) name_out[o++] = path[j];
-        name_out[o] = '\0';
-    }
-}
-
 int vfs_rename(const char* oldpath, const char* newpath) {
     if (!oldpath || !newpath) return -1;
     if (num_mount_points == 0) return -1;
 
     char old_dir_path[256];
     char old_filename[64];
-    split_parent_and_name(oldpath, old_dir_path, 256, old_filename, 64);
+    if (!split_parent_and_name(oldpath, old_dir_path, 256, old_filename, 64)) return -1;
 
     char new_dir_path[256];
     char new_filename[64];
-    split_parent_and_name(newpath, new_dir_path, 256, new_filename, 64);
+    if (!split_parent_and_name(newpath, new_dir_path, 256, new_filename, 64)) return -1;
 
     if (old_filename[0] == '\0' || new_filename[0] == '\0') return -1;
 
