@@ -111,6 +111,10 @@ x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nos
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_fs_driver.o user_libc.a -o FSDRIVER.ELF
 mcopy -i data.img FSDRIVER.ELF ::/tests/FSDRIVER.ELF
 
+x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -nostdinc -Iuser/libc/include -Iuser -c apps/gfxedit.cpp -o user_gfxedit.o
+x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_gfxedit.o user_libc.a -o GFXEDIT.ELF
+mcopy -i data.img GFXEDIT.ELF ::/tests/GFXEDIT.ELF
+
 x86_64-linux-gnu-g++ -m32 -ffreestanding -fno-pie -fno-exceptions -fno-rtti -nostdlib -Iuser -c user/tests/cat_test.cpp -o user_cat_test.o
 x86_64-linux-gnu-ld -m elf_i386 -T user/user.ld user_crt0.o user_cat_test.o user_libc.a -o CAT_TEST.ELF
 mcopy -i data.img CAT_TEST.ELF ::/tests/CAT_TEST.ELF

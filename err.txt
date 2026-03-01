@@ -1,0 +1,6 @@
+x86_64-linux-gnu-ld: user_libc.a(user_libc_malloc.o): in function `operator delete(void*)':
+malloc.cpp:(.text+0x555): multiple definition of `operator delete(void*)'; user_gfxedit.o:gfxedit.cpp:(.text+0x58): first defined here
+x86_64-linux-gnu-ld: user_libc.a(user_libc_malloc.o): in function `operator delete(void*, unsigned int)':
+malloc.cpp:(.text+0x583): multiple definition of `operator delete(void*, unsigned int)'; user_gfxedit.o:gfxedit.cpp:(.text+0x52): first defined here
+x86_64-linux-gnu-ld: warning: user_crt0.o: missing .note.GNU-stack section implies executable stack
+x86_64-linux-gnu-ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker

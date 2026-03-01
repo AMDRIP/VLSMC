@@ -117,8 +117,11 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
         if (scancode & 0x80) return;
 
         char special = 0;
-        if (scancode == 0x48) special = (char)0x80;
-        if (scancode == 0x50) special = (char)0x81;
+        if (scancode == 0x48) special = (char)0x80; // Up
+        if (scancode == 0x50) special = (char)0x81; // Down
+        if (scancode == 0x4B) special = (char)0x82; // Left
+        if (scancode == 0x4D) special = (char)0x83; // Right
+        if (scancode == 0x53) special = (char)0x84; // Delete
 
         if (special) {
             int next_head = (buffer_head_ + 1) % 256;
