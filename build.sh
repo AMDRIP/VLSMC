@@ -82,7 +82,7 @@ echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
 
 echo "=== Building Libc ==="
 echo "=== Building Libc ==="
-LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx init ctype time dirent"
+LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx init ctype time dirent unistd strings inttypes signal"
 LIBC_OBJS=""
 LIBC_PIC_OBJS=""
 
@@ -92,6 +92,11 @@ for src in $LIBC_SRCS; do
     LIBC_OBJS="$LIBC_OBJS user_libc_${src}.o"
     LIBC_PIC_OBJS="$LIBC_PIC_OBJS user_libc_${src}_pic.o"
 done
+
+nasm -f elf32 user/libc/src/setjmp.asm -o user_libc_setjmp.o
+nasm -f elf32 user/libc/src/setjmp.asm -o user_libc_setjmp_pic.o
+LIBC_OBJS="$LIBC_OBJS user_libc_setjmp.o"
+LIBC_PIC_OBJS="$LIBC_PIC_OBJS user_libc_setjmp_pic.o"
 
 x86_64-linux-gnu-ar rcs user_libc.a $LIBC_OBJS
 x86_64-linux-gnu-ld -m elf_i386 -shared -T user/libc/libc.ld $LIBC_PIC_OBJS -o LIBC.SO

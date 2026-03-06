@@ -124,20 +124,12 @@ void srand(unsigned int seed) {
     next_rand = seed;
 }
 
-int fork(void) {
-    return (int)syscall(SYS_FORK);
+// removed duplicate POSIX calls
+
+long long strtoll(const char* nptr, char** endptr, int base) {
+    if (endptr) *endptr = (char*)nptr; return 0; // Stub
 }
 
-int execve(const char* path, char* const argv[], char* const envp[]) {
-    return (int)syscall(SYS_EXEC, (long)path, (long)argv, (long)envp);
-}
-
-int exec(const char* path) {
-    char* argv[] = { (char*)path, nullptr };
-    char* envp[] = { nullptr };
-    return execve(path, argv, envp);
-}
-
-int wait(int* status) {
-    return (int)syscall(SYS_WAIT, (long)status);
+unsigned long long strtoull(const char* nptr, char** endptr, int base) {
+    if (endptr) *endptr = (char*)nptr; return 0; // Stub
 }

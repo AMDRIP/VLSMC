@@ -30,6 +30,9 @@ void abort(void);
 int atoi(const char* str);
 char* itoa(int value, char* str, int base);
 
+long long strtoll(const char* nptr, char** endptr, int base);
+unsigned long long strtoull(const char* nptr, char** endptr, int base);
+
 int abs(int j);
 long int labs(long int j);
 
@@ -39,10 +42,7 @@ ldiv_t ldiv(long int numer, long int denom);
 int rand(void);
 void srand(unsigned int seed);
 
-int fork(void);
-int exec(const char* path);
-int execve(const char* path, char* const argv[], char* const envp[]);
-int wait(int* status);
+// removed duplicate POSIX calls
 
 #ifdef __cplusplus
 }
