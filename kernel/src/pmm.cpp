@@ -8,30 +8,53 @@ uint32_t  PhysicalMemoryManager::max_frames_ = 0;
 uint32_t  PhysicalMemoryManager::used_frames_ = 0;
 uint8_t*  PhysicalMemoryManager::refcounts_ = nullptr;
 
+namespace {
+
+constexpr uint32_t kBitmapWordBits = 32;
+
+uint32_t align_up(uint32_t value, uint32_t alignment) {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+uint32_t align_down(uint32_t value, uint32_t alignment) {
+    return value & ~(alignment - 1);
+}
+
+uint32_t get_bitmap_words(uint32_t frame_count) {
+    return (frame_count + (kBitmapWordBits - 1)) / kBitmapWordBits;
+}
+
+} // namespace
+
 inline void PhysicalMemoryManager::set_frame(uint32_t frame) {
-    memory_bitmap_[PMM_BITMAP_INDEX(frame)] |= (1 << PMM_BITMAP_OFFSET(frame));
+    memory_bitmap_[PMM_BITMAP_INDEX(frame)] |= (1u << PMM_BITMAP_OFFSET(frame));
 }
 
 inline void PhysicalMemoryManager::clear_frame(uint32_t frame) {
-    memory_bitmap_[PMM_BITMAP_INDEX(frame)] &= ~(1 << PMM_BITMAP_OFFSET(frame));
+    memory_bitmap_[PMM_BITMAP_INDEX(frame)] &= ~(1u << PMM_BITMAP_OFFSET(frame));
 }
 
 inline bool PhysicalMemoryManager::test_frame(uint32_t frame) {
-    return memory_bitmap_[PMM_BITMAP_INDEX(frame)] & (1 << PMM_BITMAP_OFFSET(frame));
+    return memory_bitmap_[PMM_BITMAP_INDEX(frame)] & (1u << PMM_BITMAP_OFFSET(frame));
+}
+
+uint32_t PhysicalMemoryManager::calculate_metadata_size(uint32_t memory_size) {
+    uint32_t frame_count = memory_size / PMM_FRAME_SIZE;
+    return get_bitmap_words(frame_count) * sizeof(uint32_t) + frame_count;
 }
 
 void PhysicalMemoryManager::init(uint32_t bitmap_addr, uint32_t memory_size) {
     memory_bitmap_ = (uint32_t*)bitmap_addr;
     max_frames_ = memory_size / PMM_FRAME_SIZE;
-    
+
     used_frames_ = max_frames_;
-    uint32_t bitmap_size = max_frames_ / 32;
-    
-    for (uint32_t i = 0; i < bitmap_size; i++) {
+    uint32_t bitmap_words = get_bitmap_words(max_frames_);
+
+    for (uint32_t i = 0; i < bitmap_words; i++) {
         memory_bitmap_[i] = 0xFFFFFFFF;
     }
 
-    uint32_t bitmap_bytes = (max_frames_ + 31) / 32 * 4;
+    uint32_t bitmap_bytes = bitmap_words * sizeof(uint32_t);
     refcounts_ = (uint8_t*)(bitmap_addr + bitmap_bytes);
     for (uint32_t i = 0; i < max_frames_; i++) {
         refcounts_[i] = 0;
@@ -40,12 +63,23 @@ void PhysicalMemoryManager::init(uint32_t bitmap_addr, uint32_t memory_size) {
 
 void PhysicalMemoryManager::set_region_free(uint32_t base, uint32_t size) {
     InterruptGuard guard;
-    uint32_t align = base / PMM_FRAME_SIZE;
-    uint32_t frames = size / PMM_FRAME_SIZE;
 
-    for (; frames > 0; frames--, align++) {
-        if (test_frame(align)) {
-            clear_frame(align);
+    uint64_t end_addr = (uint64_t)base + size;
+    uint32_t total_memory = get_total_memory();
+    uint32_t start_addr = align_up(base, PMM_FRAME_SIZE);
+    uint32_t end_aligned = align_down((end_addr > total_memory) ? total_memory : (uint32_t)end_addr,
+                                      PMM_FRAME_SIZE);
+
+    if (end_aligned <= start_addr) {
+        return;
+    }
+
+    uint32_t frame = start_addr / PMM_FRAME_SIZE;
+    uint32_t frame_count = (end_aligned - start_addr) / PMM_FRAME_SIZE;
+
+    for (; frame_count > 0; frame_count--, frame++) {
+        if (test_frame(frame)) {
+            clear_frame(frame);
             used_frames_--;
         }
     }
@@ -53,30 +87,49 @@ void PhysicalMemoryManager::set_region_free(uint32_t base, uint32_t size) {
 
 void PhysicalMemoryManager::set_region_used(uint32_t base, uint32_t size) {
     InterruptGuard guard;
-    uint32_t align = base / PMM_FRAME_SIZE;
-    uint32_t frames = size / PMM_FRAME_SIZE;
 
-    for (; frames > 0; frames--, align++) {
-        if (!test_frame(align)) {
-            set_frame(align);
+    uint64_t end_addr = (uint64_t)base + size;
+    uint32_t total_memory = get_total_memory();
+    uint32_t start_addr = align_down(base, PMM_FRAME_SIZE);
+    uint32_t end_aligned = align_up((end_addr > total_memory) ? total_memory : (uint32_t)end_addr,
+                                    PMM_FRAME_SIZE);
+
+    if (start_addr >= total_memory || end_aligned <= start_addr) {
+        return;
+    }
+
+    uint32_t frame = start_addr / PMM_FRAME_SIZE;
+    uint32_t frame_count = (end_aligned - start_addr) / PMM_FRAME_SIZE;
+
+    for (; frame_count > 0; frame_count--, frame++) {
+        if (!test_frame(frame)) {
+            set_frame(frame);
             used_frames_++;
         }
     }
 }
 
 uint32_t PhysicalMemoryManager::get_first_free_frame() {
-    for (uint32_t i = 0; i < PMM_BITMAP_INDEX(max_frames_); i++) {
-        // Если блок (32 фрейма) не полностью занят
-        if (memory_bitmap_[i] != 0xFFFFFFFF) {
-            for (int j = 0; j < 32; j++) {
-                uint32_t bit = 1 << j;
-                if (!(memory_bitmap_[i] & bit)) { // Если бит = 0 (свободен)
-                    return i * 32 + j; // Возвращаем индекс фрейма
-                }
+    uint32_t bitmap_words = get_bitmap_words(max_frames_);
+
+    for (uint32_t i = 0; i < bitmap_words; i++) {
+        if (memory_bitmap_[i] == 0xFFFFFFFF) {
+            continue;
+        }
+
+        for (uint32_t bit = 0; bit < kBitmapWordBits; bit++) {
+            uint32_t frame = i * kBitmapWordBits + bit;
+            if (frame >= max_frames_) {
+                break;
+            }
+
+            if (!(memory_bitmap_[i] & (1u << bit))) {
+                return frame;
             }
         }
     }
-    return 0xFFFFFFFF; // Нет памяти
+
+    return 0xFFFFFFFF;
 }
 
 void* PhysicalMemoryManager::alloc_frame() {
@@ -89,7 +142,7 @@ void* PhysicalMemoryManager::alloc_frame() {
     set_frame(frame);
     used_frames_++;
     refcounts_[frame] = 1;
-    
+
     return (void*)(frame * PMM_FRAME_SIZE);
 }
 
@@ -109,7 +162,7 @@ uint32_t PhysicalMemoryManager::get_free_blocks(uint32_t count) {
             current_count = 0;
         }
     }
-    return 0xFFFFFFFF; // Нет подходящего блока
+    return 0xFFFFFFFF;
 }
 
 void* PhysicalMemoryManager::alloc_blocks(uint32_t count) {
@@ -122,8 +175,9 @@ void* PhysicalMemoryManager::alloc_blocks(uint32_t count) {
     for (uint32_t i = 0; i < count; i++) {
         set_frame(start_frame + i);
         used_frames_++;
+        refcounts_[start_frame + i] = 1;
     }
-    
+
     return (void*)(start_frame * PMM_FRAME_SIZE);
 }
 
@@ -172,6 +226,10 @@ uint32_t PhysicalMemoryManager::get_free_memory() {
 
 uint32_t PhysicalMemoryManager::get_used_memory() {
     return used_frames_ * PMM_FRAME_SIZE;
+}
+
+uint32_t PhysicalMemoryManager::get_total_memory() {
+    return max_frames_ * PMM_FRAME_SIZE;
 }
 
 } // namespace re36

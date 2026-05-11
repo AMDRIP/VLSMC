@@ -29,15 +29,33 @@ namespace re36 {
 
 static char input_buf[SHELL_MAX_CMD_LEN];
 static int input_len = 0;
-static int cursor_x = 0;
+static int input_cursor = 0;
+static int rendered_input_len = 0;
 static char current_working_dir[256] = "/";
 
 static volatile uint16_t* vga = (volatile uint16_t*)0xB8000;
 
+static int str_length(const char* str) {
+    int len = 0;
+    while (str && str[len]) len++;
+    return len;
+}
+
+static int prompt_len() {
+    return str_length(current_working_dir) + 2;
+}
+
+static void print_prompt() {
+    set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+    printf("%s> ", current_working_dir);
+    set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    rendered_input_len = 0;
+}
+
 static void clear_input_line() {
     term_cursor_set_x(0);
-    int cwd_len = 0; while (current_working_dir[cwd_len]) cwd_len++;
-    int len_to_clear = input_len + cwd_len + 2;
+    int visible_len = input_len > rendered_input_len ? input_len : rendered_input_len;
+    int len_to_clear = visible_len + prompt_len();
     for (int i = 0; i < len_to_clear; i++) {
         putchar(' ');
     }
@@ -47,6 +65,10 @@ static void clear_input_line() {
 static void redraw_input() {
     clear_input_line();
     printf("\r%s> %s", current_working_dir, input_buf);
+    for (int i = input_len; i > input_cursor; i--) {
+        putchar('\b');
+    }
+    rendered_input_len = input_len;
 }
 
 static void set_input(const char* str) {
@@ -56,6 +78,79 @@ static void set_input(const char* str) {
         input_len++;
     }
     input_buf[input_len] = '\0';
+    input_cursor = input_len;
+    redraw_input();
+}
+
+static void reset_input() {
+    input_len = 0;
+    input_cursor = 0;
+    input_buf[0] = '\0';
+    rendered_input_len = 0;
+}
+
+static void move_cursor_left() {
+    if (input_cursor > 0) {
+        input_cursor--;
+        putchar('\b');
+    }
+}
+
+static void move_cursor_right() {
+    if (input_cursor < input_len) {
+        putchar(input_buf[input_cursor]);
+        input_cursor++;
+    }
+}
+
+static void move_cursor_home() {
+    while (input_cursor > 0) move_cursor_left();
+}
+
+static void move_cursor_end() {
+    while (input_cursor < input_len) move_cursor_right();
+}
+
+static void insert_input_char(char c) {
+    if (input_len >= SHELL_MAX_CMD_LEN - 1) return;
+
+    for (int i = input_len; i > input_cursor; i--) {
+        input_buf[i] = input_buf[i - 1];
+    }
+    input_buf[input_cursor] = c;
+    input_len++;
+    input_cursor++;
+    input_buf[input_len] = '\0';
+    redraw_input();
+}
+
+static void delete_before_cursor() {
+    if (input_cursor <= 0) return;
+
+    for (int i = input_cursor - 1; i < input_len; i++) {
+        input_buf[i] = input_buf[i + 1];
+    }
+    input_len--;
+    input_cursor--;
+    input_buf[input_len] = '\0';
+    redraw_input();
+}
+
+static void delete_at_cursor() {
+    if (input_cursor >= input_len) return;
+
+    for (int i = input_cursor; i < input_len; i++) {
+        input_buf[i] = input_buf[i + 1];
+    }
+    input_len--;
+    input_buf[input_len] = '\0';
+    redraw_input();
+}
+
+static void clear_current_input() {
+    input_len = 0;
+    input_cursor = 0;
+    input_buf[0] = '\0';
     redraw_input();
 }
 
@@ -140,6 +235,162 @@ static void resolve_path(const char* input, char* output) {
         while (parts[i][p]) output[out_len++] = parts[i][p++];
     }
     output[out_len] = '\0';
+}
+
+static void print_buffer(const char* data, int len) {
+    for (int i = 0; i < len; i++) {
+        putchar(data[i]);
+    }
+}
+
+static int write_shell_output(const char* path, const char* data, int len, bool append, char* resolved_out) {
+    char resolved[256];
+    resolve_path(path, resolved);
+    if (resolved_out) {
+        int i = 0;
+        while (resolved[i] && i < 255) {
+            resolved_out[i] = resolved[i];
+            i++;
+        }
+        resolved_out[i] = '\0';
+    }
+
+    if (!append) {
+        return vfs_write_file(resolved, (const uint8_t*)data, len);
+    }
+
+    int old_len = 0;
+    vfs_stat_t st;
+    if (vfs_stat(resolved, &st) == 0 && st.type == re36::VnodeType::File) {
+        old_len = st.size;
+    }
+
+    char* out = (char*)kmalloc(old_len + len + 1);
+    if (!out) return -1;
+
+    int actual_old_len = 0;
+    if (old_len > 0) {
+        vnode* vn = nullptr;
+        if (vfs_resolve_path(resolved, &vn) == 0 && vn) {
+            while (actual_old_len < old_len && vn->ops && vn->ops->read) {
+                int want = old_len - actual_old_len;
+                if (want > 512) want = 512;
+                int got = vn->ops->read(vn, actual_old_len, (uint8_t*)&out[actual_old_len], want);
+                if (got <= 0) break;
+                actual_old_len += got;
+            }
+            vnode_release(vn);
+        }
+    }
+
+    for (int i = 0; i < len; i++) {
+        out[actual_old_len + i] = data[i];
+    }
+    int result = vfs_write_file(resolved, (const uint8_t*)out, actual_old_len + len);
+    kfree(out);
+    return result;
+}
+
+static bool line_contains(const char* line, int line_len, const char* pattern, int pattern_len) {
+    if (pattern_len <= 0) return true;
+    if (pattern_len > line_len) return false;
+
+    for (int i = 0; i <= line_len - pattern_len; i++) {
+        bool match = true;
+        for (int j = 0; j < pattern_len; j++) {
+            if (line[i + j] != pattern[j]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return true;
+    }
+    return false;
+}
+
+static void pipe_grep(const char* data, int len, const char* pattern) {
+    int pattern_len = str_length(pattern);
+    int line_start = 0;
+
+    for (int i = 0; i <= len; i++) {
+        if (i == len || data[i] == '\n') {
+            int line_len = i - line_start;
+            if (line_contains(&data[line_start], line_len, pattern, pattern_len)) {
+                print_buffer(&data[line_start], line_len);
+                if (i < len && data[i] == '\n') putchar('\n');
+            }
+            line_start = i + 1;
+        }
+    }
+}
+
+static void pipe_head(const char* data, int len, int max_lines) {
+    if (max_lines <= 0) max_lines = 10;
+    int lines = 0;
+
+    for (int i = 0; i < len; i++) {
+        putchar(data[i]);
+        if (data[i] == '\n') {
+            lines++;
+            if (lines >= max_lines) break;
+        }
+    }
+}
+
+static void pipe_count(const char* data, int len) {
+    int lines = 0;
+    for (int i = 0; i < len; i++) {
+        if (data[i] == '\n') lines++;
+    }
+    printf("lines=%d bytes=%d\n", lines, len);
+}
+
+static void exec_command(const char* cmd);
+
+static void run_pipe_sink(const char* cmd, const char* data, int len) {
+    if (str_starts(cmd, "write ", 6)) {
+        const char* fname = str_after(cmd, 6);
+        while (*fname == ' ') fname++;
+        if (!*fname) {
+            printf("Usage: <cmd> | write <file>\n");
+            return;
+        }
+        char resolved[256];
+        if (write_shell_output(fname, data, len, false, resolved) >= 0) {
+            printf("Piped %d bytes to %s\n", len, resolved);
+        } else {
+            printf("Pipe write failed: %s\n", fname);
+        }
+    } else if (str_starts(cmd, "append ", 7)) {
+        const char* fname = str_after(cmd, 7);
+        while (*fname == ' ') fname++;
+        if (!*fname) {
+            printf("Usage: <cmd> | append <file>\n");
+            return;
+        }
+        char resolved[256];
+        if (write_shell_output(fname, data, len, true, resolved) >= 0) {
+            printf("Appended %d bytes to %s\n", len, resolved);
+        } else {
+            printf("Pipe append failed: %s\n", fname);
+        }
+    } else if (str_eq(cmd, "cat") || str_eq(cmd, "cat -")) {
+        print_buffer(data, len);
+    } else if (str_starts(cmd, "grep ", 5)) {
+        const char* pattern = str_after(cmd, 5);
+        while (*pattern == ' ') pattern++;
+        pipe_grep(data, len, pattern);
+    } else if (str_eq(cmd, "head")) {
+        pipe_head(data, len, 10);
+    } else if (str_starts(cmd, "head ", 5)) {
+        int max_lines = atoi(str_after(cmd, 5));
+        pipe_head(data, len, max_lines);
+    } else if (str_eq(cmd, "count") || str_eq(cmd, "wc")) {
+        pipe_count(data, len);
+    } else {
+        print_buffer(data, len);
+        exec_command(cmd);
+    }
 }
 
 static void run_interactive_write(const char* fname, bool append) {
@@ -352,7 +603,8 @@ static void exec_command(const char* cmd) {
         printf("        reboot, kernelpanic, echo, sleep, yield, help, helpme\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
-        printf("Shell: Tab=autocomplete, Up/Down=history, >=redirect, |=pipe, dw, dwa\n");
+        printf("Shell: Tab=complete, Up/Down=history, Left/Right/Delete=edit\n");
+        printf("       > redirects, >> appends, | cat/grep/head/count/write/append\n");
     } else if (str_eq(cmd, "helpme")) {
         printf("--- VLSMC Shell Extensive Help ---\n");
         printf("[File System Commands]\n");
@@ -385,7 +637,7 @@ static void exec_command(const char* cmd) {
         printf("  uptime            - Show system uptime in HH:MM:SS (Timer Ticks)\n");
         printf("  ticks             - Print raw timer ticks accumulated\n");
         printf("  date              - Read date & time from CMOS RTC\n");
-        printf("  bootinfo          - Display MultiBoot structures (Mem, Video, Drive)\n");
+        printf("  bootinfo          - Display boot contract, memory map and loader info\n");
         printf("  meminfo / mems    - Display memory usage (PMM stats) and Paging state\n");
         printf("  pci               - Scan and enumerate PCI buses/devices\n");
         printf("  whoiam / whoami   - Print current effective user (root)\n");
@@ -401,6 +653,11 @@ static void exec_command(const char* cmd) {
         printf("  mode gfx          - Switch VGA to 40x25 graphical fake text mode\n");
         printf("  bga               - Initialize BGA (Bochs Graphics Adapter) 1024x768\n");
         printf("  gfx               - Test pattern or mode 13h depending on active driver\n");
+        printf("  Left/Right/Delete - Edit the current input line in place\n");
+        printf("  Ctrl-A/E/U/L      - Home, End, clear line, clear screen\n");
+        printf("  cmd > file        - Redirect command output to a file\n");
+        printf("  cmd >> file       - Append command output to a file\n");
+        printf("  cmd | grep text   - Pipe to grep/head/count/cat/write/append\n");
         printf("\n[Built-in Hardware Tests (Destructive/Risky)]\n");
         printf("  memtest           - Run sweeping tests over RAM\n");
         printf("  pmmtest           - Run basic tests on Physical Memory Manager\n");
@@ -439,6 +696,7 @@ static void exec_command(const char* cmd) {
     } else if (str_eq(cmd, "ps") || str_eq(cmd, "threads")) {
         TaskScheduler::print_threads();
     } else if (str_eq(cmd, "meminfo") || str_eq(cmd, "mems")) {
+        printf("Managed RAM: %u KB\n", PhysicalMemoryManager::get_total_memory() / 1024);
         printf("Free RAM: %u KB\n", PhysicalMemoryManager::get_free_memory() / 1024);
         printf("Used RAM: %u KB\n", PhysicalMemoryManager::get_used_memory() / 1024);
         uint32_t cr3_val; asm volatile("mov %%cr3, %0" : "=r"(cr3_val));
@@ -453,14 +711,35 @@ static void exec_command(const char* cmd) {
         printf("Switched to VGA Graphics Text Mode (40x25)\n");
     } else if (str_eq(cmd, "bootinfo")) {
         BootInfo* bi = get_boot_info();
-        if (bi->magic == BOOT_INFO_MAGIC) {
+        if (boot_info_is_valid(bi)) {
+            uint32_t total_usable_kb = 0;
             printf("Boot drive: 0x%x\n", bi->boot_drive);
             printf("Video mode: 0x%x\n", bi->video_mode);
-            uint32_t total_kb = 1024 + bi->mem_below_16m_kb + (uint32_t)bi->mem_above_16m_64kb * 64;
-            printf("Memory: %u KB (%u MB)\n", total_kb, total_kb / 1024);
+            printf("Boot contract: v%u, size=%u, flags=0x%x\n", bi->version, bi->size, bi->flags);
+            printf("Conventional memory: %u KB\n", bi->conventional_memory_kb);
+            printf("Kernel load: addr=0x%x size=%u KB entry=0x%x\n",
+                   bi->kernel_load_addr,
+                   bi->kernel_load_size / 1024,
+                   bi->kernel_entry_addr);
+            printf("Boot stack: top=0x%x size=%u KB\n", bi->boot_stack_top, bi->boot_stack_size / 1024);
+            printf("Memory map entries: %u\n", bi->memory_map_entry_count);
+            for (uint16_t i = 0; i < bi->memory_map_entry_count; i++) {
+                const BootMemoryMapEntry& entry = bi->memory_map[i];
+                if (entry.type == BOOT_MEMORY_TYPE_USABLE && entry.base_high == 0) {
+                    total_usable_kb += entry.length_low / 1024;
+                }
+                printf("  [%u] base=%x:%x len=%x:%x type=%u\n",
+                       i,
+                       entry.base_high,
+                       entry.base_low,
+                       entry.length_high,
+                       entry.length_low,
+                       entry.type);
+            }
+            printf("Usable RAM below 4 GiB: %u KB (%u MB)\n", total_usable_kb, total_usable_kb / 1024);
             printf("Boot magic: 0x%x (OK)\n", bi->magic);
         } else {
-            printf("Boot info not available (magic: 0x%x)\n", bi->magic);
+            printf("Boot info not available or invalid (magic: 0x%x)\n", bi ? bi->magic : 0);
         }
     } else if (str_eq(cmd, "ring3")) {
         printf("Launching Ring 3 user process...\n");
@@ -860,7 +1139,8 @@ static void process_line(const char* line) {
 
     char cmd1[SHELL_MAX_CMD_LEN];
     char cmd2[SHELL_MAX_CMD_LEN];
-    char redir_file[64];
+    char redir_file[128];
+    bool append_redirect = false;
 
     if (ShellRedirect::parse_pipe(line, cmd1, SHELL_MAX_CMD_LEN, cmd2, SHELL_MAX_CMD_LEN)) {
         ShellRedirect::begin_capture();
@@ -868,31 +1148,32 @@ static void process_line(const char* line) {
         ShellRedirect::end_capture();
 
         const char* pipe_data = ShellRedirect::get_buffer();
+        int pipe_len = ShellRedirect::get_length();
+        bool truncated = ShellRedirect::has_overflowed();
 
-        if (str_starts(cmd2, "write ", 6)) {
-            const char* fname = str_after(cmd2, 6);
-            int plen = ShellRedirect::get_length();
-            if (vfs_write_file(fname, (const uint8_t*)pipe_data, plen) >= 0)
-                printf("Piped %d bytes to %s\n", plen, fname);
-            else
-                printf("Pipe write failed!\n");
-        } else {
-            printf("%s", pipe_data);
-            exec_command(cmd2);
+        run_pipe_sink(cmd2, pipe_data, pipe_len);
+        if (truncated) {
+            printf("\n[pipe warning: output truncated to %d bytes]\n", pipe_len);
         }
         return;
     }
 
-    if (ShellRedirect::parse(line, cmd1, SHELL_MAX_CMD_LEN, redir_file, 64)) {
+    if (ShellRedirect::parse(line, cmd1, SHELL_MAX_CMD_LEN, redir_file, sizeof(redir_file), &append_redirect)) {
         ShellRedirect::begin_capture();
         exec_command(cmd1);
         ShellRedirect::end_capture();
 
         int len = ShellRedirect::get_length();
-        if (vfs_write_file(redir_file, (const uint8_t*)ShellRedirect::get_buffer(), len) >= 0)
-            printf("Redirected %d bytes to %s\n", len, redir_file);
-        else
-            printf("Redirect failed!\n");
+        bool truncated = ShellRedirect::has_overflowed();
+        char resolved[256];
+        if (write_shell_output(redir_file, ShellRedirect::get_buffer(), len, append_redirect, resolved) >= 0) {
+            printf("%s %d bytes to %s\n", append_redirect ? "Appended" : "Redirected", len, resolved);
+            if (truncated) {
+                printf("[redirect warning: output truncated to %d bytes]\n", len);
+            }
+        } else {
+            printf("Redirect failed: %s\n", redir_file);
+        }
         return;
     }
 
@@ -907,12 +1188,9 @@ void shell_main() {
     set_color(VGA_COLOR_DARK_GREY, VGA_COLOR_BLACK);
     printf("Type 'help' for commands. Tab=complete, Up/Down=history\n\n");
     
-    set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    printf("> ");
-    set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    print_prompt();
 
-    input_len = 0;
-    input_buf[0] = '\0';
+    reset_input();
     
     while (true) {
         char c = getchar();
@@ -922,17 +1200,10 @@ void shell_main() {
             set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
             process_line(input_buf);
             ShellHistory::reset_cursor();
-            input_len = 0;
-            input_buf[0] = '\0';
-            set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-            printf("> ");
-            set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+            reset_input();
+            print_prompt();
         } else if (c == '\b') {
-            if (input_len > 0) {
-                input_len--;
-                input_buf[input_len] = '\0';
-                printf("\b \b");
-            }
+            delete_before_cursor();
         } else if (c == '\t') {
             const char* completed = ShellAutocomplete::complete(input_buf);
             if (completed) {
@@ -944,12 +1215,26 @@ void shell_main() {
         } else if (c == (char)0x81) {
             const char* next = ShellHistory::navigate_down();
             if (next) set_input(next);
+        } else if (c == (char)0x82) {
+            move_cursor_left();
+        } else if (c == (char)0x83) {
+            move_cursor_right();
+        } else if (c == (char)0x84) {
+            delete_at_cursor();
+        } else if (c == 1) {
+            move_cursor_home();
+        } else if (c == 5) {
+            move_cursor_end();
+        } else if (c == 21) {
+            clear_current_input();
+        } else if (c == 12) {
+            printf("\n");
+            set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+            exec_command("clear");
+            print_prompt();
+            redraw_input();
         } else if (c >= 32 && c <= 126) {
-            if (input_len < SHELL_MAX_CMD_LEN - 1) {
-                input_buf[input_len++] = c;
-                input_buf[input_len] = '\0';
-                putchar(c);
-            }
+            insert_input_char(c);
         }
     }
 }

@@ -18,6 +18,7 @@ public:
     // bitmap_addr - физический адрес, где будет лежать сам битмап (массив).
     // memory_size - общий размер доступной ОЗУ в байтах (напр. 32 МБ).
     static void init(uint32_t bitmap_addr, uint32_t memory_size);
+    static uint32_t calculate_metadata_size(uint32_t memory_size);
 
     // Помечает регион памяти (size байт) как занятый или свободный
     static void set_region_free(uint32_t base, uint32_t size);
@@ -38,6 +39,7 @@ public:
 
     static uint32_t get_free_memory();
     static uint32_t get_used_memory();
+    static uint32_t get_total_memory();
 
 private:
     // Установить / Сбросить бит (занять/освободить фрейм)

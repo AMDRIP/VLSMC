@@ -5,7 +5,7 @@ OUTPUT_FORMAT(elf32-i386)
 SECTIONS
 {
     /* Загрузчик переходит по адресу 0x10000 */
-    . = 0x10000;
+    . = 0x00100000;
 
     _kernel_start = .;
 

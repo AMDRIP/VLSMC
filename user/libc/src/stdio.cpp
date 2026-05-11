@@ -2,6 +2,7 @@
 #include "../../syscalls.h"
 #include "errno.h"
 #include "malloc.h"
+#include <fcntl.h>
 #include <sys/mutex.h>
 
 static char stdout_buf[1024];
@@ -662,12 +663,21 @@ FILE* fopen(const char* filename, const char* mode) {
     if (!filename || !mode) return nullptr;
 
     int mode_flag = 0;
-    if (mode[0] == 'r') mode_flag = FMODE_READ;
-    else if (mode[0] == 'w') mode_flag = FMODE_WRITE;
+    int open_flags = 0;
+    if (mode[0] == 'r') {
+        mode_flag = FMODE_READ;
+        open_flags = O_RDONLY;
+    } else if (mode[0] == 'w') {
+        mode_flag = FMODE_WRITE;
+        open_flags = O_WRONLY | O_CREAT | O_TRUNC;
+    } else if (mode[0] == 'a') {
+        mode_flag = FMODE_WRITE;
+        open_flags = O_WRONLY | O_CREAT | O_APPEND;
+    }
     else return nullptr;
 
-    long fd = syscall2(SYS_FOPEN, (long)filename, (long)mode_flag);
-    if (fd == -1) return nullptr;
+    long fd = syscall3(SYS_OPEN, (long)filename, (long)open_flags, 0644);
+    if (fd < 0) return nullptr;
 
     FILE* f = (FILE*)malloc(sizeof(FILE));
     if (!f) {

@@ -19,6 +19,10 @@ struct vfs_dir_entry {
 #define SYS_SLEEP       3
 #define SYS_YIELD       4
 #define SYS_GETPID      5
+#define SYS_OPEN        8
+#define SYS_READ        9
+#define SYS_WRITE       10
+#define SYS_CLOSE       11
 #define SYS_MMAP        12
 #define SYS_MUNMAP      13
 #define SYS_SEND        14
@@ -50,6 +54,13 @@ struct vfs_dir_entry {
 #define SYS_UPTIME      41
 #define SYS_READDIR     42
 #define SYS_FSEEK       43
+#define SYS_GRANT_PORT  44
+#define SYS_GRANT_IRQ   45
+#define SYS_UNLINK      46
+#define SYS_STAT        47
+#define SYS_FSTAT       48
+#define SYS_MKDIR       49
+#define SYS_WAITPID     50
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -216,4 +227,20 @@ static inline int sys_readdir(const char* path, struct vfs_dir_entry* entries, i
 
 static inline int sys_fseek(int fd, int offset, int whence) {
     return (int)syscall3(SYS_FSEEK, (uint32_t)fd, (uint32_t)offset, (uint32_t)whence);
+}
+
+static inline int sys_open(const char* path, int flags, int mode) {
+    return (int)syscall3(SYS_OPEN, (uint32_t)path, (uint32_t)flags, (uint32_t)mode);
+}
+
+static inline int sys_read(int fd, void* buf, uint32_t size) {
+    return (int)syscall3(SYS_READ, (uint32_t)fd, (uint32_t)buf, size);
+}
+
+static inline int sys_write(int fd, const void* buf, uint32_t size) {
+    return (int)syscall3(SYS_WRITE, (uint32_t)fd, (uint32_t)buf, size);
+}
+
+static inline int sys_close(int fd) {
+    return (int)syscall1(SYS_CLOSE, (uint32_t)fd);
 }

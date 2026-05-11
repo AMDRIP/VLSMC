@@ -23,6 +23,94 @@ namespace re36 {
 
 Registers* g_current_isr_regs = nullptr;
 
+static bool user_range_ok(const void* ptr, uint32_t size) {
+    if (size == 0) return true;
+    uint32_t start = (uint32_t)ptr;
+    uint32_t end = start + size - 1;
+    if (start == 0 || end < start) return false;
+    if (current_tid == 0) return true;
+    return start >= USER_SPACE_START && end < USER_SPACE_END;
+}
+
+static bool user_cstr_ok(const char* s, uint32_t max_len) {
+    if (!s) return false;
+    for (uint32_t i = 0; i < max_len; i++) {
+        if (!user_range_ok(s + i, 1)) return false;
+        if (s[i] == '\0') return true;
+    }
+    return false;
+}
+
+static void release_vma_list(VMA*& list) {
+    VMA* v = list;
+    while (v) {
+        VMA* n = v->next;
+        if (v->type == VMA_TYPE_FILE && v->file_vnode) {
+            vnode_release(v->file_vnode);
+        }
+        kfree(v);
+        v = n;
+    }
+    list = nullptr;
+}
+
+static int fd_to_slot(int fd) {
+    return fd - 3;
+}
+
+static uint32_t make_wait_status(int exit_code) {
+    return (uint32_t)((exit_code & 0xFF) << 8);
+}
+
+struct PosixStat {
+    uint32_t st_dev;
+    uint32_t st_ino;
+    uint32_t st_mode;
+    uint32_t st_nlink;
+    uint32_t st_uid;
+    uint32_t st_gid;
+    uint32_t st_rdev;
+    uint32_t st_size;
+    uint32_t st_atime;
+    uint32_t st_mtime;
+    uint32_t st_ctime;
+};
+
+static constexpr uint32_t POSIX_S_IFREG = 0100000;
+static constexpr uint32_t POSIX_S_IFDIR = 0040000;
+static constexpr uint32_t POSIX_S_IFCHR = 0020000;
+
+static void fill_posix_stat(PosixStat* out, const vfs_stat_t& st) {
+    out->st_dev = 0;
+    out->st_ino = st.first_cluster;
+    if (st.type == VnodeType::Directory) {
+        out->st_mode = POSIX_S_IFDIR | 0755;
+    } else if (st.type == VnodeType::Device) {
+        out->st_mode = POSIX_S_IFCHR | 0600;
+    } else {
+        out->st_mode = POSIX_S_IFREG | 0644;
+    }
+    out->st_nlink = 1;
+    out->st_uid = 0;
+    out->st_gid = 0;
+    out->st_rdev = 0;
+    out->st_size = st.size;
+    out->st_atime = 0;
+    out->st_mtime = 0;
+    out->st_ctime = 0;
+}
+
+static void fill_posix_stat_from_vnode(PosixStat* out, vnode* vn) {
+    vfs_stat_t st;
+    st.size = vn ? vn->size : 0;
+    st.type = vn ? vn->type : VnodeType::File;
+    st.first_cluster = vn ? (uint16_t)vn->inode_num : 0;
+    st.mod_time = 0;
+    st.mod_date = 0;
+    st.attributes = 0;
+    fill_posix_stat(out, st);
+}
+
 
 extern "C" void isr128();
 
@@ -45,9 +133,7 @@ static uint32_t sys_exit(SyscallRegs* regs) {
         cur.page_directory_phys = (uint32_t*)VMM::kernel_directory_phys_;
     }
 
-    VMA* v = cur.vma_list;
-    while (v) { VMA* n = v->next; kfree(v); v = n; }
-    cur.vma_list = nullptr;
+    release_vma_list(cur.vma_list);
 
     for (int f = 0; f < MAX_OPEN_FILES; f++) {
         if (cur.fd_table[f]) {
@@ -92,6 +178,7 @@ static uint32_t sys_exit(SyscallRegs* regs) {
 static uint32_t sys_print(SyscallRegs* regs) {
     const char* str = (const char*)regs->ebx;
     uint32_t len = regs->ecx;
+    if (!user_range_ok(str, len)) return (uint32_t)-1;
     
     for (uint32_t i = 0; i < len && str[i] != '\0'; i++) {
         putchar(str[i]);
@@ -226,11 +313,12 @@ static uint32_t sys_mmap(SyscallRegs* regs) {
             for (int b = 0; b < 4096; b++) p[b] = 0;
         }
     } else {
-        if (fd < 0 || fd >= MAX_OPEN_FILES || !cur.fd_table[fd]) {
+        int slot = fd_to_slot(fd);
+        if (slot < 0 || slot >= MAX_OPEN_FILES || !cur.fd_table[slot]) {
             kfree(vma);
             return (uint32_t)-1;
         }
-        file* f = cur.fd_table[fd];
+        file* f = cur.fd_table[slot];
         if (!f->vn) {
             kfree(vma);
             return (uint32_t)-1;
@@ -560,57 +648,78 @@ static int find_free_fd(Thread& cur) {
     return -1;
 }
 
-// Simplified flag conversion for MVP
 static int map_flags(int api_mode) {
     if (api_mode == 1) return O_RDONLY;      // FMODE_READ
     if (api_mode == 2) return O_WRONLY | O_CREAT | O_TRUNC; // FMODE_WRITE
     return O_RDONLY;
 }
 
-static uint32_t sys_fopen(SyscallRegs* regs) {
-    const char* path = (const char*)regs->ebx;
-    int mode = (int)regs->ecx;
-    if (!path) return (uint32_t)-1;
+static uint32_t open_fd(const char* path, int flags, int mode) {
+    if (!user_cstr_ok(path, 255)) return (uint32_t)-1;
 
     Thread& cur = threads[current_tid];
     int fd_idx = find_free_fd(cur);
     if (fd_idx < 0) return (uint32_t)-1;
 
-    int vfs_flags = map_flags(mode);
-    int vn_ptr = vfs_open(path, vfs_flags, 0); // VFS returns vnode* cast to int as a hack
+    int vn_ptr = vfs_open(path, flags, mode);
     if (vn_ptr == -1) return (uint32_t)-1;
     
     vnode* vn = (vnode*)vn_ptr;
 
     file* f = (file*)kmalloc(sizeof(file));
     if (!f) {
-        if (vn->ops && vn->ops->close) vn->ops->close(vn);
+        vnode_release(vn);
         return (uint32_t)-1;
     }
 
     f->vn = vn;
-    f->offset = 0;
-    f->flags = (uint32_t)vfs_flags;
+    f->offset = (flags & O_APPEND) ? vn->size : 0;
+    f->flags = (uint32_t)flags;
     f->refcount = 1;
     
     cur.fd_table[fd_idx] = f;
 
-    // +3 offset since 0,1,2 are reserved
     return (uint32_t)(fd_idx + 3);
 }
 
+static uint32_t sys_open(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    int flags = (int)regs->ecx;
+    int mode = (int)regs->edx;
+    return open_fd(path, flags, mode);
+}
+
+static uint32_t sys_fopen(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    int mode = (int)regs->ecx;
+    return open_fd(path, map_flags(mode), 0);
+}
+
 static uint32_t sys_fread(SyscallRegs* regs) {
-    int fd = (int)regs->ebx - 3;
+    int raw_fd = (int)regs->ebx;
     uint8_t* buffer = (uint8_t*)regs->ecx;
     uint32_t size = regs->edx;
 
-    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    if (size == 0) return 0;
+    if (!user_range_ok(buffer, size)) return (uint32_t)-1;
+
+    if (raw_fd == 0) {
+        for (uint32_t i = 0; i < size; i++) {
+            buffer[i] = (uint8_t)KeyboardDriver::get_char();
+            if (buffer[i] == '\n') return i + 1;
+        }
+        return size;
+    }
+    if (raw_fd == 1 || raw_fd == 2) return (uint32_t)-1;
+
+    int fd = fd_to_slot(raw_fd);
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
     
     Thread& cur = threads[current_tid];
     file* f = cur.fd_table[fd];
-    if (!f || !f->vn) return 0;
+    if (!f || !f->vn) return (uint32_t)-1;
 
-    if ((f->flags & O_WRONLY) && !(f->flags & O_RDWR)) return 0;
+    if ((f->flags & O_WRONLY) && !(f->flags & O_RDWR)) return (uint32_t)-1;
 
     int read_bytes = -1;
     if (f->vn->ops && f->vn->ops->read) {
@@ -622,19 +731,32 @@ static uint32_t sys_fread(SyscallRegs* regs) {
         return (uint32_t)read_bytes;
     }
     
-    return 0;
+    return (read_bytes == 0) ? 0 : (uint32_t)-1;
 }
 
 static uint32_t sys_fwrite(SyscallRegs* regs) {
-    int fd = (int)regs->ebx - 3;
+    int raw_fd = (int)regs->ebx;
     const uint8_t* data = (const uint8_t*)regs->ecx;
     uint32_t size = regs->edx;
 
-    if (fd < 0 || fd >= MAX_OPEN_FILES) return 0;
+    if (size == 0) return 0;
+    if (!user_range_ok(data, size)) return (uint32_t)-1;
+
+    if (raw_fd == 1 || raw_fd == 2) {
+        for (uint32_t i = 0; i < size; i++) putchar((char)data[i]);
+        return size;
+    }
+    if (raw_fd == 0) return (uint32_t)-1;
+
+    int fd = fd_to_slot(raw_fd);
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
     
     Thread& cur = threads[current_tid];
     file* f = cur.fd_table[fd];
-    if (!f || !f->vn) return 0;
+    if (!f || !f->vn) return (uint32_t)-1;
+
+    if (!(f->flags & (O_WRONLY | O_RDWR))) return (uint32_t)-1;
+    if (f->flags & O_APPEND) f->offset = f->vn->size;
 
     int written = -1;
     if (f->vn->ops && f->vn->ops->write) {
@@ -646,11 +768,13 @@ static uint32_t sys_fwrite(SyscallRegs* regs) {
         return (uint32_t)written;
     }
 
-    return 0;
+    return (uint32_t)-1;
 }
 
 static uint32_t sys_fclose(SyscallRegs* regs) {
-    int fd = (int)regs->ebx - 3;
+    int raw_fd = (int)regs->ebx;
+    if (raw_fd >= 0 && raw_fd <= 2) return 0;
+    int fd = fd_to_slot(raw_fd);
     if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
     
     Thread& cur = threads[current_tid];
@@ -664,7 +788,7 @@ static uint32_t sys_fclose(SyscallRegs* regs) {
 }
 
 static uint32_t sys_fsize(SyscallRegs* regs) {
-    int fd = (int)regs->ebx - 3;
+    int fd = fd_to_slot((int)regs->ebx);
     if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
     
     Thread& cur = threads[current_tid];
@@ -675,7 +799,7 @@ static uint32_t sys_fsize(SyscallRegs* regs) {
 }
 
 static uint32_t sys_fseek(SyscallRegs* regs) {
-    int fd = (int)regs->ebx - 3;
+    int fd = fd_to_slot((int)regs->ebx);
     int32_t offset = (int32_t)regs->ecx;
     int whence = (int)regs->edx;
 
@@ -711,8 +835,59 @@ static uint32_t sys_readdir(SyscallRegs* regs) {
     vfs_dir_entry* entries = (vfs_dir_entry*)regs->ecx;
     int max_entries = (int)regs->edx;
 
-    if (!path || !entries || max_entries <= 0) return (uint32_t)-1;
+    if (!user_cstr_ok(path, 255) || !entries || max_entries <= 0) return (uint32_t)-1;
+    if (!user_range_ok(entries, (uint32_t)(sizeof(vfs_dir_entry) * max_entries))) return (uint32_t)-1;
     return (uint32_t)vfs_readdir(path, entries, max_entries);
+}
+
+static uint32_t sys_unlink(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    if (!user_cstr_ok(path, 255)) return (uint32_t)-1;
+    return vfs_unlink(path) == 0 ? 0 : (uint32_t)-1;
+}
+
+static uint32_t sys_stat(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    PosixStat* out = (PosixStat*)regs->ecx;
+    if (!user_cstr_ok(path, 255) || !user_range_ok(out, sizeof(PosixStat))) return (uint32_t)-1;
+
+    vfs_stat_t st;
+    if (vfs_stat(path, &st) != 0) return (uint32_t)-1;
+    fill_posix_stat(out, st);
+    return 0;
+}
+
+static uint32_t sys_fstat(SyscallRegs* regs) {
+    int raw_fd = (int)regs->ebx;
+    PosixStat* out = (PosixStat*)regs->ecx;
+    if (!user_range_ok(out, sizeof(PosixStat))) return (uint32_t)-1;
+
+    if (raw_fd >= 0 && raw_fd <= 2) {
+        vfs_stat_t st;
+        st.size = 0;
+        st.type = VnodeType::Device;
+        st.first_cluster = 0;
+        st.mod_time = 0;
+        st.mod_date = 0;
+        st.attributes = 0;
+        fill_posix_stat(out, st);
+        return 0;
+    }
+
+    int fd = fd_to_slot(raw_fd);
+    if (fd < 0 || fd >= MAX_OPEN_FILES) return (uint32_t)-1;
+    Thread& cur = threads[current_tid];
+    file* f = cur.fd_table[fd];
+    if (!f || !f->vn) return (uint32_t)-1;
+    fill_posix_stat_from_vnode(out, f->vn);
+    return 0;
+}
+
+static uint32_t sys_mkdir(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    int mode = (int)regs->ecx;
+    if (!user_cstr_ok(path, 255)) return (uint32_t)-1;
+    return vfs_mkdir(path, mode) == 0 ? 0 : (uint32_t)-1;
 }
 
 static void fork_child_entry() {
@@ -813,10 +988,20 @@ static uint32_t sys_fork(SyscallRegs* regs) {
         copy->file_offset = src_vma->file_offset;
         copy->file_size = src_vma->file_size;
         copy->flags = src_vma->flags;
+        copy->type = src_vma->type;
+        copy->file_vnode = src_vma->file_vnode;
+        if (copy->type == VMA_TYPE_FILE && copy->file_vnode) {
+            __atomic_add_fetch(&copy->file_vnode->refcount, 1, __ATOMIC_SEQ_CST);
+        }
         copy->next = nullptr;
         *dst_ptr = copy;
         dst_ptr = &copy->next;
         src_vma = src_vma->next;
+    }
+    if (src_vma) {
+        release_vma_list(child.vma_list);
+        child.state = ThreadState::Unused;
+        return (uint32_t)-1;
     }
     
     // Inherit file descriptors
@@ -824,9 +1009,6 @@ static uint32_t sys_fork(SyscallRegs* regs) {
         if (parent.fd_table[f]) {
             child.fd_table[f] = parent.fd_table[f];
             __atomic_add_fetch(&child.fd_table[f]->refcount, 1, __ATOMIC_SEQ_CST);
-            if (child.fd_table[f]->vn) {
-                __atomic_add_fetch(&child.fd_table[f]->vn->refcount, 1, __ATOMIC_SEQ_CST);
-            }
         } else {
             child.fd_table[f] = nullptr;
         }
@@ -840,9 +1022,7 @@ static uint32_t sys_fork(SyscallRegs* regs) {
                 child.fd_table[f] = nullptr;
             }
         }
-        VMA* rv = child.vma_list;
-        while (rv) { VMA* rn = rv->next; kfree(rv); rv = rn; }
-        child.vma_list = nullptr;
+        release_vma_list(child.vma_list);
         child.state = ThreadState::Unused;
         return (uint32_t)-1;
     }
@@ -869,12 +1049,20 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     char* const* argv = (char* const*)regs->ecx;
     char* const* envp = (char* const*)regs->edx;
 
-    if (!filename) return (uint32_t)-1;
+    if (!user_cstr_ok(filename, 255)) return (uint32_t)-1;
+
+    char path_buf[256];
+    int path_len = 0;
+    while (filename[path_len] && path_len < 255) {
+        path_buf[path_len] = filename[path_len];
+        path_len++;
+    }
+    path_buf[path_len] = '\0';
 
     Thread& cur = threads[current_tid];
 
-    for (int j = 0; j < 31 && filename[j]; j++) {
-        cur.name[j] = filename[j];
+    for (int j = 0; j < 31 && path_buf[j]; j++) {
+        cur.name[j] = path_buf[j];
         cur.name[j + 1] = '\0';
     }
 
@@ -882,7 +1070,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     if (!header_buf) return (uint32_t)-1;
 
     vnode* vn = nullptr;
-    if (vfs_resolve_path(filename, &vn) != 0 || !vn) {
+    if (vfs_resolve_path(path_buf, &vn) != 0 || !vn) {
         kfree(header_buf);
         return (uint32_t)-1;
     }
@@ -891,9 +1079,9 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     if (vn->ops && vn->ops->read) {
         bytes = vn->ops->read(vn, 0, header_buf, 4096);
     }
-    vnode_release(vn);
 
     if (bytes < (int)sizeof(Elf32_Ehdr)) {
+        vnode_release(vn);
         kfree(header_buf);
         return (uint32_t)-1;
     }
@@ -901,6 +1089,14 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)header_buf;
     if (ehdr->e_ident[0] != ELFMAG0 || ehdr->e_ident[1] != ELFMAG1 ||
         ehdr->e_ident[2] != ELFMAG2 || ehdr->e_ident[3] != ELFMAG3) {
+        vnode_release(vn);
+        kfree(header_buf);
+        return (uint32_t)-1;
+    }
+
+    uint32_t phdr_bytes = (uint32_t)ehdr->e_phnum * sizeof(Elf32_Phdr);
+    if (ehdr->e_phoff > 4096 || phdr_bytes > 4096 || ehdr->e_phoff + phdr_bytes > 4096) {
+        vnode_release(vn);
         kfree(header_buf);
         return (uint32_t)-1;
     }
@@ -911,21 +1107,53 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     uint32_t total_string_size = 0;
 
     if (argv) {
-        while (argv[argc]) {
+        while (true) {
+            if (argc >= 64 || !user_range_ok(&argv[argc], sizeof(char*))) {
+                vnode_release(vn);
+                kfree(header_buf);
+                return (uint32_t)-1;
+            }
+            if (!argv[argc]) break;
+            if (!user_cstr_ok(argv[argc], 4096)) {
+                vnode_release(vn);
+                kfree(header_buf);
+                return (uint32_t)-1;
+            }
             const char* arg = argv[argc];
             int len = 0;
             while (arg[len]) len++;
             total_string_size += len + 1;
+            if (total_string_size > 16384) {
+                vnode_release(vn);
+                kfree(header_buf);
+                return (uint32_t)-1;
+            }
             argc++;
         }
     }
 
     if (envp) {
-        while (envp[envc]) {
+        while (true) {
+            if (envc >= 64 || !user_range_ok(&envp[envc], sizeof(char*))) {
+                vnode_release(vn);
+                kfree(header_buf);
+                return (uint32_t)-1;
+            }
+            if (!envp[envc]) break;
+            if (!user_cstr_ok(envp[envc], 4096)) {
+                vnode_release(vn);
+                kfree(header_buf);
+                return (uint32_t)-1;
+            }
             const char* env = envp[envc];
             int len = 0;
             while (env[len]) len++;
             total_string_size += len + 1;
+            if (total_string_size > 16384) {
+                vnode_release(vn);
+                kfree(header_buf);
+                return (uint32_t)-1;
+            }
             envc++;
         }
     }
@@ -935,6 +1163,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     if (total_string_size > 0) {
         string_buf = (uint8_t*)kmalloc(total_string_size);
         if (!string_buf) {
+            vnode_release(vn);
             kfree(header_buf);
             return (uint32_t)-1;
         }
@@ -965,6 +1194,14 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     }
 
     // Закрываем файлы только с флагом O_CLOEXEC
+    uint32_t* new_dir = VMM::create_address_space();
+    if (!new_dir) {
+        if (string_buf) kfree(string_buf);
+        vnode_release(vn);
+        kfree(header_buf);
+        return (uint32_t)-1;
+    }
+
     for (int f = 0; f < MAX_OPEN_FILES; f++) {
         if (cur.fd_table[f] && (cur.fd_table[f]->flags & O_CLOEXEC)) {
             file_release(cur.fd_table[f]);
@@ -978,20 +1215,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
         VMM::destroy_address_space(old_dir);
     }
 
-    VMA* v = cur.vma_list;
-    while (v) {
-        VMA* next = v->next;
-        kfree(v);
-        v = next;
-    }
-    cur.vma_list = nullptr;
-
-    uint32_t* new_dir = VMM::create_address_space();
-    if (!new_dir) {
-        if (string_buf) kfree(string_buf);
-        kfree(header_buf);
-        return (uint32_t)-1;
-    }
+    release_vma_list(cur.vma_list);
     cur.page_directory_phys = new_dir;
     VMM::switch_address_space(new_dir);
 
@@ -1018,18 +1242,15 @@ static uint32_t sys_exec(SyscallRegs* regs) {
         new_vma->flags = flags;
         new_vma->type = VMA_TYPE_FILE;      // Set the type
         
-        vnode* exec_vn = nullptr;
-        if (vfs_resolve_path(cur.name, &exec_vn) == 0 && exec_vn) {
-            new_vma->file_vnode = exec_vn;  // Store vnode for demand paging
-        } else {
-            new_vma->file_vnode = nullptr;
-        }
+        new_vma->file_vnode = vn;
+        __atomic_add_fetch(&vn->refcount, 1, __ATOMIC_SEQ_CST);
 
         new_vma->next = cur.vma_list;
         cur.vma_list = new_vma;
     }
 
     uint32_t entry = ehdr->e_entry;
+    vnode_release(vn);
     kfree(header_buf);
 
     uint32_t heap_base = (max_vaddr + 0xFFF) & ~0xFFF;
@@ -1131,8 +1352,8 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     return 0;
 }
 
-static uint32_t sys_wait(SyscallRegs* regs) {
-    int* status_ptr = (int*)regs->ebx;
+static uint32_t wait_for_child(int wanted_pid, int* status_ptr, int options) {
+    if (status_ptr && !user_range_ok(status_ptr, sizeof(int))) return (uint32_t)-1;
 
     while (true) {
         {
@@ -1140,11 +1361,12 @@ static uint32_t sys_wait(SyscallRegs* regs) {
 
             bool has_children = false;
             for (int i = 1; i < MAX_THREADS; i++) {
-                if (threads[i].parent_tid == current_tid) {
+                if (threads[i].parent_tid == current_tid &&
+                    (wanted_pid == -1 || wanted_pid == i)) {
                     has_children = true;
                     if (threads[i].state == ThreadState::Zombie) {
                         int child_tid = i;
-                        if (status_ptr) *status_ptr = threads[i].exit_code;
+                        if (status_ptr) *status_ptr = (int)make_wait_status(threads[i].exit_code);
                         threads[i].state = ThreadState::Unused;
                         thread_count--;
                         return (uint32_t)child_tid;
@@ -1153,10 +1375,25 @@ static uint32_t sys_wait(SyscallRegs* regs) {
             }
 
             if (!has_children) return (uint32_t)-1;
+            if (options & 1) return 0;
         }
 
         TaskScheduler::block_current(-2);
     }
+}
+
+static uint32_t sys_wait(SyscallRegs* regs) {
+    int* status_ptr = (int*)regs->ebx;
+    return wait_for_child(-1, status_ptr, 0);
+}
+
+static uint32_t sys_waitpid(SyscallRegs* regs) {
+    int pid = (int)regs->ebx;
+    int* status_ptr = (int*)regs->ecx;
+    int options = (int)regs->edx;
+    if (pid == 0 || pid < -1) return (uint32_t)-1;
+    if (options & ~1) return (uint32_t)-1;
+    return wait_for_child(pid, status_ptr, options);
 }
 
 static uint32_t sys_grant_mmio(SyscallRegs* regs) {
@@ -1299,12 +1536,12 @@ static SyscallHandler syscall_table[] = {
     sys_sleep,       // 3
     sys_yield,       // 4
     sys_getpid,      // 5
-    nullptr,         // 6
-    nullptr,         // 7
-    nullptr,         // 8
-    nullptr,         // 9
-    nullptr,         // 10
-    nullptr,         // 11
+    sys_fork,        // 6 legacy POSIX
+    sys_exec,        // 7 legacy POSIX
+    sys_open,        // 8 POSIX open
+    sys_fread,       // 9 POSIX read
+    sys_fwrite,      // 10 POSIX write
+    sys_fclose,      // 11 POSIX close
     sys_mmap,        // 12
     sys_munmap,      // 13
     sys_send,        // 14
@@ -1339,6 +1576,11 @@ static SyscallHandler syscall_table[] = {
     sys_fseek,       // 43
     sys_grant_port,  // 44
     sys_grant_irq,   // 45
+    sys_unlink,      // 46
+    sys_stat,        // 47
+    sys_fstat,       // 48
+    sys_mkdir,       // 49
+    sys_waitpid,     // 50
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

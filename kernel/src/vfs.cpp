@@ -30,6 +30,8 @@ static int num_drivers = 0;
 static superblock* mount_points[MAX_MOUNT_POINTS];
 static int num_mount_points = 0;
 
+static void split_parent_and_name(const char* path, char* dir_out, int dir_max, char* name_out, int name_max);
+
 void vfs_init() {
     for (int i = 0; i < MAX_VFS_DRIVERS; i++) fs_drivers[i] = nullptr;
     for (int i = 0; i < MAX_MOUNT_POINTS; i++) mount_points[i] = nullptr;
@@ -150,7 +152,7 @@ int vfs_resolve_path(const char* path, vnode** out) {
 }
 
 int vfs_open(const char* path, int flags, int mode) {
-    (void)mode;
+    if (!path) return -1;
     vnode* vn = nullptr;
     
     int resolve_res = vfs_resolve_path(path, &vn);
@@ -159,26 +161,48 @@ int vfs_open(const char* path, int flags, int mode) {
     if (resolve_res != 0) {
         if (flags & O_CREAT) {
             // Берем корневой узел
-            if (num_mount_points == 0) return -1;
-            vnode* root = mount_points[0]->root_vnode;
-            if (root && root->ops && root->ops->create) {
-                int i = 0;
-                if (path[0] == '/') i++;
-                int cr = root->ops->create(root, path + i, mode, &vn);
-                if (cr != 0) return -1;
-            } else {
+            char dir_path[256];
+            char filename[64];
+            split_parent_and_name(path, dir_path, sizeof(dir_path), filename, sizeof(filename));
+            if (filename[0] == '\0') return -1;
+
+            vnode* parent = nullptr;
+            if (vfs_resolve_path(dir_path, &parent) != 0 || !parent) {
                 return -1;
             }
+
+            if (!parent->ops || !parent->ops->create) {
+                vnode_release(parent);
+                return -1;
+            }
+
+            int cr = parent->ops->create(parent, filename, mode, &vn);
+            vnode_release(parent);
+            if (cr != 0) return -1;
         } else {
             return -1; // Файл не найден и мы не создаем
         }
+    } else if ((flags & O_CREAT) && (flags & O_EXCL)) {
+        vnode_release(vn);
+        return -1;
     }
 
     if (!vn) return -1;
 
     if (vn->ops && vn->ops->open) {
         int op_res = vn->ops->open(vn);
-        if (op_res != 0) return -1;
+        if (op_res != 0) {
+            vnode_release(vn);
+            return -1;
+        }
+    }
+
+    if ((flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
+        if (!vn->ops || !vn->ops->write || vn->ops->write(vn, 0, nullptr, 0) < 0) {
+            vnode_release(vn);
+            return -1;
+        }
+        vn->size = 0;
     }
 
     // Вместо возвращения FD тут, мы должны вернуть указатель на абстрактную структуру file*, 
@@ -214,6 +238,17 @@ int vfs_stat(const char* path, vfs_stat_t* out) {
     // Resolve the vnode itself
     vnode* target = nullptr;
     if (vfs_resolve_path(path, &target) != 0 || !target) return -1;
+
+    if (path[0] == '/' && path[1] == '\0') {
+        out->size = target->size;
+        out->type = target->type;
+        out->first_cluster = (uint16_t)target->inode_num;
+        out->mod_time = 0;
+        out->mod_date = 0;
+        out->attributes = 0x10;
+        vnode_release(target);
+        return 0;
+    }
 
     // Fast path: if the target supports stat directly
     if (target->ops && target->ops->stat) {

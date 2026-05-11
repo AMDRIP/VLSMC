@@ -1,4 +1,5 @@
 #include "kernel/thread.h"
+#include "kernel/pmm.h"
 #include "kernel/spinlock.h"
 #include "kernel/vmm.h"
 #include "kernel/task_scheduler.h"
@@ -11,7 +12,7 @@ Thread threads[MAX_THREADS];
 int current_tid = 0;
 int thread_count = 0;
 
-static uint8_t thread_stacks[MAX_THREADS][THREAD_STACK_SIZE] __attribute__((aligned(16)));
+static uint8_t* thread_stack_pool = nullptr;
 
 static void thread_exit_wrapper() {
     printf("\n[Thread %d terminated]\n", current_tid);
@@ -21,12 +22,22 @@ static void thread_exit_wrapper() {
 }
 
 void thread_init() {
+    if (!thread_stack_pool) {
+        constexpr uint32_t stack_pool_bytes = MAX_THREADS * THREAD_STACK_SIZE;
+        constexpr uint32_t stack_pool_pages = (stack_pool_bytes + PMM_FRAME_SIZE - 1) / PMM_FRAME_SIZE;
+        thread_stack_pool = (uint8_t*)PhysicalMemoryManager::alloc_blocks(stack_pool_pages);
+        if (!thread_stack_pool) {
+            printf("FATAL: Cannot allocate thread stack pool!\n");
+            while (true) asm volatile("cli; hlt");
+        }
+    }
+
     for (int i = 0; i < MAX_THREADS; i++) {
         threads[i].tid = i;
         threads[i].state = ThreadState::Unused;
         threads[i].priority = 255;
         threads[i].esp = 0;
-        threads[i].stack_base = thread_stacks[i];
+        threads[i].stack_base = thread_stack_pool + (i * THREAD_STACK_SIZE);
         threads[i].sleep_until = 0;
         threads[i].blocked_channel_id = -1;
         threads[i].quantum_remaining = 5;
@@ -131,6 +142,9 @@ void thread_cleanup(int tid) {
     VMA* curr = threads[tid].vma_list;
     while (curr) {
         VMA* next = curr->next;
+        if (curr->type == VMA_TYPE_FILE && curr->file_vnode) {
+            vnode_release(curr->file_vnode);
+        }
         kfree(curr);
         curr = next;
     }

@@ -19,7 +19,7 @@ struct ForkChildState {
 };
 
 #define MAX_THREADS 32
-#define THREAD_STACK_SIZE 4096
+#define THREAD_STACK_SIZE 16384
 
 #define IPC_MAX_MSG_SIZE 512
 #define IPC_MSG_QUEUE_SIZE 4

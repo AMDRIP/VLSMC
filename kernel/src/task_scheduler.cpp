@@ -215,7 +215,7 @@ void TaskScheduler::print_threads() {
     InterruptGuard guard;
     
     const char* state_names[] = {
-        "Unused", "Ready", "Running", "Blocked", "Sleeping", "Dead"
+        "Unused", "Ready", "Running", "Blocked", "Sleeping", "Dead", "Zombie"
     };
     
     printf("\n TID | Name              | State    | Pri | Ticks\n");

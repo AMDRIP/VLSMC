@@ -3,6 +3,7 @@
 #include "kernel/pic.h"
 #include "kernel/vga.h"
 #include "kernel/bga.h"
+#include "kernel/shell_redirect.h"
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -235,6 +236,11 @@ static void serial_putchar(char c) {
 }
 
 void putchar(char c) {
+    if (re36::ShellRedirect::is_capturing()) {
+        re36::ShellRedirect::append(&c, 1);
+        return;
+    }
+
     if (c == '\n') serial_putchar('\r');
     serial_putchar(c);
 

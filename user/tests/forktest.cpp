@@ -22,7 +22,7 @@ int main() {
         printf("[PARENT] fork() returned child PID = %d\n", pid);
         int status = 0;
         int child = wait(&status);
-        printf("[PARENT] Child %d exited with code %d\n", child, status);
+        printf("[PARENT] Child %d exited with code %d\n", child, WEXITSTATUS(status));
     }
 
     printf("=== FORK TEST COMPLETE ===\n");

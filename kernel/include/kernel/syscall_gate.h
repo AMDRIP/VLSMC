@@ -10,8 +10,8 @@ namespace re36 {
 #define SYS_SLEEP    3
 #define SYS_YIELD    4
 #define SYS_GETPID   5
-#define SYS_FORK     6
-#define SYS_EXEC     7
+#define SYS_LEGACY_FORK 6
+#define SYS_LEGACY_EXEC 7
 #define SYS_OPEN     8
 #define SYS_READ     9
 #define SYS_WRITE    10
@@ -22,8 +22,29 @@ namespace re36 {
 #define SYS_RECV     15
 #define SYS_TIME     16
 
+#define SYS_FOPEN       29
+#define SYS_FREAD       30
+#define SYS_FWRITE      31
+#define SYS_FCLOSE      32
+#define SYS_FSIZE       33
+#define SYS_FORK        34
+#define SYS_EXEC        35
+#define SYS_WAIT        36
+
 #define SYS_GRANT_MMIO 37
 #define SYS_SET_DRIVER 38
+#define SYS_UNMAP_MMIO 39
+#define SYS_GET_VGA_INFO 40
+#define SYS_UPTIME 41
+#define SYS_READDIR 42
+#define SYS_FSEEK 43
+#define SYS_GRANT_PORT 44
+#define SYS_GRANT_IRQ 45
+#define SYS_UNLINK 46
+#define SYS_STAT 47
+#define SYS_FSTAT 48
+#define SYS_MKDIR 49
+#define SYS_WAITPID 50
 
 struct SyscallRegs {
     uint32_t eax; // Номер syscall

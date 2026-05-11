@@ -777,11 +777,55 @@ int Fat16::fat16_read(vnode* vn, uint32_t offset, uint8_t* buffer, uint32_t size
 }
 
 int Fat16::fat16_write(vnode* vn, uint32_t offset, const uint8_t* buffer, uint32_t size) {
-    (void)offset;
     if (!mounted_ || !vn) return -1;
+    if (size > 0 && !buffer) return -1;
     Fat16NodeData* nd = (Fat16NodeData*)vn->fs_data;
     if (!nd) return -1;
-    if (write_file_in_dir(nd->parent_cluster, nd->name, buffer, size)) return (int)size;
+
+    uint32_t sector;
+    int index;
+    uint32_t old_size = vn->size;
+    if (find_dir_entry(nd->parent_cluster, nd->name, &sector, &index) == 0) {
+        Disk::read_sectors(sector, 1, dma_buffer_);
+        FAT16_DirEntry* entry = &((FAT16_DirEntry*)dma_buffer_)[index];
+        old_size = entry->file_size;
+    }
+
+    uint32_t end_offset = offset + size;
+    if (end_offset < offset) return -1;
+    uint32_t new_size = old_size;
+    if (end_offset > new_size) new_size = end_offset;
+
+    if (new_size == 0) {
+        if (write_file_in_dir(nd->parent_cluster, nd->name, nullptr, 0)) {
+            vn->size = 0;
+            return 0;
+        }
+        return -1;
+    }
+
+    uint8_t* merged = (uint8_t*)kmalloc(new_size);
+    if (!merged) return -1;
+
+    for (uint32_t i = 0; i < new_size; i++) merged[i] = 0;
+    if (old_size > 0) {
+        int read_bytes = fat16_read(vn, 0, merged, old_size);
+        if (read_bytes < 0) {
+            kfree(merged);
+            return -1;
+        }
+    }
+
+    for (uint32_t i = 0; i < size; i++) {
+        merged[offset + i] = buffer[i];
+    }
+
+    bool ok = write_file_in_dir(nd->parent_cluster, nd->name, merged, new_size);
+    kfree(merged);
+    if (ok) {
+        vn->size = new_size;
+        return (int)size;
+    }
     return -1;
 }
 

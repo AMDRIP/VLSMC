@@ -82,7 +82,7 @@ echo "int main() { return 42; }" | mcopy -i data.img - ::/MAIN.C
 
 echo "=== Building Libc ==="
 echo "=== Building Libc ==="
-LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx init ctype time dirent unistd strings inttypes signal"
+LIBC_SRCS="syscall errno string malloc stdio stdlib math cxx init ctype time dirent unistd strings inttypes signal divdi3"
 LIBC_OBJS=""
 LIBC_PIC_OBJS=""
 

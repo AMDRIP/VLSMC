@@ -220,7 +220,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
     if (is_present && is_write) {
         if (cow_handle_fault(fault_addr, error_code)) return true;
     } else if (!is_present) {
-        if (!is_user && (fault_addr < 0x20000000 || fault_addr >= 0xC0000000)) {
+        if (!is_user && (fault_addr < USER_SPACE_START || fault_addr >= USER_SPACE_END)) {
             return false; // True kernel page fault
         }
         if (current_tid >= 0 && current_tid < MAX_THREADS) {

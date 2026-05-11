@@ -3,6 +3,9 @@ section .text.entry
 global _start
 extern kernel_main
 
+%define BOOT_INFO_BOOT_STACK_TOP_OFFSET 36
+%define DEFAULT_BOOT_STACK_TOP 0x200000
+
 _start:
     cli
 
@@ -16,7 +19,12 @@ _start:
     mov gs, ax
     mov ss, ax
 
-    mov esp, 0x90000
+    mov eax, [ebx + BOOT_INFO_BOOT_STACK_TOP_OFFSET]
+    test eax, eax
+    jnz .stack_ready
+    mov eax, DEFAULT_BOOT_STACK_TOP
+.stack_ready:
+    mov esp, eax
     mov ebp, esp
 
     extern _bss_start
@@ -28,6 +36,7 @@ _start:
     xor eax, eax
     rep stosd
 
+    push ebx
     call kernel_main
 
 .halt:
