@@ -182,6 +182,30 @@ static const char* str_after(const char* str, int skip) {
     return str + skip;
 }
 
+static bool split_two_args(const char* args, char* first, int first_max, char* second, int second_max) {
+    if (!args || !first || !second || first_max <= 0 || second_max <= 0) return false;
+    while (*args == ' ') args++;
+
+    int i = 0;
+    while (args[i] && args[i] != ' ' && i < first_max - 1) {
+        first[i] = args[i];
+        i++;
+    }
+    first[i] = '\0';
+
+    while (args[i] && args[i] != ' ') i++;
+    while (args[i] == ' ') i++;
+
+    int j = 0;
+    while (args[i] && j < second_max - 1) {
+        second[j++] = args[i++];
+    }
+    while (j > 0 && second[j - 1] == ' ') j--;
+    second[j] = '\0';
+
+    return first[0] != '\0' && second[0] != '\0';
+}
+
 static void resolve_path(const char* input, char* output) {
     if (!input || !input[0]) {
         int i = 0; while (current_working_dir[i]) { output[i] = current_working_dir[i]; i++; }
@@ -597,7 +621,7 @@ static void exec_command(const char* cmd) {
             PhysicalMemoryManager::free_frame(test_buf);
         }
     } else if (str_eq(cmd, "help")) {
-        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link, cd <path>\n");
+        printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link, symlink, readlink, cd <path>\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear, runall <dir>\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help, helpme\n");
@@ -621,7 +645,9 @@ static void exec_command(const char* cmd) {
         printf("  stat <path>       - Display file size, clusters, attributes and date\n");
         printf("  hexdump <path>    - Display a 256-byte hex + ascii dump of a file\n");
         printf("  mknod <path>      - Create an empty file\n");
-        printf("  link              - (Not Supported) Create symlink/hardlink\n");
+        printf("  link <old> <new>  - Create a hardlink to an existing file\n");
+        printf("  symlink <t> <ln>  - Create symbolic link <ln> pointing at <t>\n");
+        printf("  readlink <path>   - Print the stored target of a symbolic link\n");
         printf("  chattr [+-]attr   - Change file attributes (+gd, -gd, +gc, -gc)\n");
         printf("\n[Execution & Process Commands]\n");
         printf("  runall <dir>      - Run all .ELF files in a directory sequentially\n");
@@ -958,7 +984,45 @@ static void exec_command(const char* cmd) {
             printf("Failed to create file: %s\n", resolved);
         }
     } else if (str_starts(cmd, "link ", 5)) {
-        printf("link/symlink is not supported on this filesystem (FAT16)\n");
+        char old_arg[128];
+        char new_arg[128];
+        if (!split_two_args(str_after(cmd, 5), old_arg, sizeof(old_arg), new_arg, sizeof(new_arg))) {
+            printf("Usage: link <oldpath> <newpath>\n");
+        } else {
+            char old_resolved[256];
+            char new_resolved[256];
+            resolve_path(old_arg, old_resolved);
+            resolve_path(new_arg, new_resolved);
+            if (vfs_link(old_resolved, new_resolved) == 0) {
+                printf("Linked %s -> %s\n", new_resolved, old_resolved);
+            } else {
+                printf("link failed: %s -> %s\n", new_resolved, old_resolved);
+            }
+        }
+    } else if (str_starts(cmd, "symlink ", 8)) {
+        char target[256];
+        char link_arg[128];
+        if (!split_two_args(str_after(cmd, 8), target, sizeof(target), link_arg, sizeof(link_arg))) {
+            printf("Usage: symlink <target> <linkpath>\n");
+        } else {
+            char link_resolved[256];
+            resolve_path(link_arg, link_resolved);
+            if (vfs_symlink(target, link_resolved) == 0) {
+                printf("Symlink %s -> %s\n", link_resolved, target);
+            } else {
+                printf("symlink failed: %s -> %s\n", link_resolved, target);
+            }
+        }
+    } else if (str_starts(cmd, "readlink ", 9)) {
+        char resolved[256];
+        resolve_path(str_after(cmd, 9), resolved);
+        char target[256];
+        int len = vfs_readlink(resolved, target, sizeof(target));
+        if (len >= 0) {
+            printf("%s\n", target);
+        } else {
+            printf("readlink failed: %s\n", resolved);
+        }
     } else if (str_eq(cmd, "fork")) {
         printf("Forking test thread...\n");
         auto fork_test_entry = []() {
@@ -1023,6 +1087,7 @@ static void exec_command(const char* cmd) {
         } else {
             printf("\n  File: %s\n", resolved);
             printf("  Size: %d bytes\n", st.size);
+            printf("  Links: %d\n", st.nlink);
             printf("  Cluster: %d\n", st.first_cluster);
             printf("  Attr: ");
             if (st.attributes & 0x01) printf("R ");

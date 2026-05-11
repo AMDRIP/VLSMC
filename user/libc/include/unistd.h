@@ -17,6 +17,9 @@ int close(int fd);
 off_t lseek(int fd, off_t offset, int whence);
 
 int unlink(const char *pathname);
+int link(const char *oldpath, const char *newpath);
+int symlink(const char *target, const char *linkpath);
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
 pid_t getpid(void);
 pid_t fork(void);
 int execvp(const char *file, char *const argv[]);

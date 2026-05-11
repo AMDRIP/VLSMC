@@ -79,6 +79,7 @@ struct PosixStat {
 static constexpr uint32_t POSIX_S_IFREG = 0100000;
 static constexpr uint32_t POSIX_S_IFDIR = 0040000;
 static constexpr uint32_t POSIX_S_IFCHR = 0020000;
+static constexpr uint32_t POSIX_S_IFLNK = 0120000;
 
 static void fill_posix_stat(PosixStat* out, const vfs_stat_t& st) {
     out->st_dev = 0;
@@ -87,10 +88,12 @@ static void fill_posix_stat(PosixStat* out, const vfs_stat_t& st) {
         out->st_mode = POSIX_S_IFDIR | 0755;
     } else if (st.type == VnodeType::Device) {
         out->st_mode = POSIX_S_IFCHR | 0600;
+    } else if (st.type == VnodeType::Symlink) {
+        out->st_mode = POSIX_S_IFLNK | 0777;
     } else {
         out->st_mode = POSIX_S_IFREG | 0644;
     }
-    out->st_nlink = 1;
+    out->st_nlink = st.nlink ? st.nlink : 1;
     out->st_uid = 0;
     out->st_gid = 0;
     out->st_rdev = 0;
@@ -104,6 +107,7 @@ static void fill_posix_stat_from_vnode(PosixStat* out, vnode* vn) {
     vfs_stat_t st;
     st.size = vn ? vn->size : 0;
     st.type = vn ? vn->type : VnodeType::File;
+    st.nlink = 1;
     st.first_cluster = vn ? (uint16_t)vn->inode_num : 0;
     st.mod_time = 0;
     st.mod_date = 0;
@@ -866,6 +870,7 @@ static uint32_t sys_fstat(SyscallRegs* regs) {
         vfs_stat_t st;
         st.size = 0;
         st.type = VnodeType::Device;
+        st.nlink = 1;
         st.first_cluster = 0;
         st.mod_time = 0;
         st.mod_date = 0;
@@ -888,6 +893,29 @@ static uint32_t sys_mkdir(SyscallRegs* regs) {
     int mode = (int)regs->ecx;
     if (!user_cstr_ok(path, 255)) return (uint32_t)-1;
     return vfs_mkdir(path, mode) == 0 ? 0 : (uint32_t)-1;
+}
+
+static uint32_t sys_link(SyscallRegs* regs) {
+    const char* oldpath = (const char*)regs->ebx;
+    const char* newpath = (const char*)regs->ecx;
+    if (!user_cstr_ok(oldpath, 255) || !user_cstr_ok(newpath, 255)) return (uint32_t)-1;
+    return vfs_link(oldpath, newpath) == 0 ? 0 : (uint32_t)-1;
+}
+
+static uint32_t sys_symlink(SyscallRegs* regs) {
+    const char* target = (const char*)regs->ebx;
+    const char* linkpath = (const char*)regs->ecx;
+    if (!user_cstr_ok(target, 255) || !user_cstr_ok(linkpath, 255)) return (uint32_t)-1;
+    return vfs_symlink(target, linkpath) == 0 ? 0 : (uint32_t)-1;
+}
+
+static uint32_t sys_readlink(SyscallRegs* regs) {
+    const char* path = (const char*)regs->ebx;
+    char* buffer = (char*)regs->ecx;
+    uint32_t size = regs->edx;
+    if (!user_cstr_ok(path, 255) || !buffer || size == 0) return (uint32_t)-1;
+    if (!user_range_ok(buffer, size)) return (uint32_t)-1;
+    return (uint32_t)vfs_readlink(path, buffer, size);
 }
 
 static void fork_child_entry() {
@@ -1581,6 +1609,9 @@ static SyscallHandler syscall_table[] = {
     sys_fstat,       // 48
     sys_mkdir,       // 49
     sys_waitpid,     // 50
+    sys_link,        // 51
+    sys_symlink,     // 52
+    sys_readlink,    // 53
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

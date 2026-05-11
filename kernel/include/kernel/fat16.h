@@ -45,6 +45,10 @@ struct __attribute__((packed)) FAT16_DirEntry {
 #define FAT_ATTR_PROTECT_DELETE 0x80 // -gd
 #define FAT16_MAX_FAT_ENTRIES 32768
 #define FAT16_SECTOR_BUF_SIZE 512
+#define FAT16_SYMLINK_MAGIC0 'S'
+#define FAT16_SYMLINK_MAGIC1 'L'
+#define FAT16_SYMLINK_MAGIC2 'N'
+#define FAT16_SYMLINK_MAGIC3 'K'
 
 struct Fat16NodeData {
     char name[13];
@@ -72,6 +76,9 @@ public:
     static int fat16_unlink(vnode* dir, const char* name);
     static int fat16_mkdir(vnode* dir, const char* name, int mode);
     static int fat16_rename(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name);
+    static int fat16_link(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name);
+    static int fat16_symlink(vnode* dir, const char* name, const char* target);
+    static int fat16_readlink(vnode* dir, const char* name, char* buffer, uint32_t size);
 
     // Old API (kept for internal use/transition)
     static int read_file(const char* name, uint8_t* buffer, uint32_t max_size);
@@ -112,6 +119,9 @@ private:
     static void free_chain(uint16_t start_cluster);
     static void flush_fat();
     static void format_83_name(const char* name, char* out);
+    static bool is_symlink_entry(const FAT16_DirEntry* entry);
+    static uint32_t count_cluster_refs(uint16_t cluster);
+    static uint32_t count_cluster_refs_in_dir(uint32_t dir_cluster, uint16_t target_cluster, int depth);
     
     // VFS static operations and structures
     static vnode_operations fat16_vnode_ops;

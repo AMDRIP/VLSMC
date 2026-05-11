@@ -12,6 +12,11 @@ ssize_t write(int fd, const void *buf, size_t count) { return (ssize_t)syscall(S
 int close(int fd) { return (int)syscall(SYS_CLOSE, fd); }
 off_t lseek(int fd, off_t offset, int whence) { return (off_t)syscall(SYS_FSEEK, fd, offset, whence); }
 int unlink(const char *pathname) { return (int)syscall(SYS_UNLINK, (long)pathname); }
+int link(const char *oldpath, const char *newpath) { return (int)syscall(SYS_LINK, (long)oldpath, (long)newpath); }
+int symlink(const char *target, const char *linkpath) { return (int)syscall(SYS_SYMLINK, (long)target, (long)linkpath); }
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
+    return (ssize_t)syscall(SYS_READLINK, (long)pathname, (long)buf, bufsiz);
+}
 pid_t getpid(void) { return (pid_t)syscall(SYS_GETPID); }
 pid_t fork(void) { return (pid_t)syscall(SYS_FORK); }
 int execve(const char *pathname, char *const argv[], char *const envp[]) {

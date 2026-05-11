@@ -51,6 +51,9 @@
 #define SYS_FSTAT       48
 #define SYS_MKDIR       49
 #define SYS_WAITPID     50
+#define SYS_LINK        51
+#define SYS_SYMLINK     52
+#define SYS_READLINK    53
 
 #ifdef __cplusplus
 extern "C" {

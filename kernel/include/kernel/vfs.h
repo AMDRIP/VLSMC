@@ -30,6 +30,7 @@ struct vfs_dir_entry {
 struct vfs_stat_t {
     uint32_t size;
     VnodeType type;
+    uint32_t nlink;
     uint16_t first_cluster;
     uint16_t mod_time;
     uint16_t mod_date;
@@ -57,6 +58,9 @@ struct vnode_operations {
     int (*mkdir)(vnode* dir, const char* name, int mode);
     int (*unlink)(vnode* dir, const char* name);
     int (*rename)(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name);
+    int (*link)(vnode* old_dir, const char* old_name, vnode* new_dir, const char* new_name);
+    int (*symlink)(vnode* dir, const char* name, const char* target);
+    int (*readlink)(vnode* dir, const char* name, char* buffer, uint32_t size);
     int (*readdir)(vnode* dir, vfs_dir_entry* entries, int max_entries);
     int (*stat)(vnode* dir, const char* name, vfs_stat_t* out);
 };
@@ -112,8 +116,12 @@ int vfs_open(const char* path, int flags, int mode);
 int vfs_resolve_path(const char* path, vnode** out);
 int vfs_readdir(const char* path, vfs_dir_entry* entries, int max_entries);
 int vfs_stat(const char* path, vfs_stat_t* out);
+int vfs_lstat(const char* path, vfs_stat_t* out);
 int vfs_unlink(const char* path);
 int vfs_rename(const char* oldpath, const char* newpath);
+int vfs_link(const char* oldpath, const char* newpath);
+int vfs_symlink(const char* target, const char* linkpath);
+int vfs_readlink(const char* path, char* buffer, uint32_t size);
 int vfs_mkdir(const char* path, int mode);
 int vfs_write_file(const char* path, const uint8_t* data, uint32_t size);
 

@@ -61,6 +61,9 @@ struct vfs_dir_entry {
 #define SYS_FSTAT       48
 #define SYS_MKDIR       49
 #define SYS_WAITPID     50
+#define SYS_LINK        51
+#define SYS_SYMLINK     52
+#define SYS_READLINK    53
 static inline uint32_t syscall0(uint32_t num) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(num));
@@ -243,4 +246,16 @@ static inline int sys_write(int fd, const void* buf, uint32_t size) {
 
 static inline int sys_close(int fd) {
     return (int)syscall1(SYS_CLOSE, (uint32_t)fd);
+}
+
+static inline int sys_link(const char* oldpath, const char* newpath) {
+    return (int)syscall2(SYS_LINK, (uint32_t)oldpath, (uint32_t)newpath);
+}
+
+static inline int sys_symlink(const char* target, const char* linkpath) {
+    return (int)syscall2(SYS_SYMLINK, (uint32_t)target, (uint32_t)linkpath);
+}
+
+static inline int sys_readlink(const char* path, char* buffer, uint32_t size) {
+    return (int)syscall3(SYS_READLINK, (uint32_t)path, (uint32_t)buffer, size);
 }
