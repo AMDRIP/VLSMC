@@ -48,6 +48,10 @@ namespace re36 {
 #define SYS_LINK 51
 #define SYS_SYMLINK 52
 #define SYS_READLINK 53
+#define SYS_NET_INFO 54
+#define SYS_NET_CONFIG 55
+#define SYS_NET_SEND_UDP 56
+#define SYS_NET_RECV_UDP 57
 
 struct SyscallRegs {
     uint32_t eax; // Номер syscall

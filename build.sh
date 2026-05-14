@@ -49,12 +49,14 @@ x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/bga.cpp -o bga.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/ahci.cpp -o ahci.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/disk.cpp -o disk.o
 x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/page_cache.cpp -o page_cache.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/net.cpp -o net.o
+x86_64-linux-gnu-g++ $CXXFLAGS -c kernel/src/e1000.cpp -o e1000.o
 
 echo "[4/5] Linking kernel..."
 x86_64-linux-gnu-ld -m elf_i386 -T kernel/linker.ld \
     kernel_entry.o interrupts.o switch_task.o \
     idt.o pic.o pmm.o kmalloc.o libc.o syscalls_posix.o \
-    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o cow.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o page_cache.o \
+    keyboard.o thread.o timer.o task_scheduler.o event_channel.o vmm.o cow.o tss.o syscall_gate.o usermode.o ata.o vfs.o fat16.o elf_loader.o rtc.o pci.o memory_validator.o mouse.o bga.o ahci.o disk.o page_cache.o net.o e1000.o \
     shell.o shell_history.o shell_autocomplete.o shell_redirect.o vga.o selftest.o \
     kernel_main.o -o kernel.elf
 x86_64-linux-gnu-objcopy -O binary kernel.elf KERNEL.BIN
@@ -236,4 +238,4 @@ rm -rf iso_root
 
 echo ""
 echo "DONE! To run:"
-echo "qemu-system-i386 -fda disk.img -hda data.img -boot a"
+echo "qemu-system-i386 -drive file=disk.img,format=raw,if=floppy -drive file=data.img,format=raw,if=ide -boot a -netdev user,id=net0 -device e1000,netdev=net0"

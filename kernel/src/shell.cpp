@@ -23,6 +23,8 @@
 #include "kernel/memory_validator.h"
 #include "kernel/kmalloc.h"
 #include "kernel/fat16.h"
+#include "kernel/net.h"
+#include "kernel/e1000.h"
 #include "libc.h"
 
 namespace re36 {
@@ -204,6 +206,40 @@ static bool split_two_args(const char* args, char* first, int first_max, char* s
     second[j] = '\0';
 
     return first[0] != '\0' && second[0] != '\0';
+}
+
+static const char* read_token(const char* args, char* out, int out_max) {
+    if (!out || out_max <= 0) return nullptr;
+    if (!args) {
+        out[0] = '\0';
+        return nullptr;
+    }
+    while (*args == ' ') args++;
+    if (!*args) {
+        out[0] = '\0';
+        return args;
+    }
+
+    int i = 0;
+    while (args[i] && args[i] != ' ' && i < out_max - 1) {
+        out[i] = args[i];
+        i++;
+    }
+    out[i] = '\0';
+
+    while (args[i] && args[i] != ' ') i++;
+    while (args[i] == ' ') i++;
+    return args + i;
+}
+
+static bool split_three_args(const char* args,
+                             char* first, int first_max,
+                             char* second, int second_max,
+                             char* third, int third_max) {
+    const char* rest = read_token(args, first, first_max);
+    rest = read_token(rest, second, second_max);
+    rest = read_token(rest, third, third_max);
+    return first[0] != '\0' && second[0] != '\0' && third[0] != '\0';
 }
 
 static void resolve_path(const char* input, char* output) {
@@ -620,10 +656,125 @@ static void exec_command(const char* cmd) {
             }
             PhysicalMemoryManager::free_frame(test_buf);
         }
+    } else if (str_eq(cmd, "netinfo") || str_eq(cmd, "ifconfig")) {
+        E1000Driver::poll();
+        NetStack::print_info();
+    } else if (str_starts(cmd, "ifconfig ", 9)) {
+        char ip_arg[32];
+        char mask_arg[32];
+        char gw_arg[32];
+        if (!split_three_args(str_after(cmd, 9), ip_arg, sizeof(ip_arg),
+                              mask_arg, sizeof(mask_arg), gw_arg, sizeof(gw_arg))) {
+            printf("Usage: ifconfig <ip> <netmask> <gateway>\n");
+        } else {
+            bool ok_ip = false;
+            bool ok_mask = false;
+            bool ok_gw = false;
+            uint32_t ip = NetStack::parse_ipv4(ip_arg, &ok_ip);
+            uint32_t mask = NetStack::parse_ipv4(mask_arg, &ok_mask);
+            uint32_t gw = NetStack::parse_ipv4(gw_arg, &ok_gw);
+            if (!ok_ip || !ok_mask || !ok_gw) {
+                printf("ifconfig: invalid IPv4 address\n");
+            } else {
+                NetStack::configure_ipv4(ip, mask, gw);
+                NetStack::print_info();
+            }
+        }
+    } else if (str_eq(cmd, "arp")) {
+        E1000Driver::poll();
+        NetStack::print_arp_cache();
+    } else if (str_starts(cmd, "ping ", 5)) {
+        bool ok = false;
+        uint32_t ip = NetStack::parse_ipv4(str_after(cmd, 5), &ok);
+        if (!ok) {
+            printf("Usage: ping <ipv4>\n");
+        } else if (!NetStack::is_link_up()) {
+            printf("ping: network link is down\n");
+        } else {
+            static uint16_t seq = 1;
+            uint16_t id = 0x3636;
+            uint16_t this_seq = seq++;
+            uint32_t start = Timer::get_ticks();
+
+            if (!NetStack::send_icmp_echo(ip, id, this_seq)) {
+                printf("ping: resolving ARP...\n");
+                for (int i = 0; i < 10; i++) {
+                    Timer::sleep(50);
+                    E1000Driver::poll();
+                    if (NetStack::send_icmp_echo(ip, id, this_seq)) break;
+                }
+            }
+
+            bool replied = false;
+            uint32_t reply_ip = 0;
+            uint8_t ttl = 0;
+            for (int i = 0; i < 50; i++) {
+                E1000Driver::poll();
+                if (NetStack::consume_ping_reply(id, this_seq, &reply_ip, &ttl)) {
+                    replied = true;
+                    break;
+                }
+                Timer::sleep(20);
+            }
+
+            char ipbuf[16];
+            NetStack::format_ipv4(ip, ipbuf);
+            if (replied) {
+                uint32_t elapsed = Timer::get_ticks() - start;
+                char srcbuf[16];
+                NetStack::format_ipv4(reply_ip, srcbuf);
+                printf("reply from %s: seq=%u ttl=%u time=%u ticks\n", srcbuf, this_seq, ttl, elapsed);
+            } else {
+                printf("request timeout for %s\n", ipbuf);
+            }
+        }
+    } else if (str_starts(cmd, "udpsend ", 8)) {
+        char ip_arg[32];
+        char port_arg[16];
+        const char* rest = read_token(str_after(cmd, 8), ip_arg, sizeof(ip_arg));
+        rest = read_token(rest, port_arg, sizeof(port_arg));
+        while (rest && *rest == ' ') rest++;
+        if (ip_arg[0] == '\0' || port_arg[0] == '\0' || !rest || rest[0] == '\0') {
+            printf("Usage: udpsend <ip> <port> <text>\n");
+        } else {
+            bool ok = false;
+            uint32_t ip = NetStack::parse_ipv4(ip_arg, &ok);
+            int port = atoi(port_arg);
+            int len = str_length(rest);
+            if (!ok || port <= 0 || port > 65535 || len > NET_MAX_UDP_PAYLOAD) {
+                printf("udpsend: invalid argument\n");
+            } else if (NetStack::send_udp(ip, (uint16_t)port, 49152, (const uint8_t*)rest, (uint16_t)len)) {
+                printf("sent %d UDP bytes\n", len);
+            } else {
+                printf("udpsend: send failed (ARP may still be resolving)\n");
+            }
+        }
+    } else if (str_starts(cmd, "udprecv ", 8)) {
+        int port = atoi(str_after(cmd, 8));
+        if (port <= 0 || port > 65535) {
+            printf("Usage: udprecv <port>\n");
+        } else {
+            E1000Driver::poll();
+            uint8_t buf[NET_MAX_UDP_PAYLOAD + 1];
+            uint32_t src_ip = 0;
+            uint16_t src_port = 0;
+            int got = NetStack::recv_udp((uint16_t)port, &src_ip, &src_port, buf, NET_MAX_UDP_PAYLOAD);
+            if (got <= 0) {
+                printf("no UDP packets queued for port %d\n", port);
+            } else {
+                buf[got] = '\0';
+                char src[16];
+                NetStack::format_ipv4(src_ip, src);
+                printf("udp from %s:%u (%d bytes): ", src, src_port, got);
+                for (int i = 0; i < got; i++) putchar((buf[i] >= 32 && buf[i] <= 126) ? buf[i] : '.');
+                printf("\n");
+            }
+        }
     } else if (str_eq(cmd, "help")) {
         printf("File: ls <path>, mkdir <path>, cat, less, more, write, rm, mv, stat, hexdump, exec, mknod, link, symlink, readlink, cd <path>\n");
         printf("System: ps (threads), kill, killall, ticks, uptime, date, whoiam, fork\n");
         printf("        meminfo (mems), pci, bootinfo, syscall, ring3, clear, runall <dir>\n");
+        printf("Network: netinfo, ifconfig [ip mask gw], arp, ping <ip>, udpsend, udprecv\n");
         printf("        reboot, kernelpanic, echo, sleep, yield, help, helpme\n");
         printf("Tests:  memtest, pmmtest, vmmtest, ahcitest <port>\n");
         printf("Display: mode text, mode gfx, gfx, bga\n");
@@ -671,6 +822,14 @@ static void exec_command(const char* cmd) {
         printf("  syscall           - Issue int 0x80 to test SYS_GETPID bare syscall\n");
         printf("  reboot            - Issue reboot via 8042 keyboard controller\n");
         printf("  kernelpanic       - Purposely trigger a system Kernel Panic\n");
+        printf("\n[Network]\n");
+        printf("  netinfo           - Show link, MAC, IPv4 and protocol counters\n");
+        printf("  ifconfig          - Show current IPv4 configuration\n");
+        printf("  ifconfig ip mask gw - Set IPv4 address, netmask and gateway\n");
+        printf("  arp               - Display the ARP cache\n");
+        printf("  ping <ip>         - Send one ICMP echo request\n");
+        printf("  udpsend ip port text - Send one UDP datagram\n");
+        printf("  udprecv <port>    - Poll one queued UDP datagram for a local port\n");
         printf("\n[Terminal & UI Commands]\n");
         printf("  clear             - Clear the screen and reset cursor to 0,0\n");
         printf("  up / dw           - Scroll the terminal up/down by half a screen\n");

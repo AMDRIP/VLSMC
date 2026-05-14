@@ -17,6 +17,7 @@
 #include "kernel/bga.h"
 #include "kernel/vga.h"
 #include "kernel/rtc.h"
+#include "kernel/net.h"
 #include "libc.h"
 
 namespace re36 {
@@ -30,6 +31,32 @@ static bool user_range_ok(const void* ptr, uint32_t size) {
     if (start == 0 || end < start) return false;
     if (current_tid == 0) return true;
     return start >= USER_SPACE_START && end < USER_SPACE_END;
+}
+
+static bool checked_add_u32(uint32_t a, uint32_t b, uint32_t* out) {
+    if (a > 0xFFFFFFFFu - b) return false;
+    if (out) *out = a + b;
+    return true;
+}
+
+static bool page_count_to_bytes(uint32_t pages, uint32_t* bytes) {
+    if (pages == 0) return false;
+    if (pages > 0xFFFFFFFFu / PAGE_SIZE) return false;
+    if (bytes) *bytes = pages * PAGE_SIZE;
+    return true;
+}
+
+static bool checked_page_range(uint32_t start, uint32_t pages,
+                               uint32_t min_start, uint32_t max_end,
+                               uint32_t* end_out) {
+    uint32_t bytes = 0;
+    uint32_t end = 0;
+    if ((start & (PAGE_SIZE - 1)) != 0) return false;
+    if (!page_count_to_bytes(pages, &bytes)) return false;
+    if (!checked_add_u32(start, bytes, &end)) return false;
+    if (start < min_start || end > max_end || end <= start) return false;
+    if (end_out) *end_out = end;
+    return true;
 }
 
 static bool user_cstr_ok(const char* s, uint32_t max_len) {
@@ -245,12 +272,15 @@ static uint32_t find_free_vaddr(uint32_t size) {
     uint32_t end_limit = 0xB0000000;
     Thread& cur = threads[current_tid];
 
-    while (candidate + size <= end_limit) {
+    if (size == 0 || size > end_limit - candidate) return 0;
+
+    while (candidate <= end_limit - size) {
         bool conflict = false;
         VMA* v = cur.vma_list;
         while (v) {
             if (candidate < v->end && (candidate + size) > v->start) {
-                candidate = (v->end + 0xFFF) & ~0xFFF;
+                if (v->end > 0xFFFFFFFFu - (PAGE_SIZE - 1)) return 0;
+                candidate = (v->end + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
                 conflict = true;
                 break;
             }
@@ -269,8 +299,11 @@ static uint32_t sys_mmap(SyscallRegs* regs) {
     int      fd     = (int)regs->edi;
 
     if (length == 0) return (uint32_t)-1;
+    if (length > USER_SPACE_END - USER_SPACE_START) return (uint32_t)-1;
+    if (length > 0xFFFFFFFFu - (PAGE_SIZE - 1)) return (uint32_t)-1;
 
     length = (length + 0xFFF) & ~0xFFF;
+    if (length == 0) return (uint32_t)-1;
 
     uint32_t page_flags = PAGE_PRESENT | PAGE_USER;
     if (prot & PROT_WRITE) page_flags |= PAGE_WRITABLE;
@@ -279,6 +312,10 @@ static uint32_t sys_mmap(SyscallRegs* regs) {
     if (addr && (flags & MAP_FIXED)) {
         if (addr < KERNEL_SPACE_END) return (uint32_t)-1;
         vaddr = addr & ~0xFFF;
+        uint32_t fixed_end = 0;
+        if (!checked_add_u32(vaddr, length, &fixed_end) || fixed_end > USER_SPACE_END || fixed_end <= vaddr) {
+            return (uint32_t)-1;
+        }
     } else {
         vaddr = find_free_vaddr(length);
         if (vaddr == 0) return (uint32_t)-1;
@@ -345,8 +382,15 @@ static uint32_t sys_munmap(SyscallRegs* regs) {
     uint32_t length = regs->ecx;
 
     if (addr == 0 || length == 0) return (uint32_t)-1;
+    if (length > USER_SPACE_END - USER_SPACE_START) return (uint32_t)-1;
+    if (length > 0xFFFFFFFFu - (PAGE_SIZE - 1)) return (uint32_t)-1;
     addr &= ~0xFFF;
     length = (length + 0xFFF) & ~0xFFF;
+    uint32_t unmap_end = 0;
+    if (!checked_add_u32(addr, length, &unmap_end) ||
+        addr < USER_SPACE_START || unmap_end > USER_SPACE_END || unmap_end <= addr) {
+        return (uint32_t)-1;
+    }
 
     Thread& cur = threads[current_tid];
 
@@ -362,7 +406,7 @@ static uint32_t sys_munmap(SyscallRegs* regs) {
     VMA** prev = &cur.vma_list;
     while (*prev) {
         VMA* v = *prev;
-        if (v->start >= addr && v->end <= addr + length) {
+        if (v->start >= addr && v->end <= unmap_end) {
             *prev = v->next;
             if (v->type == VMA_TYPE_FILE && v->file_vnode) {
                 vnode_release(v->file_vnode);
@@ -418,6 +462,8 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
     uint32_t virt = regs->ebx;
     uint32_t phys = regs->ecx;
     uint32_t size_pages = regs->edx;
+    uint32_t virt_end = 0;
+    uint32_t phys_end = 0;
     
     printf("[SYSCALL] map_mmio: virt=0x%x, phys=0x%x, pages=%d\n", virt, phys, size_pages);
 
@@ -427,13 +473,20 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
         return 0;
     }
 
+    if ((phys & (PAGE_SIZE - 1)) != 0 ||
+        !checked_page_range(virt, size_pages, USER_SPACE_START, USER_SPACE_END, &virt_end) ||
+        !checked_page_range(phys, size_pages, 0, 0xFFFFFFFFu, &phys_end)) {
+        printf("[SYSCALL] map_mmio failed: invalid range\n");
+        return 0;
+    }
+
     bool allowed = false;
     if (cur.tid == 0) {
         allowed = true;
     } else {
         for (int i = 0; i < cur.num_mmio_grants; i++) {
             if (phys >= cur.allowed_mmio[i].phys_start && 
-                (phys + size_pages * 4096 - 1) <= cur.allowed_mmio[i].phys_end) {
+                (phys_end - 1) <= cur.allowed_mmio[i].phys_end) {
                 allowed = true;
                 break;
             }
@@ -455,7 +508,7 @@ static uint32_t sys_map_mmio(SyscallRegs* regs) {
     for (uint32_t i = 0; i < size_pages; i++) {
         uint32_t v = virt + i * 4096;
         uint32_t p = phys + i * 4096;
-        VMM::map_page(v, p, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+        VMM::map_page(v, p, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_CACHEDISABLE);
     }
     
     return virt;
@@ -840,6 +893,7 @@ static uint32_t sys_readdir(SyscallRegs* regs) {
     int max_entries = (int)regs->edx;
 
     if (!user_cstr_ok(path, 255) || !entries || max_entries <= 0) return (uint32_t)-1;
+    if (max_entries > VFS_DIR_MAX_ENTRIES) return (uint32_t)-1;
     if (!user_range_ok(entries, (uint32_t)(sizeof(vfs_dir_entry) * max_entries))) return (uint32_t)-1;
     return (uint32_t)vfs_readdir(path, entries, max_entries);
 }
@@ -1431,6 +1485,7 @@ static uint32_t sys_grant_mmio(SyscallRegs* regs) {
 
     Thread& cur = threads[current_tid];
     if (!cur.is_driver) return (uint32_t)-1;
+    if (phys_end < phys_start) return (uint32_t)-1;
 
     if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
     Thread& target = threads[target_tid];
@@ -1452,6 +1507,7 @@ static uint32_t sys_grant_port(SyscallRegs* regs) {
 
     Thread& cur = threads[current_tid];
     if (!cur.is_driver && cur.tid != 0) return (uint32_t)-1;
+    if (port_end < port_start) return (uint32_t)-1;
 
     if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
     Thread& target = threads[target_tid];
@@ -1472,6 +1528,7 @@ static uint32_t sys_grant_irq(SyscallRegs* regs) {
 
     Thread& cur = threads[current_tid];
     if (!cur.is_driver && cur.tid != 0) return (uint32_t)-1;
+    if (irq >= 16) return (uint32_t)-1;
 
     if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
     Thread& target = threads[target_tid];
@@ -1490,6 +1547,7 @@ static uint32_t sys_set_driver(SyscallRegs* regs) {
 
     Thread& cur = threads[current_tid];
     if (!cur.is_driver) return (uint32_t)-1;
+    if (cur.tid != 0 && target_tid != (int)cur.tid) return (uint32_t)-1;
 
     if (target_tid < 0 || target_tid >= MAX_THREADS) return (uint32_t)-1;
     Thread& target = threads[target_tid];
@@ -1502,10 +1560,13 @@ static uint32_t sys_set_driver(SyscallRegs* regs) {
 static uint32_t sys_unmap_mmio(SyscallRegs* regs) {
     uint32_t virt_addr = regs->ebx;
     uint32_t size_pages = regs->ecx;
+    uint32_t virt_end = 0;
     Thread& cur = threads[current_tid];
 
     if (!cur.is_driver) return (uint32_t)-1;
-    if (virt_addr < 0x20000000 || virt_addr >= 0xC0000000) return (uint32_t)-1;
+    if (!checked_page_range(virt_addr, size_pages, USER_SPACE_START, USER_SPACE_END, &virt_end)) {
+        return (uint32_t)-1;
+    }
 
     for (uint32_t i = 0; i < size_pages; i++) {
         VMM::unmap_page(virt_addr + i * 4096);
@@ -1514,7 +1575,7 @@ static uint32_t sys_unmap_mmio(SyscallRegs* regs) {
     // Remove from VMA list
     VMA** pp = &cur.vma_list;
     while (*pp) {
-        if ((*pp)->start == virt_addr) {
+        if ((*pp)->start == virt_addr && (*pp)->end <= virt_end) {
             VMA* to_del = *pp;
             *pp = to_del->next;
             kfree(to_del);
@@ -1553,6 +1614,58 @@ static uint32_t sys_get_vga_info(SyscallRegs* regs) {
     }
 
     return 0;
+}
+
+static uint32_t sys_net_info(SyscallRegs* regs) {
+    NetInfo* out = (NetInfo*)regs->ebx;
+    if (!user_range_ok(out, sizeof(NetInfo))) return (uint32_t)-1;
+    NetStack::fill_info(out);
+    return 0;
+}
+
+static uint32_t sys_net_config(SyscallRegs* regs) {
+    uint32_t ip = regs->ebx;
+    uint32_t mask = regs->ecx;
+    uint32_t gateway = regs->edx;
+    if (current_tid < 0) return (uint32_t)-1;
+    Thread& cur = threads[current_tid];
+    if (cur.tid != 0 && !cur.is_driver) return (uint32_t)-1;
+    NetStack::configure_ipv4(ip, mask, gateway);
+    return 0;
+}
+
+static uint32_t sys_net_send_udp(SyscallRegs* regs) {
+    uint32_t dst_ip = regs->ebx;
+    uint32_t raw_dst_port = regs->ecx;
+    uint32_t raw_src_port = regs->edx;
+    const uint8_t* payload = (const uint8_t*)regs->esi;
+    uint32_t raw_length = regs->edi;
+
+    if (raw_dst_port == 0 || raw_dst_port > 65535 ||
+        raw_src_port == 0 || raw_src_port > 65535 ||
+        raw_length > NET_MAX_UDP_PAYLOAD) return (uint32_t)-1;
+    if (!user_range_ok(payload, raw_length)) return (uint32_t)-1;
+
+    return NetStack::send_udp(dst_ip, (uint16_t)raw_dst_port, (uint16_t)raw_src_port,
+                              payload, (uint16_t)raw_length) ? 0 : (uint32_t)-1;
+}
+
+static uint32_t sys_net_recv_udp(SyscallRegs* regs) {
+    uint32_t raw_local_port = regs->ebx;
+    uint32_t* src_ip = (uint32_t*)regs->ecx;
+    uint16_t* src_port = (uint16_t*)regs->edx;
+    uint8_t* payload = (uint8_t*)regs->esi;
+    uint32_t raw_max_length = regs->edi;
+
+    if (raw_local_port == 0 || raw_local_port > 65535 || raw_max_length == 0 ||
+        raw_max_length > NET_MAX_UDP_PAYLOAD) return (uint32_t)-1;
+    if (src_ip && !user_range_ok(src_ip, sizeof(uint32_t))) return (uint32_t)-1;
+    if (src_port && !user_range_ok(src_port, sizeof(uint16_t))) return (uint32_t)-1;
+    if (!user_range_ok(payload, raw_max_length)) return (uint32_t)-1;
+
+    int got = NetStack::recv_udp((uint16_t)raw_local_port, src_ip, src_port,
+                                 payload, (uint16_t)raw_max_length);
+    return (uint32_t)got;
 }
 
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
@@ -1612,6 +1725,10 @@ static SyscallHandler syscall_table[] = {
     sys_link,        // 51
     sys_symlink,     // 52
     sys_readlink,    // 53
+    sys_net_info,    // 54
+    sys_net_config,  // 55
+    sys_net_send_udp,// 56
+    sys_net_recv_udp,// 57
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

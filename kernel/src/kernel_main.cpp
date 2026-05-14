@@ -29,6 +29,8 @@
 #include "kernel/boot_info.h"
 #include "kernel/vfs.h"
 #include "kernel/page_cache.h"
+#include "kernel/net.h"
+#include "kernel/e1000.h"
 #include "libc.h"
 
 static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
@@ -297,9 +299,12 @@ extern "C" void kernel_main(BootInfo* boot_info) {
     printf("-> Task Scheduler Initialized (Priority RR)\n");
     printf("-> Event Channel System Ready\n");
     printf("-> ATA Disk Controller Ready\n");
+    printf("-> Network Stack Ready\n");
 
     re36::ATA::init();
     re36::PCI::scan_bus();
+    re36::NetStack::init();
+    re36::E1000Driver::init();
     re36::AHCIDriver::init();
 
     re36::BgaDriver::init(1024, 768, 32);

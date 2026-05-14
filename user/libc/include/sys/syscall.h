@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #define SYS_EXIT        0
 #define SYS_PRINT       1
@@ -54,6 +55,40 @@
 #define SYS_LINK        51
 #define SYS_SYMLINK     52
 #define SYS_READLINK    53
+#define SYS_NET_INFO    54
+#define SYS_NET_CONFIG  55
+#define SYS_NET_SEND_UDP 56
+#define SYS_NET_RECV_UDP 57
+
+#ifndef VLSMC_NET_SYSCALL_TYPES
+#define VLSMC_NET_SYSCALL_TYPES
+struct net_stats {
+    uint32_t rx_frames;
+    uint32_t tx_frames;
+    uint32_t rx_bytes;
+    uint32_t tx_bytes;
+    uint32_t rx_dropped;
+    uint32_t tx_dropped;
+    uint32_t arp_rx;
+    uint32_t arp_tx;
+    uint32_t ipv4_rx;
+    uint32_t ipv4_tx;
+    uint32_t icmp_rx;
+    uint32_t icmp_tx;
+    uint32_t udp_rx;
+    uint32_t udp_tx;
+};
+
+struct net_info {
+    bool link_up;
+    char driver[16];
+    uint8_t mac[6];
+    uint32_t ipv4_addr;
+    uint32_t netmask;
+    uint32_t gateway;
+    struct net_stats stats;
+};
+#endif
 
 #ifdef __cplusplus
 extern "C" {

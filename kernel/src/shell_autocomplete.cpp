@@ -8,7 +8,8 @@ namespace re36 {
 static const char* builtin_cmds[] = {
     "hello", "clear", "ps", "ticks", "meminfo", "date",
     "syscall", "help", "gfx", "mode text", "mode gfx", "bootinfo",
-    "ring3", "ls", "exec", "cat", "write", "rm", "stat", "hexdump", "pci", nullptr
+    "ring3", "ls", "exec", "cat", "write", "rm", "stat", "hexdump", "pci",
+    "netinfo", "ifconfig", "arp", "ping", "udpsend", "udprecv", nullptr
 };
 
 static bool starts_with(const char* str, const char* prefix) {
