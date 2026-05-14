@@ -300,7 +300,7 @@ static uint32_t sys_mmap(SyscallRegs* regs) {
         vma->file_size = 0;
 
         for (uint32_t off = 0; off < length; off += 4096) {
-            void* frame = PhysicalMemoryManager::alloc_frame();
+            void* frame = PhysicalMemoryManager::alloc_user_frame();
             if (!frame) {
                 for (uint32_t undo = 0; undo < off; undo += 4096) {
                     uint32_t phys = VMM::get_physical(vaddr + undo);
@@ -1288,7 +1288,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     cur.heap_lock = false;
 
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
-        void* frame = PhysicalMemoryManager::alloc_frame();
+        void* frame = PhysicalMemoryManager::alloc_user_frame();
         if (!frame) return (uint32_t)-1; // TODO: handle rollback correctly
         uint32_t vaddr = USER_STACK_TOP - (USER_STACK_PAGES - p) * 4096;
         VMM::map_page(vaddr, (uint32_t)frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);

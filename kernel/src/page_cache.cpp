@@ -38,24 +38,41 @@ void PageCache::insert(uint32_t inode, uint32_t offset, uint32_t phys_frame) {
             entries_[idx].offset = offset;
             entries_[idx].phys_frame = phys_frame;
             entries_[idx].valid = true;
+            PhysicalMemoryManager::inc_ref(phys_frame);
             return;
         }
         if (entries_[idx].inode == inode && entries_[idx].offset == offset) {
+            if (entries_[idx].phys_frame != phys_frame) {
+                PhysicalMemoryManager::dec_ref(entries_[idx].phys_frame);
+                PhysicalMemoryManager::inc_ref(phys_frame);
+            }
             entries_[idx].phys_frame = phys_frame;
             return;
         }
     }
 
     uint32_t idx = h % PAGE_CACHE_SIZE;
+    bool needs_ref = true;
+    if (entries_[idx].valid) {
+        if (entries_[idx].phys_frame == phys_frame) {
+            needs_ref = false;
+        } else {
+            PhysicalMemoryManager::dec_ref(entries_[idx].phys_frame);
+        }
+    }
     entries_[idx].inode = inode;
     entries_[idx].offset = offset;
     entries_[idx].phys_frame = phys_frame;
     entries_[idx].valid = true;
+    if (needs_ref) {
+        PhysicalMemoryManager::inc_ref(phys_frame);
+    }
 }
 
 void PageCache::invalidate(uint32_t inode) {
     for (int i = 0; i < PAGE_CACHE_SIZE; i++) {
         if (entries_[i].valid && entries_[i].inode == inode) {
+            PhysicalMemoryManager::dec_ref(entries_[i].phys_frame);
             entries_[i].valid = false;
         }
     }

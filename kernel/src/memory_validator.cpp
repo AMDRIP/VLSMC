@@ -65,7 +65,7 @@ bool MemoryValidator::test_pmm() {
 
 bool MemoryValidator::test_vmm() {
     // Pick an address that is likely unused right now
-    uint32_t test_virt_addr = 0xE0000000;
+    uint32_t test_virt_addr = KERNEL_TEMP_PAGE_VADDR;
     
     void* phys_frame = PhysicalMemoryManager::alloc_frame();
     if (!phys_frame) return false;
@@ -78,11 +78,15 @@ bool MemoryValidator::test_vmm() {
     *test_ptr = 0xDEADBEEF;
 
     if (*test_ptr != 0xDEADBEEF) {
+        VMM::unmap_page(test_virt_addr);
+        PhysicalMemoryManager::free_frame(phys_frame);
         return false; // Virtual mapping failed
     }
 
     *test_ptr = 0xCAFEBABE;
     if (*test_ptr != 0xCAFEBABE) {
+        VMM::unmap_page(test_virt_addr);
+        PhysicalMemoryManager::free_frame(phys_frame);
         return false; // Write-back failed
     }
 
@@ -93,6 +97,29 @@ bool MemoryValidator::test_vmm() {
     // Unmap
     VMM::unmap_page(test_virt_addr);
     PhysicalMemoryManager::free_frame(phys_frame);
+
+    if (PhysicalMemoryManager::get_free_high_memory() > 0) {
+        void* high_frame = PhysicalMemoryManager::alloc_high_frame();
+        if (!high_frame) return false;
+
+        if (PhysicalMemoryManager::is_direct_mapped((uint32_t)high_frame)) {
+            PhysicalMemoryManager::free_frame(high_frame);
+            return false;
+        }
+
+        VMM::map_page(test_virt_addr, (uint32_t)high_frame, PAGE_PRESENT | PAGE_WRITABLE);
+        volatile uint32_t* high_ptr = (volatile uint32_t*)test_virt_addr;
+        high_ptr[0] = 0x13579BDF;
+        high_ptr[(PAGE_SIZE / sizeof(uint32_t)) - 1] = 0x2468ACE0;
+
+        bool high_ok = high_ptr[0] == 0x13579BDF &&
+                       high_ptr[(PAGE_SIZE / sizeof(uint32_t)) - 1] == 0x2468ACE0;
+
+        VMM::unmap_page(test_virt_addr);
+        PhysicalMemoryManager::free_frame(high_frame);
+
+        if (!high_ok) return false;
+    }
 
     // Note: We do NOT try to read the unmapped page here to avoid triggering a Page Fault 
     // that would kill our boot process or thread.

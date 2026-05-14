@@ -49,6 +49,11 @@ static inline uint32_t* get_pte_ptr(uint32_t virt) {
     return &((uint32_t*)PAGE_TABLES_VADDR)[index];
 }
 
+static void zero_page_at(uint32_t virt) {
+    uint8_t* ptr = (uint8_t*)virt;
+    for (uint32_t i = 0; i < PAGE_SIZE; i++) ptr[i] = 0;
+}
+
 void VMM::init() {
     uint32_t* page_dir = (uint32_t*)PhysicalMemoryManager::alloc_frame();
     if (!page_dir) {
@@ -234,7 +239,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
 
             if (fault_addr >= start && fault_addr < end) {
-                void* new_frame = PhysicalMemoryManager::alloc_frame();
+                void* new_frame = PhysicalMemoryManager::alloc_user_frame();
                 if (!new_frame) {
                     printf("\n!!! PAGE FAULT: Out of memory for heap at 0x%x. Terminating TID %d !!!\n", fault_addr, current_tid);
                     TaskScheduler::terminate_current();
@@ -243,6 +248,7 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
 
                 uint32_t page_addr = fault_addr & 0xFFFFF000;
                 VMM::map_page(page_addr, (uint32_t)new_frame, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+                zero_page_at(page_addr);
                 return true;
             }
 
@@ -266,15 +272,17 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                         }
                     }
 
-                    void* new_frame = PhysicalMemoryManager::alloc_frame();
+                    void* new_frame = PhysicalMemoryManager::alloc_user_frame();
                     if (!new_frame) {
                         printf("\n!!! PAGE FAULT: Out of memory for Demand Paging at 0x%x. Terminating TID %d !!!\n", fault_addr, current_tid);
                         TaskScheduler::terminate_current();
                         return true;
                     }
 
-                    uint8_t* frame_ptr = (uint8_t*)new_frame;
-                    for (int b = 0; b < 4096; b++) frame_ptr[b] = 0;
+                    uint32_t temp_flags = curr_vma->flags | PAGE_WRITABLE;
+                    VMM::map_page(page_addr, (uint32_t)new_frame, temp_flags);
+                    uint8_t* page_ptr = (uint8_t*)page_addr;
+                    for (int b = 0; b < 4096; b++) page_ptr[b] = 0;
 
                     uint32_t file_data_end = curr_vma->start + curr_vma->file_size;
 
@@ -291,12 +299,12 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                             if (is_file) {
                                 vnode* fvn = curr_vma->file_vnode;
                                 if (fvn->ops && fvn->ops->read) {
-                                    fvn->ops->read(fvn, file_offset, frame_ptr, read_size);
+                                    fvn->ops->read(fvn, file_offset, page_ptr, read_size);
                                 }
                             } else {
                                 vnode* vn = nullptr;
                                 if (vfs_resolve_path(cur.name, &vn) == 0 && vn && vn->ops && vn->ops->read) {
-                                    vn->ops->read(vn, file_offset, frame_ptr, read_size);
+                                    vn->ops->read(vn, file_offset, page_ptr, read_size);
                                     vnode_release(vn);
                                 }
                             }
@@ -308,7 +316,9 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
                         }
                     }
 
-                    VMM::map_page(page_addr, (uint32_t)new_frame, curr_vma->flags);
+                    if (!(curr_vma->flags & PAGE_WRITABLE)) {
+                        VMM::map_page(page_addr, (uint32_t)new_frame, curr_vma->flags);
+                    }
                     return true;
                 }
                 curr_vma = curr_vma->next;

@@ -120,10 +120,12 @@ static void apply_relocations(vnode* vn, Elf32_Phdr* phdrs, int phnum,
 
                 uint32_t phys = VMM::get_physical(page_addr);
                 if (!phys) {
-                    void* frame = PhysicalMemoryManager::alloc_frame();
+                    void* frame = PhysicalMemoryManager::alloc_user_frame();
                     if (!frame) continue;
 
-                    uint8_t* fp = (uint8_t*)frame;
+                    VMM::map_page(page_addr, (uint32_t)frame,
+                                  PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+                    uint8_t* fp = (uint8_t*)page_addr;
                     for (int b = 0; b < 4096; b++) fp[b] = 0;
 
                     VMA* v = threads[current_tid].vma_list;
@@ -142,9 +144,6 @@ static void apply_relocations(vnode* vn, Elf32_Phdr* phdrs, int phnum,
                         }
                         v = v->next;
                     }
-
-                    VMM::map_page(page_addr, (uint32_t)frame,
-                                  PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
                 }
 
                 uint32_t* patch = (uint32_t*)target_vaddr;
@@ -394,7 +393,7 @@ static void elf_thread_entry() {
     threads[current_tid].heap_lock = false;
 
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
-        void* frame = PhysicalMemoryManager::alloc_frame();
+        void* frame = PhysicalMemoryManager::alloc_user_frame();
         if (!frame) {
             printf("[ELF] Out of memory for stack\n");
             return;

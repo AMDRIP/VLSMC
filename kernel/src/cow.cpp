@@ -128,7 +128,7 @@ bool cow_handle_fault(uint32_t fault_addr, uint32_t error_code) {
         return true;
     }
 
-    void* new_frame = PhysicalMemoryManager::alloc_frame();
+    void* new_frame = PhysicalMemoryManager::alloc_user_frame();
     if (!new_frame) {
         printf("\n[CoW] OOM at 0x%x — killing TID %d\n", fault_addr, current_tid);
         if (current_tid > 0) {
@@ -137,18 +137,22 @@ bool cow_handle_fault(uint32_t fault_addr, uint32_t error_code) {
         return false;
     }
 
-    uint8_t* src = (uint8_t*)(old_phys);
-    uint8_t* dst = (uint8_t*)new_frame;
+    uint32_t fault_page = fault_addr & 0xFFFFF000;
+    VMM::map_page(KERNEL_TEMP_PAGE_VADDR, (uint32_t)new_frame, PAGE_PRESENT | PAGE_WRITABLE);
+
+    uint8_t* src = (uint8_t*)fault_page;
+    uint8_t* dst = (uint8_t*)KERNEL_TEMP_PAGE_VADDR;
     for (int i = 0; i < (int)PAGE_SIZE; i++) {
         dst[i] = src[i];
     }
 
+    VMM::unmap_page(KERNEL_TEMP_PAGE_VADDR);
     PhysicalMemoryManager::dec_ref(old_phys);
 
     *pte = (uint32_t)new_frame | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     *pte &= ~PAGE_COW;
 
-    cow_invlpg(fault_addr & 0xFFFFF000);
+    cow_invlpg(fault_page);
     return true;
 }
 

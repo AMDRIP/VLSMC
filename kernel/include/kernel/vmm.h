@@ -28,6 +28,7 @@ namespace re36 {
 #define RECURSIVE_PD_INDEX 1023
 #define PAGE_TABLES_VADDR  0xFFC00000
 #define PAGE_DIR_VADDR     0xFFFFF000
+#define KERNEL_TEMP_PAGE_VADDR 0xE0000000
 
 class VMM {
 public:

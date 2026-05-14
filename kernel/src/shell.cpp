@@ -722,9 +722,17 @@ static void exec_command(const char* cmd) {
     } else if (str_eq(cmd, "ps") || str_eq(cmd, "threads")) {
         TaskScheduler::print_threads();
     } else if (str_eq(cmd, "meminfo") || str_eq(cmd, "mems")) {
-        printf("Managed RAM: %u KB\n", PhysicalMemoryManager::get_total_memory() / 1024);
-        printf("Free RAM: %u KB\n", PhysicalMemoryManager::get_free_memory() / 1024);
-        printf("Used RAM: %u KB\n", PhysicalMemoryManager::get_used_memory() / 1024);
+        printf("Managed RAM: %u KB\n", PhysicalMemoryManager::get_managed_memory_limit() / 1024);
+        printf("Direct map limit: %u KB\n", PhysicalMemoryManager::get_direct_map_limit() / 1024);
+        printf("Direct usable/free: %u/%u KB\n",
+               PhysicalMemoryManager::get_direct_mapped_memory() / 1024,
+               PhysicalMemoryManager::get_free_direct_mapped_memory() / 1024);
+        printf("High usable/free: %u/%u KB\n",
+               PhysicalMemoryManager::get_high_memory() / 1024,
+               PhysicalMemoryManager::get_free_high_memory() / 1024);
+        printf("Total free/used: %u/%u KB\n",
+               PhysicalMemoryManager::get_free_memory() / 1024,
+               PhysicalMemoryManager::get_used_memory() / 1024);
         uint32_t cr3_val; asm volatile("mov %%cr3, %0" : "=r"(cr3_val));
         printf("Paging: Enabled (CR3 = 0x%x)\n", cr3_val);
     } else if (str_eq(cmd, "mode text")) {

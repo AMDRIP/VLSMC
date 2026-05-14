@@ -36,6 +36,8 @@ static volatile uint16_t* vga_buffer = (volatile uint16_t*)0xB8000;
 namespace {
 
 constexpr uint32_t kLowMemoryCeiling = 0x100000;
+constexpr uint32_t kDirectMapLimit = KERNEL_SPACE_END;
+constexpr uint32_t kMaxManagedMemoryLimit = 0xFFFFF000;
 
 uint32_t align_up(uint32_t value, uint32_t alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
@@ -81,7 +83,7 @@ uint32_t compute_managed_memory_limit(const BootInfo* boot_info) {
 
         uint32_t start = 0;
         uint32_t end = 0;
-        if (!clip_memory_entry(entry, KERNEL_SPACE_END, &start, &end)) {
+        if (!clip_memory_entry(entry, kMaxManagedMemoryLimit, &start, &end)) {
             continue;
         }
 
@@ -94,7 +96,7 @@ uint32_t compute_managed_memory_limit(const BootInfo* boot_info) {
 }
 
 uint32_t compute_total_usable_memory(const BootInfo* boot_info) {
-    uint32_t total_usable = 0;
+    uint64_t total_usable = 0;
 
     for (uint16_t index = 0; index < boot_info->memory_map_entry_count; ++index) {
         const BootMemoryMapEntry& entry = boot_info->memory_map[index];
@@ -104,17 +106,20 @@ uint32_t compute_total_usable_memory(const BootInfo* boot_info) {
 
         uint32_t start = 0;
         uint32_t end = 0;
-        if (!clip_memory_entry(entry, KERNEL_SPACE_END, &start, &end)) {
+        if (!clip_memory_entry(entry, kMaxManagedMemoryLimit, &start, &end)) {
             continue;
         }
 
         total_usable += end - start;
     }
 
-    return total_usable;
+    if (total_usable > 0xFFFFFFFFULL) {
+        return 0xFFFFFFFF;
+    }
+    return (uint32_t)total_usable;
 }
 
-uint32_t find_pmm_metadata_base(const BootInfo* boot_info, uint32_t metadata_size) {
+uint32_t find_pmm_metadata_base(const BootInfo* boot_info, uint32_t metadata_size, uint32_t metadata_ceiling) {
     uint32_t min_base = align_up((uint32_t)&_kernel_end, PMM_FRAME_SIZE);
     if (min_base < kLowMemoryCeiling) {
         min_base = kLowMemoryCeiling;
@@ -128,7 +133,7 @@ uint32_t find_pmm_metadata_base(const BootInfo* boot_info, uint32_t metadata_siz
 
         uint32_t start = 0;
         uint32_t end = 0;
-        if (!clip_memory_entry(entry, KERNEL_SPACE_END, &start, &end)) {
+        if (!clip_memory_entry(entry, metadata_ceiling, &start, &end)) {
             continue;
         }
 
@@ -188,13 +193,14 @@ extern "C" void kernel_main(BootInfo* boot_info) {
     }
 
     uint32_t pmm_metadata_size = re36::PhysicalMemoryManager::calculate_metadata_size(managed_memory_limit);
-    uint32_t pmm_bitmap_addr = find_pmm_metadata_base(boot_info, pmm_metadata_size);
+    uint32_t metadata_ceiling = managed_memory_limit < kDirectMapLimit ? managed_memory_limit : kDirectMapLimit;
+    uint32_t pmm_bitmap_addr = find_pmm_metadata_base(boot_info, pmm_metadata_size, metadata_ceiling);
     if (pmm_bitmap_addr == 0) {
         printf("FATAL: Cannot place PMM metadata in usable RAM!\n");
         while (true) asm volatile("cli; hlt");
     }
 
-    re36::PhysicalMemoryManager::init(pmm_bitmap_addr, managed_memory_limit);
+    re36::PhysicalMemoryManager::init(pmm_bitmap_addr, managed_memory_limit, kDirectMapLimit);
 
     for (uint16_t index = 0; index < boot_info->memory_map_entry_count; ++index) {
         const BootMemoryMapEntry& entry = boot_info->memory_map[index];
@@ -274,13 +280,16 @@ extern "C" void kernel_main(BootInfo* boot_info) {
     printf("==========================================\n\n");
 
     set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    uint32_t managed_memory_mb = re36::PhysicalMemoryManager::get_total_memory() / (1024 * 1024);
+    uint32_t managed_memory_mb = re36::PhysicalMemoryManager::get_managed_memory_limit() / (1024 * 1024);
+    uint32_t direct_memory_mb = re36::PhysicalMemoryManager::get_direct_mapped_memory() / (1024 * 1024);
+    uint32_t high_memory_mb = re36::PhysicalMemoryManager::get_high_memory() / (1024 * 1024);
     uint32_t usable_memory_mb = compute_total_usable_memory(boot_info) / (1024 * 1024);
     if (usable_memory_mb > managed_memory_mb) {
         printf("-> PMM Initialized (%u MB managed of %u MB usable)\n", managed_memory_mb, usable_memory_mb);
     } else {
         printf("-> PMM Initialized (%u MB usable RAM)\n", managed_memory_mb);
     }
+    printf("-> Memory pools: %u MB direct, %u MB high\n", direct_memory_mb, high_memory_mb);
     printf("-> Heap Initialized\n");
     printf("-> Keyboard Driver (Ring 0) Loaded via IRQ1\n");
     printf("-> PS/2 Mouse Driver (Ring 0) Loaded via IRQ12\n");

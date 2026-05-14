@@ -45,7 +45,7 @@ void* _sbrk(int incr) {
     // всё помечено как "свободное" в PMM, мы можем просто использовать этот кусок для heap.
     // Если дойдет до границы - возвращаем ошибке.
 
-    if (heap_end + incr > re36::PhysicalMemoryManager::get_total_memory()) {
+    if (heap_end + incr > re36::PhysicalMemoryManager::get_direct_map_limit()) {
         // Кончилась физическая память
         return (void*)-1; 
     }
