@@ -68,6 +68,7 @@ struct vfs_dir_entry {
 #define SYS_NET_CONFIG  55
 #define SYS_NET_SEND_UDP 56
 #define SYS_NET_RECV_UDP 57
+#define SYS_MPROTECT    58
 
 #ifndef VLSMC_NET_SYSCALL_TYPES
 #define VLSMC_NET_SYSCALL_TYPES
@@ -318,4 +319,8 @@ static inline int sys_net_recv_udp(uint16_t local_port, uint32_t* src_ip, uint16
                                    void* payload, uint32_t max_length) {
     return (int)syscall5(SYS_NET_RECV_UDP, local_port, (uint32_t)src_ip, (uint32_t)src_port,
                          (uint32_t)payload, max_length);
+}
+
+static inline int sys_mprotect(void* addr, uint32_t length, int prot) {
+    return (int)syscall3(SYS_MPROTECT, (uint32_t)addr, length, (uint32_t)prot);
 }

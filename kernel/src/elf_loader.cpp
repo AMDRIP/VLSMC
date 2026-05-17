@@ -255,6 +255,10 @@ static bool load_elf_segments(vnode* vn, uint8_t* header_buf, int header_size,
             printf("[ELF] LOAD filesz exceeds memsz\n");
             return false;
         }
+        if ((phdrs[i].p_flags & (PF_W | PF_X)) == (PF_W | PF_X)) {
+            printf("[ELF] Refusing W+X LOAD segment\n");
+            return false;
+        }
 
         uint32_t biased_vaddr = 0;
         uint32_t segment_end_raw = 0;
@@ -276,6 +280,7 @@ static bool load_elf_segments(vnode* vn, uint8_t* header_buf, int header_size,
 
         uint32_t flags = PAGE_PRESENT | PAGE_USER;
         if (phdrs[i].p_flags & PF_W) flags |= PAGE_WRITABLE;
+        if (phdrs[i].p_flags & PF_X) flags |= VMA_FLAG_EXEC;
 
         VMA* new_vma = (VMA*)kmalloc(sizeof(VMA));
         if (!new_vma) {

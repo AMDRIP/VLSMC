@@ -59,6 +59,58 @@ static bool checked_page_range(uint32_t start, uint32_t pages,
     return true;
 }
 
+static bool prot_flags_valid(uint32_t prot) {
+    if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)) return false;
+    return (prot & (PROT_WRITE | PROT_EXEC)) != (PROT_WRITE | PROT_EXEC);
+}
+
+static uint32_t vma_flags_from_prot(uint32_t prot) {
+    uint32_t flags = PAGE_PRESENT | PAGE_USER;
+    if (prot & PROT_WRITE) flags |= PAGE_WRITABLE;
+    if (prot & PROT_EXEC) flags |= VMA_FLAG_EXEC;
+    return flags;
+}
+
+static uint32_t vma_slice_file_size(const VMA* src, uint32_t start, uint32_t end) {
+    if (!src || src->file_size == 0) return 0;
+    uint32_t file_end = 0;
+    if (!checked_add_u32(src->start, src->file_size, &file_end)) return 0;
+    if (start >= file_end) return 0;
+    uint32_t slice_file_end = end < file_end ? end : file_end;
+    return slice_file_end > start ? slice_file_end - start : 0;
+}
+
+static VMA* clone_vma_slice(const VMA* src, uint32_t start, uint32_t end, uint32_t flags) {
+    VMA* out = (VMA*)kmalloc(sizeof(VMA));
+    if (!out) return nullptr;
+
+    out->start = start;
+    out->end = end;
+    out->file_offset = src->file_offset + (start - src->start);
+    out->file_size = vma_slice_file_size(src, start, end);
+    out->flags = flags;
+    out->type = src->type;
+    out->file_vnode = src->file_vnode;
+    out->next = nullptr;
+
+    if (out->type == VMA_TYPE_FILE && out->file_vnode) {
+        __atomic_add_fetch(&out->file_vnode->refcount, 1, __ATOMIC_SEQ_CST);
+    }
+
+    return out;
+}
+
+static VMA* append_vma_node(VMA*& head, VMA*& tail, VMA* node) {
+    if (!node) return nullptr;
+    if (!head) {
+        head = node;
+    } else {
+        tail->next = node;
+    }
+    tail = node;
+    return node;
+}
+
 static bool user_cstr_ok(const char* s, uint32_t max_len) {
     if (!s) return false;
     for (uint32_t i = 0; i < max_len; i++) {
@@ -299,14 +351,14 @@ static uint32_t sys_mmap(SyscallRegs* regs) {
     int      fd     = (int)regs->edi;
 
     if (length == 0) return (uint32_t)-1;
+    if (!prot_flags_valid(prot)) return (uint32_t)-1;
     if (length > USER_SPACE_END - USER_SPACE_START) return (uint32_t)-1;
     if (length > 0xFFFFFFFFu - (PAGE_SIZE - 1)) return (uint32_t)-1;
 
     length = (length + 0xFFF) & ~0xFFF;
     if (length == 0) return (uint32_t)-1;
 
-    uint32_t page_flags = PAGE_PRESENT | PAGE_USER;
-    if (prot & PROT_WRITE) page_flags |= PAGE_WRITABLE;
+    uint32_t page_flags = vma_flags_from_prot(prot);
 
     uint32_t vaddr;
     if (addr && (flags & MAP_FIXED)) {
@@ -349,9 +401,13 @@ static uint32_t sys_mmap(SyscallRegs* regs) {
                 kfree(vma);
                 return (uint32_t)-1;
             }
-            VMM::map_page(vaddr + off, (uint32_t)frame, page_flags);
+            uint32_t temp_flags = page_flags | PAGE_WRITABLE;
+            VMM::map_page(vaddr + off, (uint32_t)frame, temp_flags);
             uint8_t* p = (uint8_t*)(vaddr + off);
             for (int b = 0; b < 4096; b++) p[b] = 0;
+            if (!(page_flags & PAGE_WRITABLE)) {
+                VMM::set_page_flags(vaddr + off, page_flags);
+            }
         }
     } else {
         int slot = fd_to_slot(fd);
@@ -414,6 +470,95 @@ static uint32_t sys_munmap(SyscallRegs* regs) {
             kfree(v);
         } else {
             prev = &v->next;
+        }
+    }
+
+    return 0;
+}
+
+static uint32_t sys_mprotect(SyscallRegs* regs) {
+    uint32_t addr = regs->ebx;
+    uint32_t length = regs->ecx;
+    uint32_t prot = regs->edx;
+
+    if (addr == 0 || length == 0) return (uint32_t)-1;
+    if ((addr & (PAGE_SIZE - 1)) != 0) return (uint32_t)-1;
+    if (!prot_flags_valid(prot)) return (uint32_t)-1;
+    if (length > USER_SPACE_END - USER_SPACE_START) return (uint32_t)-1;
+    if (length > 0xFFFFFFFFu - (PAGE_SIZE - 1)) return (uint32_t)-1;
+
+    length = (length + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1);
+    uint32_t end = 0;
+    if (!checked_add_u32(addr, length, &end) ||
+        addr < USER_SPACE_START || end > USER_SPACE_END || end <= addr) {
+        return (uint32_t)-1;
+    }
+
+    Thread& cur = threads[current_tid];
+
+    for (uint32_t page = addr; page < end; page += PAGE_SIZE) {
+        bool covered = false;
+        VMA* v = cur.vma_list;
+        while (v) {
+            if (page >= v->start && page < v->end) {
+                covered = true;
+                break;
+            }
+            v = v->next;
+        }
+        if (!covered) return (uint32_t)-1;
+    }
+
+    uint32_t new_flags = vma_flags_from_prot(prot);
+    VMA** pp = &cur.vma_list;
+    while (*pp) {
+        VMA* v = *pp;
+        if (v->end <= addr || v->start >= end) {
+            pp = &v->next;
+            continue;
+        }
+
+        uint32_t overlap_start = v->start > addr ? v->start : addr;
+        uint32_t overlap_end = v->end < end ? v->end : end;
+
+        VMA* chain_head = nullptr;
+        VMA* chain_tail = nullptr;
+
+        if (v->start < overlap_start) {
+            VMA* before = clone_vma_slice(v, v->start, overlap_start, v->flags);
+            if (!append_vma_node(chain_head, chain_tail, before)) {
+                release_vma_list(chain_head);
+                return (uint32_t)-1;
+            }
+        }
+
+        VMA* middle = clone_vma_slice(v, overlap_start, overlap_end, new_flags);
+        if (!append_vma_node(chain_head, chain_tail, middle)) {
+            release_vma_list(chain_head);
+            return (uint32_t)-1;
+        }
+
+        if (overlap_end < v->end) {
+            VMA* after = clone_vma_slice(v, overlap_end, v->end, v->flags);
+            if (!append_vma_node(chain_head, chain_tail, after)) {
+                release_vma_list(chain_head);
+                return (uint32_t)-1;
+            }
+        }
+
+        chain_tail->next = v->next;
+        *pp = chain_head;
+
+        if (v->type == VMA_TYPE_FILE && v->file_vnode) {
+            vnode_release(v->file_vnode);
+        }
+        kfree(v);
+        pp = &chain_tail->next;
+    }
+
+    for (uint32_t page = addr; page < end; page += PAGE_SIZE) {
+        if (VMM::get_physical(page)) {
+            VMM::set_page_flags(page, new_flags);
         }
     }
 
@@ -1184,6 +1329,17 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     }
 
     // Подсчет аргументов и копирование строк во временный буфер ядра
+    Elf32_Phdr* exec_phdrs = (Elf32_Phdr*)(header_buf + ehdr->e_phoff);
+    for (int i = 0; i < ehdr->e_phnum; i++) {
+        if (exec_phdrs[i].p_type == PT_LOAD &&
+            (exec_phdrs[i].p_flags & (PF_W | PF_X)) == (PF_W | PF_X)) {
+            printf("[EXEC] Refusing W+X LOAD segment\n");
+            vnode_release(vn);
+            kfree(header_buf);
+            return (uint32_t)-1;
+        }
+    }
+
     int argc = 0;
     int envc = 0;
     uint32_t total_string_size = 0;
@@ -1306,13 +1462,13 @@ static uint32_t sys_exec(SyscallRegs* regs) {
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type != PT_LOAD || phdrs[i].p_memsz == 0) continue;
-
         uint32_t vaddr_start = phdrs[i].p_vaddr & ~0xFFF;
         uint32_t vaddr_end = (phdrs[i].p_vaddr + phdrs[i].p_memsz + 0xFFF) & ~0xFFF;
         if (vaddr_end > max_vaddr) max_vaddr = vaddr_end;
 
         uint32_t flags = PAGE_PRESENT | PAGE_USER;
         if (phdrs[i].p_flags & PF_W) flags |= PAGE_WRITABLE;
+        if (phdrs[i].p_flags & PF_X) flags |= VMA_FLAG_EXEC;
 
         VMA* new_vma = (VMA*)kmalloc(sizeof(VMA));
         if (!new_vma) break;
@@ -1729,6 +1885,7 @@ static SyscallHandler syscall_table[] = {
     sys_net_config,  // 55
     sys_net_send_udp,// 56
     sys_net_recv_udp,// 57
+    sys_mprotect,    // 58
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

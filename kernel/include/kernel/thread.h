@@ -56,6 +56,9 @@ typedef void (*ThreadEntry)();
 #define PROT_WRITE 0x2
 #define PROT_EXEC  0x4
 
+#define VMA_FLAG_EXEC 0x10000000u
+#define VMA_PTE_FLAGS_MASK 0x00000FFFu
+
 struct vnode;
 
 struct VMA {

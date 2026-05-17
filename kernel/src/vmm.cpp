@@ -150,6 +150,34 @@ uint32_t VMM::get_physical(uint32_t virt) {
     return (*pte & 0xFFFFF000) | (virt & 0xFFF);
 }
 
+bool VMM::set_page_flags(uint32_t virt, uint32_t flags) {
+    InterruptGuard guard;
+
+    uint32_t pd_index = virt >> 22;
+    uint32_t* pde = get_pde_ptr(pd_index);
+
+    if (!(*pde & PAGE_PRESENT)) return false;
+
+    uint32_t* pte = get_pte_ptr(virt);
+    if (!(*pte & PAGE_PRESENT)) return false;
+
+    uint32_t phys = *pte & 0xFFFFF000;
+    uint32_t old_flags = *pte & 0xFFF;
+    uint32_t new_flags = (flags & 0xFFF) | PAGE_PRESENT;
+    if (old_flags & PAGE_COW) {
+        new_flags |= PAGE_COW;
+        new_flags &= ~PAGE_WRITABLE;
+    }
+    *pte = phys | new_flags;
+
+    if (flags & PAGE_USER) {
+        *pde |= PAGE_USER;
+    }
+
+    invlpg(virt);
+    return true;
+}
+
 void VMM::invalidate_page(uint32_t virt) {
     invlpg(virt);
 }
@@ -215,14 +243,36 @@ uint32_t* VMM::clone_directory() {
 }
 
 bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
-    uint32_t pd_index = fault_addr >> 22;
-    uint32_t pt_index = (fault_addr >> 12) & 0x3FF;
-
     bool is_present = (error_code & 0x1) != 0;
     bool is_write   = (error_code & 0x2) != 0;
     bool is_user    = (error_code & 0x4) != 0;
 
     if (is_present && is_write) {
+        bool writable_mapping = false;
+        if (current_tid >= 0 && current_tid < MAX_THREADS) {
+            Thread& cur = threads[current_tid];
+
+            while (__atomic_test_and_set(&cur.heap_lock, __ATOMIC_ACQUIRE)) {
+                asm volatile("pause");
+            }
+            uint32_t heap_start = cur.heap_start;
+            uint32_t heap_end = cur.heap_end;
+            __atomic_clear(&cur.heap_lock, __ATOMIC_RELEASE);
+
+            if (fault_addr >= heap_start && fault_addr < heap_end) {
+                writable_mapping = true;
+            } else {
+                VMA* v = cur.vma_list;
+                while (v) {
+                    if (fault_addr >= v->start && fault_addr < v->end) {
+                        writable_mapping = (v->flags & PAGE_WRITABLE) != 0;
+                        break;
+                    }
+                    v = v->next;
+                }
+            }
+        }
+        if (!writable_mapping) return false;
         if (cow_handle_fault(fault_addr, error_code)) return true;
     } else if (!is_present) {
         if (!is_user && (fault_addr < USER_SPACE_START || fault_addr >= USER_SPACE_END)) {

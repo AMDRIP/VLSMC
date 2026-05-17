@@ -52,6 +52,7 @@ namespace re36 {
 #define SYS_NET_CONFIG 55
 #define SYS_NET_SEND_UDP 56
 #define SYS_NET_RECV_UDP 57
+#define SYS_MPROTECT 58
 
 struct SyscallRegs {
     uint32_t eax; // Номер syscall

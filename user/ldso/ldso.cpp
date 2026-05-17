@@ -132,6 +132,7 @@ struct Elf32_Rel {
 #define SYS_FSEEK  43
 #define SYS_MMAP   12
 #define SYS_MUNMAP 13
+#define SYS_MPROTECT 58
 
 #define MAP_ANONYMOUS 0x20
 #define MAP_PRIVATE   0x02
@@ -146,6 +147,7 @@ struct Elf32_Rel {
 #define MAX_PHDRS 32
 #define MAX_OBJECT_SPAN 0x04000000
 #define LOAD_GUARD_SIZE 0x1000
+#define MAX_LOAD_SEGMENTS 8
 
 static inline void sys_print(const char* msg) {
     uint32_t len = 0;
@@ -194,6 +196,12 @@ static inline uint32_t sys_mmap(uint32_t addr, uint32_t len, uint32_t prot, uint
 static inline uint32_t sys_munmap(uint32_t addr, uint32_t len) {
     uint32_t ret;
     asm volatile("int $0x80" : "=a"(ret) : "a"(SYS_MUNMAP), "b"(addr), "c"(len) : "memory");
+    return ret;
+}
+
+static inline int sys_mprotect(uint32_t addr, uint32_t len, uint32_t prot) {
+    int ret;
+    asm volatile("int $0x80" : "=a"(ret) : "a"(SYS_MPROTECT), "b"(addr), "c"(len), "d"(prot) : "memory");
     return ret;
 }
 
@@ -296,6 +304,12 @@ struct LoadedObject {
     Elf32_Dyn*  dynamic;
     uint32_t    dynamic_count;
     uint32_t    nchain;
+    uint32_t    segment_count;
+    struct {
+        uint32_t start;
+        uint32_t end;
+        uint32_t prot;
+    } segments[MAX_LOAD_SEGMENTS];
 };
 
 static LoadedObject g_objects[MAX_OBJECTS];
@@ -347,6 +361,7 @@ static int register_object(const char* name, uint32_t bias, uint32_t map_start,
     obj.strtab = nullptr;
     obj.strtab_size = 0;
     obj.nchain = 0;
+    obj.segment_count = 0;
     
     if (!dyn) return idx;
     
@@ -453,6 +468,17 @@ static bool phdr_align_valid(const Elf32_Phdr& ph) {
     if (ph.p_align <= 1) return true;
     if (ph.p_align & (ph.p_align - 1)) return false;
     return ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1)) == 0;
+}
+
+static uint32_t final_prot_from_phdr(const Elf32_Phdr& ph) {
+    uint32_t prot = 0;
+    if (ph.p_flags & PF_R) prot |= PROT_READ;
+    if (ph.p_flags & PF_X) {
+        prot |= PROT_READ | PROT_EXEC;
+    } else if (ph.p_flags & PF_W) {
+        prot |= PROT_READ | PROT_WRITE;
+    }
+    return prot;
 }
 
 static bool parse_dynamic_for_dyn_ptr(Elf32_Phdr* phdrs, uint32_t phnum,
@@ -592,8 +618,39 @@ static bool load_shared_object(const char* soname) {
         return false;
     }
 
+    uint32_t segment_count = 0;
+    LoadedObject segment_template;
+    for (uint32_t i = 0; i < MAX_LOAD_SEGMENTS; i++) {
+        segment_template.segments[i].start = 0;
+        segment_template.segments[i].end = 0;
+        segment_template.segments[i].prot = 0;
+    }
+    for (int p = 0; p < ehdr->e_phnum; p++) {
+        Elf32_Phdr& ph = phdrs[p];
+        if (ph.p_type != PT_LOAD || ph.p_memsz == 0) continue;
+        if (segment_count >= MAX_LOAD_SEGMENTS) {
+            sys_fclose(fd);
+            return false;
+        }
+
+        uint32_t seg_start_raw = 0;
+        uint32_t raw_end = 0;
+        uint32_t seg_end = 0;
+        if (!checked_add_u32(ph.p_vaddr, load_bias, &seg_start_raw) ||
+            !checked_add_u32(seg_start_raw, ph.p_memsz, &raw_end) ||
+            !align_up_checked(raw_end, &seg_end)) {
+            sys_fclose(fd);
+            return false;
+        }
+
+        segment_template.segments[segment_count].start = align_down(seg_start_raw);
+        segment_template.segments[segment_count].end = seg_end;
+        segment_template.segments[segment_count].prot = final_prot_from_phdr(ph);
+        segment_count++;
+    }
+
     uint32_t base = sys_mmap(load_base, total_size,
-                             PROT_READ | PROT_WRITE | PROT_EXEC,
+                             PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1);
     if (base == (uint32_t)-1 || base != load_base) {
         sys_fclose(fd);
@@ -638,6 +695,10 @@ static bool load_shared_object(const char* soname) {
     if (obj_idx < 0) {
         sys_munmap(load_base, total_size);
         return false;
+    }
+    g_objects[obj_idx].segment_count = segment_count;
+    for (uint32_t i = 0; i < segment_count; i++) {
+        g_objects[obj_idx].segments[i] = segment_template.segments[i];
     }
 
     sys_print("[ld.so] Loaded ");
@@ -803,6 +864,18 @@ static bool process_relocations(LoadedObject& obj) {
 
 typedef void (*EntryFunc)(void);
 
+static bool apply_final_permissions(LoadedObject& obj) {
+    for (uint32_t i = 0; i < obj.segment_count; i++) {
+        uint32_t len = obj.segments[i].end - obj.segments[i].start;
+        if (len == 0) continue;
+        if (sys_mprotect(obj.segments[i].start, len, obj.segments[i].prot) < 0) {
+            sys_print("[ld.so] ERROR: mprotect failed\n");
+            return false;
+        }
+    }
+    return true;
+}
+
 static void run_initializers(LoadedObject& obj) {
     if (!obj.dynamic) return;
 
@@ -957,6 +1030,13 @@ extern "C" uint32_t _ld_main(uint32_t* stack_ptr) {
                 sys_exit(127);
                 return 0;
             }
+        }
+    }
+
+    for (int i = 1; i < g_num_objects; i++) {
+        if (g_objects[i].used && !apply_final_permissions(g_objects[i])) {
+            sys_exit(127);
+            return 0;
         }
     }
 

@@ -40,6 +40,8 @@ public:
 
     static uint32_t get_physical(uint32_t virt);
 
+    static bool set_page_flags(uint32_t virt, uint32_t flags);
+
     static void invalidate_page(uint32_t virt);
 
     static void flush_tlb();
