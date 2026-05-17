@@ -480,6 +480,18 @@ int _vcbscanf(int (*getc_cb)(void*), void (*ungetc_cb)(int, void*), void* ctx, c
                 
                 unsigned int val = 0;
                 int read_count = 0;
+                int chars_used = 0;
+
+                if (c == '0' && (width == -1 || chars_used < width)) {
+                    int next = getc_cb(ctx);
+                    if ((next == 'x' || next == 'X') && (width == -1 || chars_used + 1 < width)) {
+                        chars_used += 2;
+                        c = getc_cb(ctx);
+                    } else {
+                        if (next != EOF) ungetc_cb(next, ctx);
+                    }
+                }
+
                 while (c != EOF && (width == -1 || read_count < width)) {
                     int digit = -1;
                     if (c >= '0' && c <= '9') digit = c - '0';
@@ -490,6 +502,7 @@ int _vcbscanf(int (*getc_cb)(void*), void (*ungetc_cb)(int, void*), void* ctx, c
                     
                     val = val * 16 + digit;
                     read_count++;
+                    chars_used++;
                     c = getc_cb(ctx);
                 }
 

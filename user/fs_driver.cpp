@@ -39,6 +39,7 @@ static BootSector bs;
 static uint32_t fat_start_lba;
 static uint32_t root_dir_start_lba;
 static uint32_t data_start_lba;
+static uint32_t last_file_size;
 
 
 static bool str_eq_n(const char* s1, const char* s2, int n) {
@@ -70,6 +71,7 @@ static void read_fat_info() {
 }
 
 static uint32_t find_file(const char* filename83) {
+    last_file_size = 0;
     uint8_t sector[SECTOR_SIZE];
     uint32_t root_dir_sectors = (bs.root_dir_entries * 32 + SECTOR_SIZE - 1) / SECTOR_SIZE;
 
@@ -83,6 +85,7 @@ static uint32_t find_file(const char* filename83) {
             if (entries[j].attributes & 0x0F) continue; 
 
             if (str_eq_n(entries[j].name, filename83, 11)) {
+                last_file_size = entries[j].size;
                 return entries[j].cluster_low | ((uint32_t)entries[j].cluster_high << 16);
             }
         }
@@ -102,18 +105,19 @@ static uint32_t get_next_cluster(uint32_t cluster) {
     return next_cluster;
 }
 
-static int read_file_content(uint32_t cluster, uint8_t* out_buffer, int max_size) {
+static int read_file_content(uint32_t cluster, uint32_t file_size, uint8_t* out_buffer, int max_size) {
     int bytes_read = 0;
     uint8_t sector[SECTOR_SIZE];
 
-    while (cluster >= 2 && cluster <= 0xFFEF && bytes_read < max_size) {
+    while (cluster >= 2 && cluster <= 0xFFEF && bytes_read < max_size && (uint32_t)bytes_read < file_size) {
         uint32_t lba = data_start_lba + (cluster - 2) * bs.sectors_per_cluster;
         
         for (int i = 0; i < bs.sectors_per_cluster; i++) {
             if (bytes_read >= max_size) break;
+            if ((uint32_t)bytes_read >= file_size) break;
             if (!vlsmc::App::read_sector(lba + i, sector)) return bytes_read;
             
-            for (int b = 0; b < SECTOR_SIZE && bytes_read < max_size; b++) {
+            for (int b = 0; b < SECTOR_SIZE && bytes_read < max_size && (uint32_t)bytes_read < file_size; b++) {
                 out_buffer[bytes_read++] = sector[b];
             }
         }
@@ -150,7 +154,7 @@ void fs_main() {
             uint32_t cluster = find_file(filename83);
             if (cluster) {
                 
-                int read_sz = read_file_content(cluster, msg_buf, 512);
+                int read_sz = read_file_content(cluster, last_file_size, msg_buf, 512);
                 vlsmc::App::msg_send(sender_tid, msg_buf, read_sz);
             } else {
                 

@@ -248,6 +248,8 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
     bool is_user    = (error_code & 0x4) != 0;
 
     if (is_present && is_write) {
+        if (cow_handle_fault(fault_addr, error_code)) return true;
+
         bool writable_mapping = false;
         if (current_tid >= 0 && current_tid < MAX_THREADS) {
             Thread& cur = threads[current_tid];
@@ -273,7 +275,6 @@ bool VMM::handle_page_fault(uint32_t fault_addr, uint32_t error_code) {
             }
         }
         if (!writable_mapping) return false;
-        if (cow_handle_fault(fault_addr, error_code)) return true;
     } else if (!is_present) {
         if (!is_user && (fault_addr < USER_SPACE_START || fault_addr >= USER_SPACE_END)) {
             return false; // True kernel page fault

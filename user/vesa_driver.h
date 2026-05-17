@@ -38,7 +38,7 @@ public:
         uint32_t max_size = width * height * (bpp / 8);
         mapped_pages = (max_size + 4095) / 4096;
         
-        virt_addr = 0xD0000000;
+        virt_addr = 0xB0000000;
         framebuffer = (uint8_t*)App::map_mmio(virt_addr, phys_lfb, mapped_pages); 
         
         if (!framebuffer) return -2;

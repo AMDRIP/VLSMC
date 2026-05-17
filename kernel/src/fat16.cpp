@@ -41,41 +41,17 @@ uint32_t Fat16::cluster_to_lba(uint16_t cluster) {
 }
 
 bool Fat16::match_filename(const FAT16_DirEntry* entry, const char* name) {
-    char fat_name[12];
-    int i;
-    for (i = 0; i < 8; i++) fat_name[i] = entry->name[i];
-    fat_name[8] = '.';
-    for (i = 0; i < 3; i++) fat_name[9 + i] = entry->ext[i];
-    fat_name[12] = '\0';
+    if (!entry || !name) return false;
 
-    int fi = 0, ni = 0;
-    while (fat_name[fi] == ' ') fi++;
-    
-    char clean_fat[13];
-    int ci = 0;
-    
-    for (i = 0; i < 8 && entry->name[i] != ' '; i++)
-        clean_fat[ci++] = entry->name[i];
-    
-    if (entry->ext[0] != ' ') {
-        clean_fat[ci++] = '.';
-        for (i = 0; i < 3 && entry->ext[i] != ' '; i++)
-            clean_fat[ci++] = entry->ext[i];
+    char query[11];
+    format_83_name(name, query);
+    for (int i = 0; i < 8; i++) {
+        if (entry->name[i] != query[i]) return false;
     }
-    clean_fat[ci] = '\0';
-
-    ni = 0;
-    fi = 0;
-    while (clean_fat[fi] && name[ni]) {
-        char a = clean_fat[fi];
-        char b = name[ni];
-        if (a >= 'a' && a <= 'z') a -= 32;
-        if (b >= 'a' && b <= 'z') b -= 32;
-        if (a != b) return false;
-        fi++;
-        ni++;
+    for (int i = 0; i < 3; i++) {
+        if (entry->ext[i] != query[8 + i]) return false;
     }
-    return clean_fat[fi] == '\0' && name[ni] == '\0';
+    return true;
 }
 
 static bool is_lfn_entry(const FAT16_DirEntry* entry) {
@@ -340,7 +316,23 @@ bool Fat16::is_mounted() {
 
 void Fat16::format_83_name(const char* name, char* out) {
     for (int i = 0; i < 11; i++) out[i] = ' ';
-    
+
+    int raw_len = 0;
+    bool has_dot = false;
+    while (name[raw_len]) {
+        if (name[raw_len] == '.') has_dot = true;
+        raw_len++;
+    }
+
+    if (!has_dot && raw_len == 11) {
+        for (int j = 0; j < 11; j++) {
+            char c = name[j];
+            if (c >= 'a' && c <= 'z') c -= 32;
+            out[j] = c;
+        }
+        return;
+    }
+
     int i = 0, o = 0;
     while (name[i] && name[i] != '.' && o < 8) {
         char c = name[i];
@@ -615,16 +607,20 @@ bool Fat16::write_file_in_dir(uint32_t dir_cluster, const char* name, const uint
     if (find_dir_entry(dir_cluster, name, &old_sector, &old_index) == 0) {
         Disk::read_sectors(old_sector, 1, dma_buffer_);
         FAT16_DirEntry* entries = (FAT16_DirEntry*)dma_buffer_;
+        FAT16_DirEntry old_entry = entries[old_index];
         
-        if (entries[old_index].attributes & FAT_ATTR_PROTECT_MODIFY) {
+        if (old_entry.attributes & FAT_ATTR_PROTECT_MODIFY) {
             printf("Permission denied: File is protected from modification (-gc)\n");
             return false;
         }
         
-        uint16_t old_first_cluster = entries[old_index].first_cluster;
+        uint16_t old_first_cluster = old_entry.first_cluster;
         if (old_first_cluster >= 2 && count_cluster_refs(old_first_cluster) <= 1) {
-            free_chain(entries[old_index].first_cluster);
+            free_chain(old_first_cluster);
         }
+
+        Disk::read_sectors(old_sector, 1, dma_buffer_);
+        entries = (FAT16_DirEntry*)dma_buffer_;
         entries[old_index].name[0] = 0xE5;
         Disk::write_sectors(old_sector, 1, dma_buffer_);
     }
@@ -872,6 +868,14 @@ int Fat16::fat16_write(vnode* vn, uint32_t offset, const uint8_t* buffer, uint32
     if (size > 0 && !buffer) return -1;
     Fat16NodeData* nd = (Fat16NodeData*)vn->fs_data;
     if (!nd) return -1;
+
+    if (size == 0 && buffer == nullptr && offset == 0) {
+        if (write_file_in_dir(nd->parent_cluster, nd->name, nullptr, 0)) {
+            vn->size = 0;
+            return 0;
+        }
+        return -1;
+    }
 
     uint32_t sector;
     int index;

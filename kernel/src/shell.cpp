@@ -180,6 +180,70 @@ static bool str_starts(const char* str, const char* prefix, int len) {
     return true;
 }
 
+static const char* path_basename(const char* path) {
+    const char* base = path;
+    for (int i = 0; path && path[i]; i++) {
+        if (path[i] == '/' || path[i] == '\\') base = &path[i + 1];
+    }
+    return base;
+}
+
+static bool is_vesa_app(const char* name) {
+    return str_ieq(name, "VESATEST.ELF") || str_ieq(name, "GFXEDIT.ELF");
+}
+
+static bool is_driver_app(const char* name) {
+    return is_vesa_app(name) ||
+           str_ieq(name, "PS2TEST.ELF") ||
+           str_ieq(name, "UARTDRV.SYS") ||
+           str_ieq(name, "FSDRIVER.ELF");
+}
+
+static void grant_mmio_range(Thread& t, uint32_t phys_start, uint32_t phys_end) {
+    for (int i = 0; i < t.num_mmio_grants; i++) {
+        if (t.allowed_mmio[i].phys_start == phys_start && t.allowed_mmio[i].phys_end == phys_end) return;
+    }
+    if (t.num_mmio_grants < 8) {
+        t.allowed_mmio[t.num_mmio_grants].phys_start = phys_start;
+        t.allowed_mmio[t.num_mmio_grants].phys_end = phys_end;
+        t.num_mmio_grants++;
+    }
+}
+
+static void configure_driver_thread(int tid, const char* name) {
+    if (tid < 0 || tid >= MAX_THREADS || !name) return;
+
+    Thread& t = threads[tid];
+    if (!is_driver_app(name)) return;
+
+    t.is_driver = true;
+
+    if (is_vesa_app(name)) {
+        uint32_t lfb = BgaDriver::is_initialized() ? BgaDriver::get_lfb() : 0xA0000;
+        grant_mmio_range(t, lfb, lfb + 4 * 1024 * 1024);
+    } else if (str_ieq(name, "PS2TEST.ELF")) {
+        t.allowed_ports[0].port_start = 0x60;
+        t.allowed_ports[0].port_end = 0x64;
+        t.num_port_grants = 1;
+        t.allowed_irqs[0] = 1;
+        t.num_irq_grants = 1;
+    } else if (str_ieq(name, "UARTDRV.SYS")) {
+        t.allowed_ports[0].port_start = 0x3F8;
+        t.allowed_ports[0].port_end = 0x3FF;
+        t.num_port_grants = 1;
+        t.allowed_irqs[0] = 4;
+        t.num_irq_grants = 1;
+    }
+}
+
+static const char* runall_skip_reason(const char* name) {
+    if (str_ieq(name, "GFXEDIT.ELF")) return "interactive graphics editor";
+    if (str_ieq(name, "PS2TEST.ELF")) return "interactive PS/2 hardware test";
+    if (str_ieq(name, "UARTDRV.SYS")) return "resident interactive UART driver";
+    if (str_ieq(name, "STACKBM.ELF")) return "destructive stack guard test";
+    return nullptr;
+}
+
 static const char* str_after(const char* str, int skip) {
     return str + skip;
 }
@@ -1020,28 +1084,14 @@ static void exec_command(const char* cmd) {
     } else if (str_starts(cmd, "exec ", 5)) {
         char resolved[256];
         resolve_path(str_after(cmd, 5), resolved);
+        const char* app_name = path_basename(resolved);
         
         int tid = -1;
         {
             InterruptGuard guard;
-            tid = elf_exec(resolved);
+            tid = elf_exec(resolved, is_driver_app(app_name));
             if (tid >= 0) {
-                int len = 0; while (resolved[len]) len++;
-                if (len >= 11 && str_ieq(&resolved[len-11], "PS2TEST.ELF")) {
-                    threads[tid].is_driver = true;
-                    threads[tid].allowed_ports[0].port_start = 0x60;
-                    threads[tid].allowed_ports[0].port_end = 0x64;
-                    threads[tid].num_port_grants = 1;
-                    threads[tid].allowed_irqs[0] = 1;
-                    threads[tid].num_irq_grants = 1;
-                } else if (len >= 11 && str_ieq(&resolved[len-11], "UARTDRV.SYS")) {
-                    threads[tid].is_driver = true;
-                    threads[tid].allowed_ports[0].port_start = 0x3F8;
-                    threads[tid].allowed_ports[0].port_end = 0x3FF;
-                    threads[tid].num_port_grants = 1;
-                    threads[tid].allowed_irqs[0] = 4;
-                    threads[tid].num_irq_grants = 1;
-                }
+                configure_driver_thread(tid, app_name);
             }
         }
         
@@ -1306,6 +1356,7 @@ static void exec_command(const char* cmd) {
         if (count < 0) {
             printf("Could not read directory %s.\n", resolved);
         } else {
+            int fsdriver_tid = -1;
             for (int i = 0; i < count; i++) {
                 if (dir_entries[i].type != 'D') {
                     char fullpath[256];
@@ -1319,11 +1370,26 @@ static void exec_command(const char* cmd) {
                     if (str_eq(dir_entries[i].name, "LD.SO") || str_eq(dir_entries[i].name, "LIBC.SO") || str_eq(dir_entries[i].name, "LIBTEST.SO")) {
                         continue;
                     }
-                    if (str_eq(dir_entries[i].name, "FSDRIVER.ELF") || str_eq(dir_entries[i].name, "ANIM.ELF")) {
-                        continue;
-                    }
                     
                     if (len >= 4 && (str_ieq(&fullpath[len-4], ".ELF") || str_ieq(&fullpath[len-4], ".SYS"))) {
+                        if (str_ieq(dir_entries[i].name, "FSDRIVER.ELF")) {
+                            if (fsdriver_tid < 0) {
+                                printf("\n========================================\n");
+                                printf("=== Starting %s in background\n", fullpath);
+                                printf("========================================\n");
+                                InterruptGuard guard;
+                                fsdriver_tid = elf_exec(fullpath, true);
+                                if (fsdriver_tid >= 0) configure_driver_thread(fsdriver_tid, dir_entries[i].name);
+                            }
+                            continue;
+                        }
+
+                        const char* skip_reason = runall_skip_reason(dir_entries[i].name);
+                        if (skip_reason) {
+                            printf("\n--- Skipping %s (%s) ---\n", fullpath, skip_reason);
+                            continue;
+                        }
+
                         printf("\n========================================\n");
                         printf("=== Running %s \n", fullpath);
                         printf("========================================\n");
@@ -1331,23 +1397,9 @@ static void exec_command(const char* cmd) {
                         int tid = -1;
                         {
                             InterruptGuard guard;
-                            tid = elf_exec(fullpath);
+                            tid = elf_exec(fullpath, is_driver_app(dir_entries[i].name));
                             if (tid >= 0) {
-                                if (str_ieq(dir_entries[i].name, "PS2TEST.ELF")) {
-                                    threads[tid].is_driver = true;
-                                    threads[tid].allowed_ports[0].port_start = 0x60;
-                                    threads[tid].allowed_ports[0].port_end = 0x64;
-                                    threads[tid].num_port_grants = 1;
-                                    threads[tid].allowed_irqs[0] = 1;
-                                    threads[tid].num_irq_grants = 1;
-                                } else if (str_ieq(dir_entries[i].name, "UARTDRV.SYS")) {
-                                    threads[tid].is_driver = true;
-                                    threads[tid].allowed_ports[0].port_start = 0x3F8;
-                                    threads[tid].allowed_ports[0].port_end = 0x3FF;
-                                    threads[tid].num_port_grants = 1;
-                                    threads[tid].allowed_irqs[0] = 4;
-                                    threads[tid].num_irq_grants = 1;
-                                }
+                                configure_driver_thread(tid, dir_entries[i].name);
                             }
                         }
                         
@@ -1356,6 +1408,11 @@ static void exec_command(const char* cmd) {
                         }
                     }
                 }
+            }
+            if (fsdriver_tid >= 0 &&
+                threads[fsdriver_tid].state != ThreadState::Unused &&
+                threads[fsdriver_tid].state != ThreadState::Terminated) {
+                thread_terminate(fsdriver_tid);
             }
             printf("\n--- runall finished ---\n");
         }

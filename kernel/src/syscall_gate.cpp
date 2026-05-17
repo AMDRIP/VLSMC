@@ -120,6 +120,32 @@ static bool user_cstr_ok(const char* s, uint32_t max_len) {
     return false;
 }
 
+static char upper_ascii(char c) {
+    return (c >= 'a' && c <= 'z') ? (char)(c - 32) : c;
+}
+
+static const char* basename_ptr(const char* path) {
+    const char* base = path;
+    for (uint32_t i = 0; path && path[i]; i++) {
+        if (path[i] == '/' || path[i] == '\\') base = &path[i + 1];
+    }
+    return base;
+}
+
+static bool str_ieq_kernel(const char* a, const char* b) {
+    while (*a && *b) {
+        if (upper_ascii(*a) != upper_ascii(*b)) return false;
+        a++;
+        b++;
+    }
+    return upper_ascii(*a) == upper_ascii(*b);
+}
+
+static bool thread_name_matches(const char* thread_name, const char* target_name) {
+    if (str_ieq_kernel(thread_name, target_name)) return true;
+    return str_ieq_kernel(basename_ptr(thread_name), basename_ptr(target_name));
+}
+
 static void release_vma_list(VMA*& list) {
     VMA* v = list;
     while (v) {
@@ -748,11 +774,14 @@ static uint32_t sys_recv_msg(SyscallRegs* regs) {
 
 static uint32_t sys_find_thread(SyscallRegs* regs) {
     const char* target_name = (const char*)regs->ebx;
-    if (!target_name) return (uint32_t)-1;
+    if (!user_cstr_ok(target_name, 255)) return (uint32_t)-1;
 
     InterruptGuard guard;
     for (int i = 0; i < MAX_THREADS; i++) {
         if (threads[i].state != ThreadState::Unused && threads[i].state != ThreadState::Terminated) {
+            if (thread_name_matches(threads[i].name, target_name)) {
+                return (uint32_t)i;
+            }
             // Сравнение строк
             bool match = true;
             for (int j = 0; j < 32; j++) {
