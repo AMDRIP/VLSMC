@@ -13,11 +13,44 @@ namespace re36 {
 
 #define PIE_LOAD_BASE    0x40000000
 #define INTERP_LOAD_BASE 0x50000000
+#define MAX_ELF_PHDRS    32
+
+static bool checked_add_u32(uint32_t a, uint32_t b, uint32_t* out) {
+    if (a > 0xFFFFFFFFu - b) return false;
+    *out = a + b;
+    return true;
+}
+
+static bool align_up_checked(uint32_t value, uint32_t* out) {
+    if (value > 0xFFFFFFFFu - 0xFFF) return false;
+    *out = (value + 0xFFF) & ~0xFFF;
+    return true;
+}
+
+static bool validate_phdr_bounds(const Elf32_Ehdr* ehdr, uint32_t header_size) {
+    if (ehdr->e_phnum == 0 || ehdr->e_phnum > MAX_ELF_PHDRS) return false;
+    if (ehdr->e_phentsize != sizeof(Elf32_Phdr)) return false;
+    if (ehdr->e_phnum > 0xFFFFFFFFu / sizeof(Elf32_Phdr)) return false;
+
+    uint32_t phdr_bytes = (uint32_t)ehdr->e_phnum * sizeof(Elf32_Phdr);
+    uint32_t phdr_end = 0;
+    if (!checked_add_u32(ehdr->e_phoff, phdr_bytes, &phdr_end)) return false;
+    return ehdr->e_phoff >= sizeof(Elf32_Ehdr) && phdr_end <= header_size;
+}
 
 static bool validate_elf(const Elf32_Ehdr* ehdr) {
     if (ehdr->e_ident[0] != ELFMAG0 || ehdr->e_ident[1] != ELFMAG1 ||
         ehdr->e_ident[2] != ELFMAG2 || ehdr->e_ident[3] != ELFMAG3) {
         printf("[ELF] Invalid magic\n");
+        return false;
+    }
+    if (ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
+        ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
+        ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
+        ehdr->e_version != EV_CURRENT ||
+        ehdr->e_ehsize != sizeof(Elf32_Ehdr) ||
+        ehdr->e_phentsize != sizeof(Elf32_Phdr)) {
+        printf("[ELF] Unsupported ELF ABI/header layout\n");
         return false;
     }
     if (ehdr->e_type != ET_EXEC && ehdr->e_type != ET_DYN) {
@@ -44,18 +77,29 @@ static void apply_relocations(vnode* vn, Elf32_Phdr* phdrs, int phnum,
 
     uint32_t dyn_offset = dyn_phdr->p_offset;
     uint32_t dyn_size = dyn_phdr->p_filesz;
+    uint32_t dyn_end = 0;
+    if (dyn_size == 0 || (dyn_size % sizeof(Elf32_Dyn)) != 0 ||
+        !checked_add_u32(dyn_offset, dyn_size, &dyn_end)) {
+        return;
+    }
 
     uint8_t* dyn_buf = nullptr;
     bool dyn_from_header = false;
 
-    if (dyn_offset + dyn_size <= (uint32_t)header_size) {
+    if (dyn_end <= (uint32_t)header_size) {
         dyn_buf = header_buf + dyn_offset;
         dyn_from_header = true;
     } else {
         dyn_buf = (uint8_t*)kmalloc(dyn_size);
         if (!dyn_buf) return;
-        if (vn->ops && vn->ops->read) {
-            vn->ops->read(vn, dyn_offset, dyn_buf, dyn_size);
+        if (!vn->ops || !vn->ops->read) {
+            kfree(dyn_buf);
+            return;
+        }
+        int read_bytes = vn->ops->read(vn, dyn_offset, dyn_buf, dyn_size);
+        if (read_bytes != (int)dyn_size) {
+            kfree(dyn_buf);
+            return;
         }
     }
 
@@ -80,8 +124,10 @@ static void apply_relocations(vnode* vn, Elf32_Phdr* phdrs, int phnum,
     auto vaddr_to_file_offset = [&](uint32_t vaddr) -> uint32_t {
         for (int i = 0; i < phnum; i++) {
             if (phdrs[i].p_type != PT_LOAD) continue;
+            uint32_t file_vaddr_end = 0;
+            if (!checked_add_u32(phdrs[i].p_vaddr, phdrs[i].p_filesz, &file_vaddr_end)) continue;
             if (vaddr >= phdrs[i].p_vaddr &&
-                vaddr < phdrs[i].p_vaddr + phdrs[i].p_filesz) {
+                vaddr < file_vaddr_end) {
                 return phdrs[i].p_offset + (vaddr - phdrs[i].p_vaddr);
             }
         }
@@ -90,21 +136,30 @@ static void apply_relocations(vnode* vn, Elf32_Phdr* phdrs, int phnum,
 
     auto process_rel_table = [&](uint32_t table_vaddr, uint32_t table_size) {
         if (table_vaddr == 0 || table_size == 0) return;
+        if ((table_size % sizeof(Elf32_Rel)) != 0) return;
 
         uint32_t file_off = vaddr_to_file_offset(table_vaddr);
         if (file_off == 0) return;
+        uint32_t file_end = 0;
+        if (!checked_add_u32(file_off, table_size, &file_end)) return;
 
         uint8_t* rel_buf = nullptr;
         bool rel_from_header = false;
 
-        if (file_off + table_size <= (uint32_t)header_size) {
+        if (file_end <= (uint32_t)header_size) {
             rel_buf = header_buf + file_off;
             rel_from_header = true;
         } else {
             rel_buf = (uint8_t*)kmalloc(table_size);
             if (!rel_buf) return;
-            if (vn->ops && vn->ops->read) {
-                vn->ops->read(vn, file_off, rel_buf, table_size);
+            if (!vn->ops || !vn->ops->read) {
+                kfree(rel_buf);
+                return;
+            }
+            int read_bytes = vn->ops->read(vn, file_off, rel_buf, table_size);
+            if (read_bytes != (int)table_size) {
+                kfree(rel_buf);
+                return;
             }
         }
 
@@ -115,7 +170,8 @@ static void apply_relocations(vnode* vn, Elf32_Phdr* phdrs, int phnum,
             uint8_t type = ELF32_R_TYPE(rels[i].r_info);
 
             if (type == R_386_RELATIVE) {
-                uint32_t target_vaddr = rels[i].r_offset + load_bias;
+                uint32_t target_vaddr = 0;
+                if (!checked_add_u32(rels[i].r_offset, load_bias, &target_vaddr)) continue;
                 uint32_t page_addr = target_vaddr & ~0xFFF;
 
                 uint32_t phys = VMM::get_physical(page_addr);
@@ -171,8 +227,15 @@ static bool load_elf_segments(vnode* vn, uint8_t* header_buf, int header_size,
                               uint32_t load_bias, LoadedElf* out) {
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)header_buf;
     Elf32_Phdr* phdrs = (Elf32_Phdr*)(header_buf + ehdr->e_phoff);
+    if (!validate_phdr_bounds(ehdr, (uint32_t)header_size)) {
+        printf("[ELF] Program headers outside loader buffer\n");
+        return false;
+    }
 
-    out->entry = ehdr->e_entry + load_bias;
+    if (!checked_add_u32(ehdr->e_entry, load_bias, &out->entry)) {
+        printf("[ELF] Entry address overflow\n");
+        return false;
+    }
     out->phnum = ehdr->e_phnum;
     out->phent = ehdr->e_phentsize;
     out->load_bias = load_bias;
@@ -181,17 +244,31 @@ static bool load_elf_segments(vnode* vn, uint8_t* header_buf, int header_size,
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type == PT_PHDR) {
-            out->phdr_vaddr = phdrs[i].p_vaddr + load_bias;
+            if (!checked_add_u32(phdrs[i].p_vaddr, load_bias, &out->phdr_vaddr)) return false;
         }
     }
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type != PT_LOAD) continue;
         if (phdrs[i].p_memsz == 0) continue;
+        if (phdrs[i].p_filesz > phdrs[i].p_memsz) {
+            printf("[ELF] LOAD filesz exceeds memsz\n");
+            return false;
+        }
 
-        uint32_t biased_vaddr = phdrs[i].p_vaddr + load_bias;
+        uint32_t biased_vaddr = 0;
+        uint32_t segment_end_raw = 0;
+        if (!checked_add_u32(phdrs[i].p_vaddr, load_bias, &biased_vaddr) ||
+            !checked_add_u32(biased_vaddr, phdrs[i].p_memsz, &segment_end_raw)) {
+            printf("[ELF] LOAD address overflow\n");
+            return false;
+        }
         uint32_t vaddr_start = biased_vaddr & ~0xFFF;
-        uint32_t vaddr_end = (biased_vaddr + phdrs[i].p_memsz + 0xFFF) & ~0xFFF;
+        uint32_t vaddr_end = 0;
+        if (!align_up_checked(segment_end_raw, &vaddr_end) || vaddr_end <= vaddr_start) {
+            printf("[ELF] Invalid LOAD range\n");
+            return false;
+        }
 
         if (vaddr_end > out->max_vaddr) {
             out->max_vaddr = vaddr_end;
@@ -210,8 +287,19 @@ static bool load_elf_segments(vnode* vn, uint8_t* header_buf, int header_size,
         new_vma->end = vaddr_end;
 
         uint32_t align_diff = biased_vaddr - vaddr_start;
+        if (phdrs[i].p_offset < align_diff) {
+            kfree(new_vma);
+            printf("[ELF] LOAD offset underflow\n");
+            return false;
+        }
+        uint32_t vma_file_size = 0;
+        if (!checked_add_u32(phdrs[i].p_filesz, align_diff, &vma_file_size)) {
+            kfree(new_vma);
+            printf("[ELF] LOAD file range overflow\n");
+            return false;
+        }
         new_vma->file_offset = phdrs[i].p_offset - align_diff;
-        new_vma->file_size = phdrs[i].p_filesz + align_diff;
+        new_vma->file_size = vma_file_size;
         new_vma->flags = flags;
         new_vma->type = VMA_TYPE_FILE;
         new_vma->file_vnode = vn;
@@ -223,10 +311,15 @@ static bool load_elf_segments(vnode* vn, uint8_t* header_buf, int header_size,
     if (out->phdr_vaddr == 0) {
         for (int i = 0; i < ehdr->e_phnum; i++) {
             if (phdrs[i].p_type != PT_LOAD) continue;
+            uint32_t file_end = 0;
+            if (!checked_add_u32(phdrs[i].p_offset, phdrs[i].p_filesz, &file_end)) continue;
             if (ehdr->e_phoff >= phdrs[i].p_offset &&
-                ehdr->e_phoff < phdrs[i].p_offset + phdrs[i].p_filesz) {
-                out->phdr_vaddr = phdrs[i].p_vaddr + load_bias +
-                                  (ehdr->e_phoff - phdrs[i].p_offset);
+                ehdr->e_phoff < file_end) {
+                uint32_t phdr_base = 0;
+                if (!checked_add_u32(phdrs[i].p_vaddr, load_bias, &phdr_base) ||
+                    !checked_add_u32(phdr_base, ehdr->e_phoff - phdrs[i].p_offset, &out->phdr_vaddr)) {
+                    return false;
+                }
                 break;
             }
         }
@@ -276,6 +369,11 @@ static void elf_thread_entry() {
         kfree(header_buf);
         return;
     }
+    if (!validate_phdr_bounds(ehdr, (uint32_t)bytes)) {
+        printf("[ELF] Invalid program header table\n");
+        kfree(header_buf);
+        return;
+    }
 
     uint32_t load_bias = 0;
     if (ehdr->e_type == ET_DYN) {
@@ -305,12 +403,25 @@ static void elf_thread_entry() {
     char interp_path[64];
     interp_path[0] = '\0';
     for (int i = 0; i < ehdr->e_phnum; i++) {
-        if (phdrs[i].p_type == PT_INTERP && phdrs[i].p_filesz < 64) {
+        if (phdrs[i].p_type == PT_INTERP) {
+            if (phdrs[i].p_filesz == 0 || phdrs[i].p_filesz >= sizeof(interp_path)) {
+                printf("[ELF] Invalid PT_INTERP size\n");
+                kfree(header_buf);
+                return;
+            }
             if (vn->ops && vn->ops->read) {
-                vn->ops->read(vn, phdrs[i].p_offset, (uint8_t*)interp_path, phdrs[i].p_filesz);
+                int interp_read = vn->ops->read(vn, phdrs[i].p_offset, (uint8_t*)interp_path, phdrs[i].p_filesz);
+                if (interp_read != (int)phdrs[i].p_filesz) {
+                    printf("[ELF] Failed to read PT_INTERP\n");
+                    kfree(header_buf);
+                    return;
+                }
                 interp_path[phdrs[i].p_filesz] = '\0';
                 if (phdrs[i].p_filesz > 0 && interp_path[phdrs[i].p_filesz - 1] == '\0') {
                 }
+            } else {
+                kfree(header_buf);
+                return;
             }
             break;
         }
@@ -360,6 +471,12 @@ static void elf_thread_entry() {
 
         Elf32_Ehdr* interp_ehdr = (Elf32_Ehdr*)interp_hdr;
         if (!validate_elf(interp_ehdr)) {
+            kfree(interp_hdr);
+            kfree(header_buf);
+            return;
+        }
+        if (!validate_phdr_bounds(interp_ehdr, (uint32_t)interp_bytes)) {
+            printf("[ELF] Invalid interpreter program headers\n");
             kfree(interp_hdr);
             kfree(header_buf);
             return;

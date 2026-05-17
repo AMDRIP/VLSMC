@@ -4,6 +4,14 @@
 
 #define EI_NIDENT 16
 
+#define EI_CLASS   4
+#define EI_DATA    5
+#define EI_VERSION 6
+
+#define ELFCLASS32  1
+#define ELFDATA2LSB 1
+#define EV_CURRENT  1
+
 #define ELFMAG0    0x7F
 #define ELFMAG1    'E'
 #define ELFMAG2    'L'
