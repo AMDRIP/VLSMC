@@ -143,6 +143,19 @@ void init_idt() {
 
 } 
 
+static int signal_for_user_exception(uint32_t int_no) {
+    switch (int_no) {
+        case 0: return KERNEL_SIGFPE;
+        case 3: return KERNEL_SIGTRAP;
+        case 4: return KERNEL_SIGILL;
+        case 5: return KERNEL_SIGILL;
+        case 6: return KERNEL_SIGILL;
+        case 13: return KERNEL_SIGSEGV;
+        case 14: return KERNEL_SIGSEGV;
+        default: return KERNEL_SIGTERM;
+    }
+}
+
 extern "C" void isr_handler(re36::Registers* regs) {
     if (regs->int_no >= 32 && regs->int_no <= 47) {
 
@@ -189,7 +202,11 @@ extern "C" void isr_handler(re36::Registers* regs) {
                 regs->eip,
                 (regs->err_code & 0x1) ? "Protection" : "Not-Present",
                 (regs->err_code & 0x2) ? "Write" : "Read");
-            re36::TaskScheduler::terminate_current();
+            re36::Signal::send(re36::TaskScheduler::get_current_tid(), KERNEL_SIGSEGV);
+            if (re36::Signal::deliver_pending(regs)) {
+                return;
+            }
+            re36::exit_current_thread_signal(KERNEL_SIGSEGV);
             return;
         }
 
@@ -225,7 +242,11 @@ extern "C" void isr_handler(re36::Registers* regs) {
         printf("\n[ESR] User Thread %d crashed!\n", re36::TaskScheduler::get_current_tid());
         const char* msg = (regs->int_no < 32) ? exception_messages[regs->int_no] : "Unknown";
         printf("[ESR] Exception: %s, EIP: 0x%x, ERR: 0x%x\n", msg, regs->eip, regs->err_code);
-        re36::TaskScheduler::terminate_current();
+        re36::Signal::send(re36::TaskScheduler::get_current_tid(), signal_for_user_exception(regs->int_no));
+        if (re36::Signal::deliver_pending(regs)) {
+            return;
+        }
+        re36::exit_current_thread_signal(signal_for_user_exception(regs->int_no));
         return;
     }
 

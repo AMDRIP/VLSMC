@@ -164,7 +164,10 @@ static int fd_to_slot(int fd) {
     return fd - 3;
 }
 
-static uint32_t make_wait_status(int exit_code) {
+static uint32_t make_wait_status(int exit_code, int exit_signal) {
+    if (exit_signal > 0) {
+        return (uint32_t)(exit_signal & 0x7F);
+    }
     return (uint32_t)((exit_code & 0xFF) << 8);
 }
 
@@ -180,6 +183,12 @@ struct PosixStat {
     uint32_t st_atime;
     uint32_t st_mtime;
     uint32_t st_ctime;
+};
+
+struct UserSigaction {
+    uint32_t handler;
+    uint32_t mask;
+    uint32_t flags;
 };
 
 static constexpr uint32_t POSIX_S_IFREG = 0100000;
@@ -230,9 +239,10 @@ void syscall_gate_init() {
     // DPL=3 позволяет вызов из Ring 3
 }
 
-uint32_t exit_current_thread(int exit_code) {
+static uint32_t finish_current_thread(int exit_code, int exit_signal) {
     Thread& cur = threads[current_tid];
     cur.exit_code = exit_code;
+    cur.exit_signal = exit_signal;
 
     if (cur.page_directory_phys != (uint32_t*)VMM::kernel_directory_phys_ &&
         cur.page_directory_phys != nullptr) {
@@ -253,6 +263,7 @@ uint32_t exit_current_thread(int exit_code) {
 
     if (cur.parent_tid >= 0 && cur.parent_tid < MAX_THREADS &&
         threads[cur.parent_tid].state != ThreadState::Unused) {
+        Signal::notify_parent_of_exit(cur.parent_tid);
 
         {
             InterruptGuard guard;
@@ -282,6 +293,14 @@ uint32_t exit_current_thread(int exit_code) {
 
     TaskScheduler::terminate_current();
     return 0;
+}
+
+uint32_t exit_current_thread(int exit_code) {
+    return finish_current_thread(exit_code, 0);
+}
+
+uint32_t exit_current_thread_signal(int sig) {
+    return finish_current_thread(128 + sig, sig);
 }
 
 static uint32_t sys_exit(SyscallRegs* regs) {
@@ -1222,7 +1241,10 @@ static uint32_t sys_fork(SyscallRegs* regs) {
     child.msg_count = 0;
     child.waiting_for_msg = false;
     child.parent_tid = current_tid;
+    child.process_group_id = parent.process_group_id;
+    child.session_id = parent.session_id;
     child.exit_code = 0;
+    child.exit_signal = 0;
     child.heap_start = parent.heap_start;
     child.heap_end = parent.heap_end;
     child.heap_lock = false;
@@ -1639,7 +1661,10 @@ static uint32_t wait_for_child(int wanted_pid, int* status_ptr, int options) {
                     has_children = true;
                     if (threads[i].state == ThreadState::Zombie) {
                         int child_tid = i;
-                        if (status_ptr) *status_ptr = (int)make_wait_status(threads[i].exit_code);
+                        if (status_ptr) {
+                            *status_ptr = (int)make_wait_status(threads[i].exit_code,
+                                                                threads[i].exit_signal);
+                        }
                         threads[i].state = ThreadState::Unused;
                         thread_count--;
                         return (uint32_t)child_tid;
@@ -1867,15 +1892,101 @@ static uint32_t sys_signal(SyscallRegs* regs) {
 }
 
 static uint32_t sys_kill(SyscallRegs* regs) {
-    int tid = (int)regs->ebx;
+    int pid = (int)regs->ebx;
     int sig = (int)regs->ecx;
-    return Signal::send(tid, sig);
+    return Signal::send_for_kill(pid, sig);
 }
 
 static uint32_t sys_sigreturn(SyscallRegs* regs) {
     (void)regs;
     if (!g_current_isr_regs) return (uint32_t)-1;
     return Signal::sigreturn(g_current_isr_regs);
+}
+
+static uint32_t sys_sigaction(SyscallRegs* regs) {
+    int sig = (int)regs->ebx;
+    const UserSigaction* user_act = (const UserSigaction*)regs->ecx;
+    UserSigaction* user_old = (UserSigaction*)regs->edx;
+    uint32_t trampoline = regs->esi;
+
+    if (sig <= 0 || sig >= MAX_SIGNALS) return (uint32_t)-1;
+
+    KernelSigaction action;
+    KernelSigaction* action_ptr = nullptr;
+    if (user_act) {
+        if (!user_range_ok(user_act, sizeof(UserSigaction))) return (uint32_t)-1;
+        action.handler = user_act->handler;
+        action.mask = user_act->mask;
+        action.flags = user_act->flags;
+        action_ptr = &action;
+    }
+
+    KernelSigaction old_action;
+    KernelSigaction* old_ptr = user_old ? &old_action : nullptr;
+    if (user_old && !user_range_ok(user_old, sizeof(UserSigaction))) return (uint32_t)-1;
+
+    if (action_ptr) {
+        if (Signal::set_action(current_tid, sig, *action_ptr, trampoline, old_ptr) != 0) {
+            return (uint32_t)-1;
+        }
+    } else {
+        KernelSigaction current_action;
+        current_action.handler = threads[current_tid].signal_handlers[sig];
+        current_action.mask = threads[current_tid].signal_masks[sig];
+        current_action.flags = threads[current_tid].signal_flags[sig];
+        old_action = current_action;
+    }
+
+    if (user_old) {
+        user_old->handler = old_action.handler;
+        user_old->mask = old_action.mask;
+        user_old->flags = old_action.flags;
+    }
+
+    return 0;
+}
+
+static uint32_t sys_sigprocmask(SyscallRegs* regs) {
+    int how = (int)regs->ebx;
+    const uint32_t* set_ptr = (const uint32_t*)regs->ecx;
+    uint32_t* old_ptr = (uint32_t*)regs->edx;
+
+    uint32_t set = 0;
+    if (set_ptr) {
+        if (!user_range_ok(set_ptr, sizeof(uint32_t))) return (uint32_t)-1;
+        set = *set_ptr;
+    }
+    if (old_ptr && !user_range_ok(old_ptr, sizeof(uint32_t))) return (uint32_t)-1;
+
+    if (!set_ptr) {
+        if (old_ptr) *old_ptr = threads[current_tid].signal_mask;
+        return 0;
+    }
+
+    uint32_t old = 0;
+    uint32_t result = Signal::set_mask(current_tid, how, set, old_ptr ? &old : nullptr);
+    if (result != 0) return result;
+    if (old_ptr) *old_ptr = old;
+    return 0;
+}
+
+static uint32_t sys_getppid(SyscallRegs* regs) {
+    (void)regs;
+    if (current_tid < 0 || current_tid >= MAX_THREADS) return (uint32_t)-1;
+    int parent = threads[current_tid].parent_tid;
+    return parent >= 0 ? (uint32_t)parent : 0;
+}
+
+static uint32_t sys_getpgrp(SyscallRegs* regs) {
+    (void)regs;
+    if (current_tid < 0 || current_tid >= MAX_THREADS) return (uint32_t)-1;
+    return (uint32_t)threads[current_tid].process_group_id;
+}
+
+static uint32_t sys_setpgid(SyscallRegs* regs) {
+    int pid = (int)regs->ebx;
+    int pgid = (int)regs->ecx;
+    return Signal::set_process_group(pid, pgid) ? 0 : (uint32_t)-1;
 }
 
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
@@ -1943,6 +2054,11 @@ static SyscallHandler syscall_table[] = {
     sys_signal,      // 59
     sys_kill,        // 60
     sys_sigreturn,   // 61
+    sys_sigaction,   // 62
+    sys_sigprocmask, // 63
+    sys_getppid,     // 64
+    sys_getpgrp,     // 65
+    sys_setpgid,     // 66
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

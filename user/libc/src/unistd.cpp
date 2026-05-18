@@ -18,6 +18,9 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
     return (ssize_t)syscall(SYS_READLINK, (long)pathname, (long)buf, bufsiz);
 }
 pid_t getpid(void) { return (pid_t)syscall(SYS_GETPID); }
+pid_t getppid(void) { return (pid_t)syscall(SYS_GETPPID); }
+pid_t getpgrp(void) { return (pid_t)syscall(SYS_GETPGRP); }
+int setpgid(pid_t pid, pid_t pgid) { return (int)syscall(SYS_SETPGID, pid, pgid); }
 pid_t fork(void) { return (pid_t)syscall(SYS_FORK); }
 int execve(const char *pathname, char *const argv[], char *const envp[]) {
     return (int)syscall(SYS_EXEC, (long)pathname, (long)argv, (long)envp);

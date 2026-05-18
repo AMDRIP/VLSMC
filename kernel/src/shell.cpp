@@ -654,8 +654,10 @@ static void exec_command(const char* cmd) {
         while(1) { asm volatile ("hlt"); } // Wait for reset
     } else if (str_starts(cmd, "kill ", 5)) {
         int tid = atoi(str_after(cmd, 5));
-        printf("Killing thread ID %d...\n", tid);
-        re36::thread_terminate(tid);
+        printf("Sending SIGTERM to PID %d...\n", tid);
+        if (Signal::send_for_kill(tid, KERNEL_SIGTERM) != 0) {
+            printf("kill: no such process or group\n");
+        }
     } else if (str_eq(cmd, "killall")) {
         int current = TaskScheduler::get_current_tid();
         printf("Terminating all user/background threads...\n");
@@ -1097,9 +1099,10 @@ static void exec_command(const char* cmd) {
         }
         
         if (tid >= 0) {
-            Signal::set_foreground_tid(tid);
+            threads[tid].process_group_id = tid;
+            Signal::set_foreground_process_group(threads[tid].process_group_id);
             TaskScheduler::join(tid);
-            Signal::set_foreground_tid(-1);
+            Signal::set_foreground_process_group(-1);
         }
     } else if (str_starts(cmd, "cat ", 4)) {
         static uint8_t file_buf[4096];
@@ -1407,9 +1410,10 @@ static void exec_command(const char* cmd) {
                         }
                         
                         if (tid >= 0) {
-                            Signal::set_foreground_tid(tid);
+                            threads[tid].process_group_id = tid;
+                            Signal::set_foreground_process_group(threads[tid].process_group_id);
                             TaskScheduler::join(tid);
-                            Signal::set_foreground_tid(-1);
+                            Signal::set_foreground_process_group(-1);
                         }
                     }
                 }

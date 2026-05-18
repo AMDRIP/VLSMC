@@ -56,6 +56,11 @@ namespace re36 {
 #define SYS_SIGNAL 59
 #define SYS_KILL 60
 #define SYS_SIGRETURN 61
+#define SYS_SIGACTION 62
+#define SYS_SIGPROCMASK 63
+#define SYS_GETPPID 64
+#define SYS_GETPGRP 65
+#define SYS_SETPGID 66
 
 struct SyscallRegs {
     uint32_t eax; // Номер syscall
@@ -70,6 +75,7 @@ void syscall_gate_init();
 
 uint32_t handle_syscall(SyscallRegs* regs);
 uint32_t exit_current_thread(int exit_code);
+uint32_t exit_current_thread_signal(int sig);
 
 } // namespace re36
 

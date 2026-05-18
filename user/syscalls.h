@@ -72,6 +72,11 @@ struct vfs_dir_entry {
 #define SYS_SIGNAL      59
 #define SYS_KILL        60
 #define SYS_SIGRETURN   61
+#define SYS_SIGACTION   62
+#define SYS_SIGPROCMASK 63
+#define SYS_GETPPID     64
+#define SYS_GETPGRP     65
+#define SYS_SETPGID     66
 
 #ifndef VLSMC_NET_SYSCALL_TYPES
 #define VLSMC_NET_SYSCALL_TYPES
@@ -160,6 +165,18 @@ static inline void sys_yield(void) {
 
 static inline uint32_t sys_getpid(void) {
     return syscall0(SYS_GETPID);
+}
+
+static inline uint32_t sys_getppid(void) {
+    return syscall0(SYS_GETPPID);
+}
+
+static inline uint32_t sys_getpgrp(void) {
+    return syscall0(SYS_GETPGRP);
+}
+
+static inline int sys_setpgid(int pid, int pgid) {
+    return (int)syscall2(SYS_SETPGID, (uint32_t)pid, (uint32_t)pgid);
 }
 
 static inline uint32_t sys_time(void) {

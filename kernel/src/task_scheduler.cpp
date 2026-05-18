@@ -204,6 +204,10 @@ void TaskScheduler::join(int tid) {
         }
         if (finished) {
             printf("[JOIN] Unblocking from %d because state=%d\n", tid, exit_state);
+            if (threads[tid].state == ThreadState::Zombie &&
+                threads[tid].parent_tid == current_tid) {
+                thread_cleanup(tid);
+            }
             break;
         }
         
@@ -218,14 +222,16 @@ void TaskScheduler::print_threads() {
         "Unused", "Ready", "Running", "Blocked", "Sleeping", "Dead", "Zombie"
     };
     
-    printf("\n TID | Name              | State    | Pri | Ticks\n");
-    printf("-----+-------------------+----------+-----+------\n");
+    printf("\n PID | PPID | PGID | Name              | State    | Pri | Ticks\n");
+    printf("-----+------+------+-------------------+----------+-----+------\n");
     
     for (int i = 0; i < MAX_THREADS; i++) {
         if (threads[i].state == ThreadState::Unused) continue;
         
-        printf(" %d   | %s\t\t| %s\t| %d\t| %d\n",
+        printf(" %d   | %d    | %d    | %s\t\t| %s\t| %d\t| %d\n",
             threads[i].tid,
+            threads[i].parent_tid,
+            threads[i].process_group_id,
             threads[i].name,
             state_names[(int)threads[i].state],
             threads[i].priority,

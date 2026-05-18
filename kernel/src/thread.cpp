@@ -47,6 +47,11 @@ void thread_init() {
         threads[i].name[0] = '\0';
         threads[i].page_directory_phys = (uint32_t*)0; // Инициализируется ниже
         threads[i].vma_list = nullptr;
+        threads[i].parent_tid = -1;
+        threads[i].process_group_id = i;
+        threads[i].session_id = 0;
+        threads[i].exit_code = 0;
+        threads[i].exit_signal = 0;
         for (int f = 0; f < MAX_OPEN_FILES; f++) threads[i].fd_table[f] = nullptr;
         threads[i].is_driver = false;
         threads[i].num_mmio_grants = 0;
@@ -65,6 +70,11 @@ void thread_init() {
     threads[0].msg_head = 0;
     threads[0].msg_tail = 0;
     threads[0].waiting_for_msg = false;
+    threads[0].parent_tid = -1;
+    threads[0].process_group_id = 0;
+    threads[0].session_id = 0;
+    threads[0].exit_code = 0;
+    threads[0].exit_signal = 0;
     // System boot thread is a driver root
     threads[0].is_driver = true;
     threads[0].num_mmio_grants = 0;
@@ -108,8 +118,11 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.msg_count = 0;
     t.waiting_for_msg = false;
     t.vma_list = nullptr;
-    t.parent_tid = -1;
+    t.parent_tid = current_tid;
+    t.process_group_id = tid;
+    t.session_id = (current_tid >= 0 && current_tid < MAX_THREADS) ? threads[current_tid].session_id : tid;
     t.exit_code = 0;
+    t.exit_signal = 0;
     t.is_driver = false;
     t.num_mmio_grants = 0;
     t.num_port_grants = 0;
@@ -153,6 +166,12 @@ void thread_cleanup(int tid) {
         curr = next;
     }
     threads[tid].vma_list = nullptr;
+    threads[tid].parent_tid = -1;
+    threads[tid].process_group_id = tid;
+    threads[tid].session_id = 0;
+    threads[tid].exit_code = 0;
+    threads[tid].exit_signal = 0;
+    Signal::init_thread(threads[tid]);
     
     for (int f = 0; f < MAX_OPEN_FILES; f++) {
         if (threads[tid].fd_table[f]) {

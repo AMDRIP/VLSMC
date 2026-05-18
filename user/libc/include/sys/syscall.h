@@ -63,6 +63,11 @@
 #define SYS_SIGNAL      59
 #define SYS_KILL        60
 #define SYS_SIGRETURN   61
+#define SYS_SIGACTION   62
+#define SYS_SIGPROCMASK 63
+#define SYS_GETPPID     64
+#define SYS_GETPGRP     65
+#define SYS_SETPGID     66
 
 #ifndef VLSMC_NET_SYSCALL_TYPES
 #define VLSMC_NET_SYSCALL_TYPES

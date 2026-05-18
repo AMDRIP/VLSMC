@@ -142,15 +142,22 @@ struct Thread {
     bool waiting_for_msg;
 
     int parent_tid;
+    int process_group_id;
+    int session_id;
     int exit_code;
+    int exit_signal;
 
     file* fd_table[MAX_OPEN_FILES]; // VFS file descriptors for this thread
 
     ForkChildState fork_state;
 
     uint32_t signal_handlers[MAX_SIGNALS];
+    uint32_t signal_masks[MAX_SIGNALS];
+    uint32_t signal_flags[MAX_SIGNALS];
     uint32_t signal_trampoline;
     uint32_t pending_signals;
+    uint32_t signal_mask;
+    uint32_t saved_signal_mask;
     bool signal_active;
     uint32_t active_signal;
     SignalSavedContext signal_saved_context;
