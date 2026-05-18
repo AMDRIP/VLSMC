@@ -12,6 +12,7 @@
 #include "kernel/vga.h"
 #include "kernel/event_channel.h"
 #include "kernel/e1000.h"
+#include "kernel/signal.h"
 #include "libc.h"
 
 namespace re36 {
@@ -149,6 +150,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
 
             re36::Timer::tick();
             re36::pic_send_eoi(0);
+            re36::Signal::deliver_pending(regs);
             re36::TaskScheduler::schedule();
             return;
         }
@@ -167,6 +169,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
         re36::EventSystem::push(regs->int_no - 32, 1);
 
         re36::pic_send_eoi(regs->int_no - 32);
+        re36::Signal::deliver_pending(regs);
 
         return;
     }
@@ -203,6 +206,7 @@ extern "C" void isr_handler(re36::Registers* regs) {
         re36::g_current_isr_regs = regs;
         regs->eax = re36::handle_syscall(&sregs);
         re36::g_current_isr_regs = nullptr;
+        re36::Signal::deliver_pending(regs);
         return;
     }
 

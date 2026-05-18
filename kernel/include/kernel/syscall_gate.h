@@ -53,6 +53,9 @@ namespace re36 {
 #define SYS_NET_SEND_UDP 56
 #define SYS_NET_RECV_UDP 57
 #define SYS_MPROTECT 58
+#define SYS_SIGNAL 59
+#define SYS_KILL 60
+#define SYS_SIGRETURN 61
 
 struct SyscallRegs {
     uint32_t eax; // Номер syscall
@@ -66,6 +69,7 @@ struct SyscallRegs {
 void syscall_gate_init();
 
 uint32_t handle_syscall(SyscallRegs* regs);
+uint32_t exit_current_thread(int exit_code);
 
 } // namespace re36
 

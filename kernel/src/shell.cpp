@@ -25,6 +25,7 @@
 #include "kernel/fat16.h"
 #include "kernel/net.h"
 #include "kernel/e1000.h"
+#include "kernel/signal.h"
 #include "libc.h"
 
 namespace re36 {
@@ -1096,7 +1097,9 @@ static void exec_command(const char* cmd) {
         }
         
         if (tid >= 0) {
+            Signal::set_foreground_tid(tid);
             TaskScheduler::join(tid);
+            Signal::set_foreground_tid(-1);
         }
     } else if (str_starts(cmd, "cat ", 4)) {
         static uint8_t file_buf[4096];
@@ -1404,7 +1407,9 @@ static void exec_command(const char* cmd) {
                         }
                         
                         if (tid >= 0) {
+                            Signal::set_foreground_tid(tid);
                             TaskScheduler::join(tid);
+                            Signal::set_foreground_tid(-1);
                         }
                     }
                 }

@@ -69,6 +69,9 @@ struct vfs_dir_entry {
 #define SYS_NET_SEND_UDP 56
 #define SYS_NET_RECV_UDP 57
 #define SYS_MPROTECT    58
+#define SYS_SIGNAL      59
+#define SYS_KILL        60
+#define SYS_SIGRETURN   61
 
 #ifndef VLSMC_NET_SYSCALL_TYPES
 #define VLSMC_NET_SYSCALL_TYPES
@@ -323,4 +326,8 @@ static inline int sys_net_recv_udp(uint16_t local_port, uint32_t* src_ip, uint16
 
 static inline int sys_mprotect(void* addr, uint32_t length, int prot) {
     return (int)syscall3(SYS_MPROTECT, (uint32_t)addr, length, (uint32_t)prot);
+}
+
+static inline int sys_kill(int tid, int sig) {
+    return (int)syscall2(SYS_KILL, (uint32_t)tid, (uint32_t)sig);
 }

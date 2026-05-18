@@ -4,6 +4,7 @@
 #include "kernel/vmm.h"
 #include "kernel/task_scheduler.h"
 #include "kernel/kmalloc.h"
+#include "kernel/signal.h"
 #include "libc.h"
 
 namespace re36 {
@@ -51,6 +52,7 @@ void thread_init() {
         threads[i].num_mmio_grants = 0;
         threads[i].num_port_grants = 0;
         threads[i].num_irq_grants = 0;
+        Signal::init_thread(threads[i]);
     }
 
     threads[0].state = ThreadState::Running;
@@ -66,6 +68,7 @@ void thread_init() {
     // System boot thread is a driver root
     threads[0].is_driver = true;
     threads[0].num_mmio_grants = 0;
+    Signal::init_thread(threads[0]);
     
     current_tid = 0;
     thread_count = 1;
@@ -111,6 +114,7 @@ int thread_create(const char* name, ThreadEntry entry, uint8_t priority) {
     t.num_mmio_grants = 0;
     t.num_port_grants = 0;
     t.num_irq_grants = 0;
+    Signal::init_thread(t);
     for (int f = 0; f < MAX_OPEN_FILES; f++) t.fd_table[f] = nullptr;
 
     uint32_t* stack_top = (uint32_t*)(t.stack_base + THREAD_STACK_SIZE);

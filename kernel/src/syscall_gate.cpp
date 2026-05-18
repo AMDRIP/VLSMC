@@ -18,6 +18,7 @@
 #include "kernel/vga.h"
 #include "kernel/rtc.h"
 #include "kernel/net.h"
+#include "kernel/signal.h"
 #include "libc.h"
 
 namespace re36 {
@@ -229,8 +230,7 @@ void syscall_gate_init() {
     // DPL=3 позволяет вызов из Ring 3
 }
 
-static uint32_t sys_exit(SyscallRegs* regs) {
-    int exit_code = (int)regs->ebx;
+uint32_t exit_current_thread(int exit_code) {
     Thread& cur = threads[current_tid];
     cur.exit_code = exit_code;
 
@@ -282,6 +282,10 @@ static uint32_t sys_exit(SyscallRegs* regs) {
 
     TaskScheduler::terminate_current();
     return 0;
+}
+
+static uint32_t sys_exit(SyscallRegs* regs) {
+    return exit_current_thread((int)regs->ebx);
 }
 
 static uint32_t sys_print(SyscallRegs* regs) {
@@ -1223,6 +1227,7 @@ static uint32_t sys_fork(SyscallRegs* regs) {
     child.heap_end = parent.heap_end;
     child.heap_lock = false;
     child.is_driver = parent.is_driver;
+    Signal::copy_for_fork(child, parent);
     
     child.num_mmio_grants = parent.num_mmio_grants;
     for (int k = 0; k < parent.num_mmio_grants; k++) child.allowed_mmio[k] = parent.allowed_mmio[k];
@@ -1525,6 +1530,7 @@ static uint32_t sys_exec(SyscallRegs* regs) {
     cur.heap_start = heap_base;
     cur.heap_end = heap_base;
     cur.heap_lock = false;
+    Signal::reset_for_exec(cur);
 
     for (uint32_t p = 0; p < USER_STACK_PAGES; p++) {
         void* frame = PhysicalMemoryManager::alloc_user_frame();
@@ -1853,6 +1859,25 @@ static uint32_t sys_net_recv_udp(SyscallRegs* regs) {
     return (uint32_t)got;
 }
 
+static uint32_t sys_signal(SyscallRegs* regs) {
+    int sig = (int)regs->ebx;
+    uint32_t handler = regs->ecx;
+    uint32_t trampoline = regs->edx;
+    return Signal::set_handler(current_tid, sig, handler, trampoline);
+}
+
+static uint32_t sys_kill(SyscallRegs* regs) {
+    int tid = (int)regs->ebx;
+    int sig = (int)regs->ecx;
+    return Signal::send(tid, sig);
+}
+
+static uint32_t sys_sigreturn(SyscallRegs* regs) {
+    (void)regs;
+    if (!g_current_isr_regs) return (uint32_t)-1;
+    return Signal::sigreturn(g_current_isr_regs);
+}
+
 typedef uint32_t (*SyscallHandler)(SyscallRegs*);
 
 static SyscallHandler syscall_table[] = {
@@ -1915,6 +1940,9 @@ static SyscallHandler syscall_table[] = {
     sys_net_send_udp,// 56
     sys_net_recv_udp,// 57
     sys_mprotect,    // 58
+    sys_signal,      // 59
+    sys_kill,        // 60
+    sys_sigreturn,   // 61
 };
 
 #define SYSCALL_COUNT (sizeof(syscall_table) / sizeof(syscall_table[0]))

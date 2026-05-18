@@ -60,6 +60,9 @@
 #define SYS_NET_SEND_UDP 56
 #define SYS_NET_RECV_UDP 57
 #define SYS_MPROTECT    58
+#define SYS_SIGNAL      59
+#define SYS_KILL        60
+#define SYS_SIGRETURN   61
 
 #ifndef VLSMC_NET_SYSCALL_TYPES
 #define VLSMC_NET_SYSCALL_TYPES

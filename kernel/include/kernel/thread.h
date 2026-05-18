@@ -18,8 +18,28 @@ struct ForkChildState {
     uint32_t ebp;
 };
 
+struct SignalSavedContext {
+    uint32_t ds;
+    uint32_t edi;
+    uint32_t esi;
+    uint32_t ebp;
+    uint32_t esp;
+    uint32_t ebx;
+    uint32_t edx;
+    uint32_t ecx;
+    uint32_t eax;
+    uint32_t int_no;
+    uint32_t err_code;
+    uint32_t eip;
+    uint32_t cs;
+    uint32_t eflags;
+    uint32_t useresp;
+    uint32_t ss;
+};
+
 #define MAX_THREADS 32
 #define THREAD_STACK_SIZE 16384
+#define MAX_SIGNALS 32
 
 #define IPC_MAX_MSG_SIZE 512
 #define IPC_MSG_QUEUE_SIZE 4
@@ -127,6 +147,13 @@ struct Thread {
     file* fd_table[MAX_OPEN_FILES]; // VFS file descriptors for this thread
 
     ForkChildState fork_state;
+
+    uint32_t signal_handlers[MAX_SIGNALS];
+    uint32_t signal_trampoline;
+    uint32_t pending_signals;
+    bool signal_active;
+    uint32_t active_signal;
+    SignalSavedContext signal_saved_context;
 };
 
 extern Thread threads[MAX_THREADS];

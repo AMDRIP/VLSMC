@@ -1,6 +1,7 @@
 #include "kernel/keyboard.h"
 #include "kernel/pic.h" // Для inb
 #include "kernel/event_channel.h"
+#include "kernel/signal.h"
 #include "libc.h"       // Для printf/putchar
 
 namespace re36 {
@@ -195,7 +196,10 @@ void KeyboardDriver::process_scancode(uint8_t scancode) {
 
         if (ascii != 0) {
             if (ctrl_pressed_ && is_letter) {
-                ascii = ascii - 'a' + 1;
+                ascii = base_char - 'a' + 1;
+                if (ascii == 3) {
+                    Signal::send_sigint_from_keyboard();
+                }
             }
 
             int next_head = (buffer_head_ + 1) % 256;

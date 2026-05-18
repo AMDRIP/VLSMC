@@ -22,12 +22,13 @@
 #define SIG_ERR ((void (*)(int))-1)
 
 typedef int sig_atomic_t;
+typedef void (*sighandler_t)(int);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void (*signal(int sig, void (*func)(int)))(int);
+sighandler_t signal(int sig, sighandler_t func);
 int raise(int sig);
 int kill(int pid, int sig);
 
