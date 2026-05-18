@@ -229,8 +229,13 @@ void restore_shell(VesaDriver& drv, DriverContext& ctx, const uint32_t* shell_sn
 }
 
 void draw_glyph_at(uint32_t* fb, int px, int py, char ch, uint32_t fg, uint32_t bg) {
-    uint8_t idx = (uint8_t)ch;
-    if (idx >= 128) idx = '?';
+    uint8_t raw = (uint8_t)ch;
+    uint8_t idx = 0;
+    if (raw >= 32 && raw < 128) {
+        idx = raw - 32;
+    } else if (raw >= 128) {
+        idx = '?' - 32;
+    }
     const uint8_t* g = FONT8X8[idx];
 
     for (int y = 0; y < 8; y++) {
@@ -240,7 +245,7 @@ void draw_glyph_at(uint32_t* fb, int px, int py, char ch, uint32_t fg, uint32_t 
         for (int x = 0; x < 8; x++) {
             int sx = px + x;
             if (sx < 0 || sx >= screen_w) continue;
-            bool on = (bits & (0x80u >> x)) != 0;
+            bool on = (bits & (1u << x)) != 0;
             fb[sy * screen_w + sx] = on ? fg : bg;
         }
     }
